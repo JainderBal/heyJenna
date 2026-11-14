@@ -54,8 +54,11 @@ def render(layout, workdir, blender, samples, pct):
     t = time.time()
     p = subprocess.run([blender, "-b", "-P", SCRIPT, "--", src, png, glb], env=env, capture_output=True, text=True, timeout=20 * 60)
     log = (p.stdout + p.stderr)[-4000:]
-    if p.returncode != 0 or not os.path.exists(png):
+    if not os.path.exists(png):
         raise RuntimeError(f"Blender exited {p.returncode}\n{log}")
+    if p.returncode != 0:
+        print(f"  Blender exited {p.returncode} after saving the picture (3D model export failed); sending the picture only")
+        if os.path.exists(glb): os.remove(glb)
     print(f"  rendered in {time.time() - t:.0f}s")
     return png, (glb if os.path.exists(glb) else None)
 

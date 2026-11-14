@@ -75,6 +75,13 @@ export function parseFlatSize(text: string, type: 'rug' | 'art'): Size | null {
   return type === 'rug' ? { w: r(w), d: r(d), h: 0.02 } : { w: r(d), d: 0.03, h: r(w) };
 }
 
+/** Is this a believable size for this kind of furniture? (Each side within ⅓× … 3× of typical.) */
+export function plausibleSize(type: FurnitureType, s: Size): boolean {
+  const t = TYPICAL[type];
+  const ok = (v: number, ref: number) => v >= ref / 3 && v <= ref * 3;
+  return ok(s.w, t.w) && ok(s.d, t.d) && (type === 'rug' || type === 'art' || ok(s.h, t.h));
+}
+
 export function sizeFor(text: string, type: FurnitureType): { size: Size; estimated: boolean } {
   const found = type === 'rug' || type === 'art' ? parseFlatSize(text, type) ?? parseSize(text, type) : parseSize(text, type);
   return found ? { size: found, estimated: false } : { size: TYPICAL[type], estimated: true };

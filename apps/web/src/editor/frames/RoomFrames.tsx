@@ -217,11 +217,6 @@ export function Room3DFrame({ room, layout, palette }: { room: Room; layout: Lay
             </button>
           </>
         )}
-        {img && (
-          <button type="button" title="Open the rendered photo full size" onPointerDown={stop} onClick={() => window.open(img, '_blank', 'noopener')}>
-            Photo
-          </button>
-        )}
         <button type="button" disabled={!layout || working} title={layout ? 'Render the room in Blender' : 'Lay out the room first'} onPointerDown={stop} onClick={render}>
           {working ? (status === 'running' ? 'Rendering…' : 'Queued…') : status === 'failed' ? 'Render again' : shown || img ? 'Re-render' : 'Render'}
         </button>

@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
-import { FloorPlan, ListingSource, Size } from '@hey-jenna/contracts';
+import { FloorPlan, ListingSource, Size, openWalls as planOpenWalls } from '@hey-jenna/contracts';
 import { Layout, Listing } from '@prisma/client';
 import { RoomEventsService } from '../../common/events/events.service';
 import { RoomsService } from '../rooms/rooms.service';
@@ -16,6 +16,7 @@ import { Wall } from '@hey-jenna/contracts';
 import { EngineFailedError } from './engine/python-layout.engine';
 import { LAYOUT_ENGINE, LayoutEngine } from './engine/layout-engine';
 import { solveBestVariant } from './engine/variants';
+import { asIfClosed, takeDownOpenWallPieces } from './engine/open-plan';
 import { buildEngineSpec, ListingIndex } from './engine/spec-builder';
 import { LayoutsRepository } from './layouts.repository';
 import { LayoutData, PlacedObject, PlacedProduct } from './layout.types';
@@ -37,23 +38,38 @@ export class LayoutService {
   ) {}
 
   async generate(roomId: string, ownerId: string): Promise<LayoutResponseDto> {
-    const room = await this.rooms.getOwnedRoom(roomId, ownerId);
+    const room = await this.rooms.getFurnishableRoom(roomId, ownerId);
     const plan = room.floorPlan as unknown as FloorPlan;
     const style = await this.style.getProfile(roomId);
     const chosen = await this.sourcing.chooseForRoom(room);
-    const { spec, index } = buildEngineSpec(room.name, plan, room.needs, style, chosen);
+    let { spec, index } = buildEngineSpec(room.name, plan, room.needs, style, chosen);
 
     let solved;
+    let openPlan: { removed: string[] } | undefined;
     try {
       solved = await solveBestVariant(this.engine, spec);
     } catch (e) {
-      if (e instanceof EngineFailedError) throw new UnprocessableEntityException(`Couldn't lay out this room: ${e.message}`);
-      throw e;
+      if (!(e instanceof EngineFailedError)) throw e;
+      if (!planOpenWalls(plan).length) throw new UnprocessableEntityException(`Couldn't lay out this room: ${e.message}`);
+      // a small open-plan room: lay it out as if the open sides were walls, then take down what would hang on them
+      ({ spec, index } = buildEngineSpec(room.name, asIfClosed(plan), room.needs, style, chosen));
+      try {
+        solved = await solveBestVariant(this.engine, spec);
+      } catch (e2) {
+        if (e2 instanceof EngineFailedError) throw new UnprocessableEntityException(`Couldn't lay out this room: ${e2.message}`);
+        throw e2;
+      }
+      const taken = takeDownOpenWallPieces(solved.result, plan);
+      solved = { ...solved, result: taken.result };
+      openPlan = { removed: taken.removed };
     }
     const suggestedIds = new Set(spec.furniture.filter((f) => f.suggested).map((f) => f.id));
     const specIds = new Set(spec.furniture.map((f) => f.id));
     const objects = solved.result.objects.map((o) => attach(o as PlacedObject, index, suggestedIds, specIds));
-    const data: LayoutData = { ...solved.result, objects, dropped: solved.dropped, edits: 0, variant: solved.variant, variantsTried: solved.tried };
+    const data: LayoutData = {
+      ...solved.result, objects, dropped: solved.dropped, edits: 0, variant: solved.variant, variantsTried: solved.tried,
+      ...(openPlan ? { openPlan: { laidOutAsClosed: planOpenWalls(plan), removed: openPlan.removed } } : {}),
+    };
     const saved = await this.repo.create(roomId, data);
     this.events.publish(roomId, 'layout.generated', { layoutId: saved.id, summary: saved.summary });
     return toLayoutResponse(saved);
@@ -157,6 +173,7 @@ export class LayoutService {
     const openWalls = ((data.room as { open_walls_in_render?: Wall[] } | undefined)?.open_walls_in_render ?? ['front', 'right']) as Wall[];
     const visible = (['back', 'left', 'right', 'front'] as Wall[]).filter((w) => !openWalls.includes(w));
 
+    if (dto.wall && planOpenWalls(plan).includes(dto.wall)) throw new ConflictException(`The ${dto.wall} wall is open to the next room: nothing to hang on`);
     let wall = dto.wall, u = dto.position, z = dto.height;
     if (wall === undefined || u === undefined) {
       const spot = findWallSpot(plan, data, size, wall ? [wall] : visible);

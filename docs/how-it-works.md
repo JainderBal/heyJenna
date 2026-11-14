@@ -23,9 +23,14 @@ rendered 3D room, and where Blender and the desktop app fit.
 ## A room, start to finish
 
 1. **Project and rooms.** Press **+** on the home screen. On the Floor plan page, upload a plan photo
-   (Claude finds and measures every room), draw rooms, or use the sample plan. Each room gets its own
-   page with layers: Moodboard, Palette, 3D room, Shopping list. The Floor plan page shows the plan, an
-   isometric 3D floor plan and the rooms found.
+   (Claude finds every room and space; the API turns the printed sizes into metres itself, fits doors and
+   windows onto the walls, and marks open-plan sides as open walls), draw rooms, or use the sample plan.
+   Each room the engine can furnish (living rooms and offices for now) gets its own page with layers:
+   Moodboard, Palette, 3D room, Shopping list. Bedrooms, closets, laundry, balconies and the like stay
+   on the plan only. The Floor plan page shows the plan, an isometric 3D floor plan and the rooms found.
+   An open wall has no wall in the 3D views; the layout engine keeps a 1 m way through it clear, and if
+   a small open-plan room still won't fit, lays it out as if that side were a wall and takes down
+   anything that would hang on it.
 2. **Moodboard.** Upload images, or bring pins from Pinterest: drag them onto the moodboard, paste them
    (⌘V), or in the desktop app use the Pinterest tab's **+ Add to moodboard**. The API reads the
    palette, the style and 55 style dials from the images.

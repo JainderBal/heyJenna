@@ -288,6 +288,16 @@ export interface PlanShotRoom {
   w: number;
   d: number;
   kind: string;
+  /** Walls left out because the room opens onto its neighbour. */
+  open?: string[];
+}
+
+const SHOT_KINDS: Record<string, string> = { bedroom: 'bed', kitchen: 'kitchen', dining: 'dining', bathroom: 'bath', office: 'desk', living: 'sofa' };
+
+/** The furniture set for a room: none for plan-only rooms, else from its kind, else guessed from its name. */
+export function shotKind(room: { name: string; kind?: string | null; furnish?: boolean }): string {
+  if (room.furnish === false) return 'empty';
+  return (room.kind && SHOT_KINDS[room.kind]) || roomKind(room.name);
 }
 
 /** The furniture set for a room, from its name (the prototype's PLANS kinds). */
@@ -308,7 +318,7 @@ export function roomKind(name: string): string {
  */
 export function planShot(R: PlanShotRoom[], palette: string[], W: number, H: number): HTMLCanvasElement {
   const P = pal6(palette);
-  const key = ['plan', P.join(''), R.map((r) => [r.name, r.x, r.z, r.w, r.d].join(':')).join(','), W, H].join('|');
+  const key = ['plan', P.join(''), R.map((r) => [r.name, r.x, r.z, r.w, r.d, r.kind, (r.open ?? []).join('+')].join(':')).join(','), W, H].join('|');
   const hit = SHOTS.get(key);
   if (hit) return hit;
   const r = shotRenderer(W, H);
@@ -328,7 +338,7 @@ export function planShot(R: PlanShotRoom[], palette: string[], W: number, H: num
   const wallM = mat('#FBF8F3');
   const WH = 1.15;
   const TH = 0.1;
-  R.forEach(({ x, z, w, d, kind }, i) => {
+  R.forEach(({ x, z, w, d, kind, open = [] }, i) => {
     const fl = new THREE.Mesh(new THREE.BoxGeometry(w, 0.06, d), mat(lc(P[i % 6]).lerp(lc('#fff'), 0.35)));
     fl.position.set(x + w / 2, -0.03, z + d / 2);
     fl.receiveShadow = true;
@@ -340,12 +350,14 @@ export function planShot(R: PlanShotRoom[], palette: string[], W: number, H: num
       g.add(m);
     };
     const door = Math.min(0.9, w * 0.5);
-    add(x + w / 2, z, w, TH);
-    add(x, z + d / 2, TH, d);
-    add(x + w - (w - door) / 4, z + d, (w - door) / 2, TH);
-    add(x + (w - door) / 4, z + d, (w - door) / 2, TH);
-    add(x + w, z + d / 2, TH, d);
-    if (w >= 2.4 && d >= 2.4) furnish(g, kind, x, z, w, d, P, mat);
+    if (!open.includes('back')) add(x + w / 2, z, w, TH);
+    if (!open.includes('left')) add(x, z + d / 2, TH, d);
+    if (!open.includes('front')) {
+      add(x + w - (w - door) / 4, z + d, (w - door) / 2, TH);
+      add(x + (w - door) / 4, z + d, (w - door) / 2, TH);
+    }
+    if (!open.includes('right')) add(x + w, z + d / 2, TH, d);
+    if (kind !== 'empty' && w >= 2.4 && d >= 2.4) furnish(g, kind, x, z, w, d, P, mat);
   });
   scene.add(new THREE.HemisphereLight(lc(0xffffff), lc(0xbfb4a8), 0.75 * LI));
   const sun = new THREE.DirectionalLight(lc(0xfff0dc), 0.85 * LI);

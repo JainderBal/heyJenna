@@ -18,6 +18,8 @@ export const DEMO_ROOM: Room = {
   name: 'Living room',
   floorPlan: plan,
   needs: [],
+  kind: 'living',
+  furnish: true,
   planPosition: null,
   projectId: null,
   areaM2: 4.4 * 3.8,

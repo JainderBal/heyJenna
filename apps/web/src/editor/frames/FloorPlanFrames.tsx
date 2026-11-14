@@ -6,19 +6,22 @@
  *    ANTHROPIC_API_KEY on the API, or no rooms found) → "Draw rooms" by hand, or the sample plan.
  *  - plan3d: the whole plan as an isometric clay model (the prototype's planShot).
  *  - found: one row per room → its page, and "+ Add rooms".
+ * Plan-only rooms (closets, laundry, balcony: furnish = false) are drawn on the plan but get no page.
  */
 import { useMemo, useRef, useState } from 'react';
-import type { PlanPosition } from '@hey-jenna/contracts';
-import type { BulkRoomInput } from '@hey-jenna/contracts';
+import type { BulkRoomInput, FloorPlan, PlanPosition } from '@hey-jenna/contracts';
 import { useBulkCreateRooms, usePlanPositionSaver, useReadFloorPlan } from '../../api/hooks';
 import { errorText, isApiError } from '../../api/client';
-import type { DetectedRoom, Room } from '../../api/types';
+import { canFurnish, type DetectedRoom, type Room } from '../../api/types';
 import { toast, useEditorStore } from '../../app/useEditorStore';
 import { PlanDrop } from '../icons';
 import { PLANS, floorPlanOf, placeRooms, sampleRooms, snapPlan, type PlacedRoom } from '../plans';
 import { useMoveLegacyPlanSpots } from '../useLegacyPlanSpots';
 import { shade } from '../colour';
-import { planShot, roomKind } from '../../viewer/three-kit';
+import { planShot, shotKind } from '../../viewer/three-kit';
+
+/** Walls that open onto the next room (open-plan). */
+const openOf = (plan: FloorPlan) => Object.entries(plan.walls ?? {}).filter(([, f]) => f?.open).map(([w]) => w);
 
 type Mode =
   | { kind: 'idle' }
@@ -97,12 +100,26 @@ function RoomsIntake({ projectId, empty, onClose }: { projectId: string; empty: 
     return (
       <div className="addf">
         <h3>{mode.rooms.length} rooms found</h3>
+        <p>Untick a room to keep it on the plan without furnishing it. jenna furnishes living rooms and offices for now.</p>
         <ul>
           {mode.rooms.map((r, i) => (
-            <li key={i}>
-              <span>{r.name}</span>
+            <li key={i} className={r.furnish ? undefined : 'planonly'}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={r.furnish}
+                  disabled={busy || !canFurnish(r.kind)}
+                  title={canFurnish(r.kind) ? undefined : `jenna can't furnish ${r.kind} rooms yet`}
+                  onChange={(e) =>
+                    setMode({ ...mode, rooms: mode.rooms.map((x, j) => (j === i ? { ...x, furnish: e.target.checked } : x)) })
+                  }
+                />
+                <span>{r.name}</span>
+              </label>
               <small>
-                {r.floorPlan.width} × {r.floorPlan.depth} m{r.confidence < 0.6 ? ' · unsure' : ''}
+                {r.kind}
+                {canFurnish(r.kind) ? '' : ' (not yet)'} · {r.floorPlan.width} × {r.floorPlan.depth} m{openOf(r.floorPlan).length ? ' · open-plan' : ''}
+                {r.confidence < 0.6 ? ' · unsure' : ''}
               </small>
             </li>
           ))}
@@ -118,7 +135,11 @@ function RoomsIntake({ projectId, empty, onClose }: { projectId: string; empty: 
             type="button"
             disabled={busy}
             onClick={() =>
-              create(mode.rooms.map((r) => ({ name: r.name, floorPlan: r.floorPlan, needs: [], planPosition: { x: r.position.x, y: r.position.y } })))
+              create(
+                mode.rooms.map((r) => ({
+                  name: r.name, floorPlan: r.floorPlan, needs: [], planPosition: { x: r.position.x, y: r.position.y }, kind: r.kind, furnish: r.furnish,
+                })),
+              )
             }
           >
             {bulk.isPending ? 'Creating…' : 'Create these rooms'}
@@ -353,10 +374,18 @@ function PlanDrawing({ projectId, rooms, palette, upload }: { projectId: string;
               style={{ cursor: dragging ? 'grabbing' : 'grab' }}
               opacity={dragging ? 0.85 : 1}
               onPointerDown={(e) => down(e, p)}
-              onDoubleClick={() => goPage(p.room.id)}
+              onDoubleClick={() => p.room.furnish && goPage(p.room.id)}
             >
-              <title>{`${p.room.name}: drag to move, double-click to open`}</title>
-              <rect x={x} y={y} width={w} height={h} fill={shade(palette[i % palette.length], 0.6)} stroke={dragging ? 'var(--select)' : '#1E1E1E'} strokeWidth="3.5" />
+              <title>{p.room.furnish ? `${p.room.name}: drag to move, double-click to open` : `${p.room.name} (plan only): drag to move`}</title>
+              <rect
+                x={x}
+                y={y}
+                width={w}
+                height={h}
+                fill={p.room.furnish ? shade(palette[i % palette.length], 0.6) : '#F1EFEC'}
+                stroke={dragging ? 'var(--select)' : '#1E1E1E'}
+                strokeWidth={p.room.furnish ? 3.5 : 1.5}
+              />
               <text x={x + w / 2} y={y + h / 2 - 2} textAnchor="middle" fontFamily="Inter,sans-serif" fontWeight="600" fontSize={w < 80 ? 10 : 13} fill="#1E1E1E" pointerEvents="none">
                 {p.room.name}
               </text>
@@ -380,12 +409,12 @@ function PlanDrawing({ projectId, rooms, palette, upload }: { projectId: string;
 export function Plan3DFrame({ projectId, rooms, palette }: { projectId: string; rooms: Room[]; palette: string[] }) {
   useMoveLegacyPlanSpots(projectId, rooms);
   const R = placeRooms(projectId, rooms);
-  const key = JSON.stringify([R.map((p) => [p.room.name, p.x, p.z, p.w, p.d]), palette]);
+  const key = JSON.stringify([R.map((p) => [p.room.name, p.x, p.z, p.w, p.d, shotKind(p.room), openOf(p.room.floorPlan)]), palette]);
   const src = useMemo(() => {
     if (!R.length) return '';
     try {
       // 2× the frame for a crisp image, as the prototype's 1040 × 840
-      return planShot(R.map((p) => ({ name: p.room.name, x: p.x, z: p.z, w: p.w, d: p.d, kind: roomKind(p.room.name) })), palette, 1040, 840).toDataURL('image/jpeg', 0.9);
+      return planShot(R.map((p) => ({ name: p.room.name, x: p.x, z: p.z, w: p.w, d: p.d, kind: shotKind(p.room), open: openOf(p.room.floorPlan) })), palette, 1040, 840).toDataURL('image/jpeg', 0.9);
     } catch {
       return ''; // no WebGL
     }
@@ -413,14 +442,23 @@ export function FoundFrame({ projectId, rooms, palette }: { projectId: string; r
           + Add rooms
         </button>
       </div>
-      {rooms.map((r, i) => (
-        <button key={r.id} className="frow" type="button" onClick={() => goPage(r.id)}>
-          <span className="sw" style={{ background: palette[i % palette.length] }} />
-          <span>{r.name}</span>
-          <small>{r.areaM2.toFixed(1)} m²</small>
-          <span className="muted">→</span>
-        </button>
-      ))}
+      {rooms.map((r, i) =>
+        r.furnish ? (
+          <button key={r.id} className="frow" type="button" onClick={() => goPage(r.id)}>
+            <span className="sw" style={{ background: palette[i % palette.length] }} />
+            <span>{r.name}</span>
+            <small>{r.areaM2.toFixed(1)} m²</small>
+            <span className="muted">→</span>
+          </button>
+        ) : (
+          <div key={r.id} className="frow planonly" title="On the plan only: not furnished">
+            <span className="sw" />
+            <span>{r.name}</span>
+            <small>{r.areaM2.toFixed(1)} m² · plan only</small>
+            <span />
+          </div>
+        ),
+      )}
     </div>
   );
 }

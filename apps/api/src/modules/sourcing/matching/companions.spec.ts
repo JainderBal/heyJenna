@@ -14,6 +14,9 @@ describe('companions', () => {
   it('penalises a rug narrower than the sofa', () => {
     expect(companionFit(listing('rug', 1.6, 1.2, 0.02), sofa, plan)).toBeLessThan(companionFit(listing('rug', 2.6, 1.8, 0.02), sofa, plan));
   });
+  it('prefers low, wide shelving over a lone tall tower', () => {
+    expect(companionFit(listing('shelf', 1.47, 0.39, 1.47), sofa, plan)).toBeGreaterThan(companionFit(listing('shelf', 0.4, 0.28, 2.02), sofa, plan));
+  });
   it('lets a person’s pick win, and gives 3D models a nudge', () => {
     const slots = [{ type: 'sofa', count: 1, required: true, why: '' }, { type: 'rug', count: 1, required: false, why: '' }] as never;
     const small = listing('rug', 1.6, 1.2, 0.02, { score: 0.8 });

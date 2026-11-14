@@ -227,6 +227,9 @@ export function RoomViewer({ roomId, layout, room, palette, render = null, mode 
           </button>
         </div>
       )}
+      {editable && layout && showing === 'render' && !msg && <span className="vmsg">To move furniture, press “Live · edit”</span>}
+      {canEdit && !sel && !msg && layout.objects.length > 0 && <span className="vmsg">Click a piece to move, turn or remove it</span>}
+      {canEdit && sel && !msg && draggable(sel) && <span className="vmsg">Drag to move · R turns · Delete removes</span>}
       {canEdit && msg && (
         <span className={`vmsg${msg.error ? ' err' : ''}`} role={msg.error ? 'alert' : 'status'}>
           {msg.text}

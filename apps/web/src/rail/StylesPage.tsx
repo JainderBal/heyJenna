@@ -1,6 +1,7 @@
 /** Styles: each room's style (palette, style name, key dials) side by side, linking to the room. */
 import type { StyleProfile } from '../api/types';
 import { NoRooms, RailHeader, Swatches, type RailBodyProps } from './RailPage';
+import { useEditorStore } from '../app/useEditorStore';
 
 type Dials = StyleProfile['dials'];
 type UnitDial = { [K in keyof Dials]: Dials[K] extends number ? K : never }[keyof Dials];
@@ -20,6 +21,7 @@ const SHAPES: Record<StyleProfile['shapeFamily'], string> = { retro: 'retro shap
 
 export function StylesPage({ data, loading, openRoom }: RailBodyProps) {
   const styled = data.filter((d) => d.style).length;
+  const spOpen = useEditorStore((s) => s.spOpen);
   return (
     <div className="rp-in">
       <RailHeader title="Styles" sub={`${styled} of ${data.length} ${data.length === 1 ? 'room has' : 'rooms have'} a style from a moodboard`} />
@@ -82,6 +84,18 @@ export function StylesPage({ data, loading, openRoom }: RailBodyProps) {
                 <button className="pbtn sm" type="button" onClick={() => openRoom(d.room.id, 'mood')}>
                   {p ? 'Moodboard' : 'Add a moodboard'}
                 </button>
+                {p && (
+                  <button
+                    className="pbtn sm"
+                    type="button"
+                    onClick={() => {
+                      openRoom(d.room.id, 'mood');
+                      spOpen('style');
+                    }}
+                  >
+                    Edit dials
+                  </button>
+                )}
                 <button className="pbtn sm" type="button" onClick={() => openRoom(d.room.id)}>
                   Open room →
                 </button>

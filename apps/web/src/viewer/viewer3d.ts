@@ -181,7 +181,11 @@ export function createViewer(host: HTMLElement, hooks: ViewerHooks): Viewer | nu
     const hit = ray.intersectObjects([...pieces.values()].filter((p) => pickable(p.o)).map((p) => p.slot), true)[0];
     for (let o: THREE.Object3D | null = hit?.object ?? null; o; o = o.parent) {
       const id = o.userData.objectId as string | undefined;
-      if (id) return pieces.get(id) ?? null;
+      if (!id) continue;
+      const p = pieces.get(id) ?? null;
+      // a cushion or book on the sofa isn't what people mean to grab: pick the piece it sits on
+      const under = p?.o.on && !p.o.product ? pieces.get(p.o.on) : undefined;
+      return under && pickable(under.o) ? under : p;
     }
     return null;
   }

@@ -37,6 +37,7 @@ export function MoodboardFrame({ room, style, palette }: { room: Room; style: St
   // what the API has stored wins; this session's object URLs only fill in while it loads
   const previews = stored.length ? stored.map((i) => i.src) : local;
   const setPreviews = useEditorStore((s) => s.setMoodPreviews);
+  const spOpen = useEditorStore((s) => s.spOpen);
   const upload = useUploadMoodboard(room.id);
   const addPins = useAddMoodboardPins(room.id);
   const [over, setOver] = useState(false);
@@ -110,6 +111,9 @@ export function MoodboardFrame({ room, style, palette }: { room: Room; style: St
         <span className="mcount">{busy ? 'reading…' : count ? `${count} images` : 'empty'}</span>
         <button className="pbtn sm" type="button" onClick={openPinterestWindow}>
           Open Pinterest
+        </button>
+        <button className="pbtn sm" type="button" title="See and change the room's 55 style dials" onClick={() => spOpen('style')}>
+          Style dials
         </button>
         <button className="pbtn sm" type="button" disabled={busy} onClick={() => pick()}>
           {count ? 'Add images' : 'Upload images'}
@@ -220,8 +224,8 @@ export function Room3DFrame({ room, layout, palette }: { room: Room; layout: Lay
             <button type="button" className={mode === 'render' ? 'on' : ''} disabled={modelState === 'error'} title="The rendered room" onPointerDown={stop} onClick={() => setLiveFor(null)}>
               Render 3D
             </button>
-            <button type="button" className={mode === 'live' ? 'on' : ''} title="The live room: follows your layout edits" onPointerDown={stop} onClick={() => setLiveFor(shown.id)}>
-              Live
+            <button type="button" className={mode === 'live' ? 'on' : ''} title="The live room: click a piece to move, turn or remove it" onPointerDown={stop} onClick={() => setLiveFor(shown.id)}>
+              Live · edit
             </button>
           </>
         )}

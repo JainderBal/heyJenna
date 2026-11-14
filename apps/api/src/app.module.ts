@@ -5,10 +5,11 @@ import { DatabaseModule } from './common/database/database.module';
 import { StorageModule } from './common/storage/storage.module';
 import { HealthController } from './health.controller';
 import { RoomsModule } from './modules/rooms/rooms.module';
+import { SourcingModule } from './modules/sourcing/sourcing.module';
 import { StyleModule } from './modules/style/style.module';
 
 @Module({
-  imports: [ConfigModule, DatabaseModule, StorageModule, AuthModule, RoomsModule, StyleModule],
+  imports: [ConfigModule, DatabaseModule, StorageModule, AuthModule, RoomsModule, StyleModule, SourcingModule],
   controllers: [HealthController],
 })
 export class AppModule {}

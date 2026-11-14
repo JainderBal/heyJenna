@@ -1,4 +1,4 @@
-import { parseIkeaMeasurements } from './ikea-product-page';
+import { findIkeaModelUrl, parseIkeaMeasurements } from './ikea-product-page';
 
 const page = (inner: string) => `<div class="pipf-measurements-tab__layout"> <span>Measurements</span> ${inner} <span>Packaging</span></div>`;
 
@@ -23,4 +23,17 @@ describe('parseIkeaMeasurements', () => {
   it('returns null without a measurements section', () => {
     expect(parseIkeaMeasurements('<html></html>')).toBeNull();
   });
+});
+
+describe('findIkeaModelUrl', () => {
+  const base = 'https://web-api.ikea.com/dimma/assets/1.2/40104294/PS01_S01_NV01';
+  it('prefers the medium quality model', () => {
+    const html = `"${base}/iqp3/glb_draco/a-IQP3.glb" "${base}/iqp2/glb_draco/b-IQP2.glb" "${base}/iqp1/glb_draco/c-IQP1.glb"`;
+    expect(findIkeaModelUrl(html)).toBe(`${base}/iqp2/glb_draco/b-IQP2.glb`);
+  });
+  it('accepts other model folders (combination products)', () => {
+    const u = 'https://web-api.ikea.com/dimma/assets/geomagical/79603998/PS01_S01_NV_01/simple/glb_draco/x.glb';
+    expect(findIkeaModelUrl(`<script>{"url":"${u}"}</script>`)).toBe(u);
+  });
+  it('returns null when the page has no model', () => expect(findIkeaModelUrl('<html></html>')).toBeNull());
 });

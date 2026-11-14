@@ -33,3 +33,12 @@ export function parseIkeaMeasurements(html: string): Size | null {
   const r = (v: number) => Math.round(v * 1000) / 1000;
   return { w: r(Math.max(w, d)), d: r(Math.min(w, d)), h: r(h) };
 }
+
+/**
+ * The 3D model IKEA's own "View in 3D" viewer loads, linked straight from the product page.
+ * Pages list a few quality levels (iqp1 small … iqp3 large); medium (iqp2) is the default pick.
+ */
+export function findIkeaModelUrl(html: string): string | null {
+  const links = [...new Set(html.match(/https:\/\/web-api\.ikea\.com\/dimma\/assets\/[^"'\s\\]+?\.glb/g) ?? [])];
+  return links.find((u) => u.includes('/iqp2/')) ?? links.find((u) => u.includes('/iqp1/')) ?? links[0] ?? null;
+}

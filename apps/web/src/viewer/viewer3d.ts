@@ -4,15 +4,26 @@
  * the room hide (cutaway). The room comes from the floor plan (width × depth, wall height, windows,
  * doors); each layout object is drawn where the layout engine put it, as the real product model
  * when it has one, else as a procedural clay piece in the palette.
+ *
+ * It can also show a finished Blender render's room (`room.glb`) in the same orbit: `setRender()`
+ * loads it, `setMode('render' | 'live')` picks which room is on screen. Both share one light rig that
+ * approximates render_layout.py's look (see `rig()`).
  */
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { FloorPlan, Layout, PlacedObject } from '../api/types';
-import { ModelCache } from './models';
+import { ModelCache, loadRenderModel } from './models';
 import { clayPiece, pieceColour, pieceKind, stretchTo } from './pieces';
-import { LI, disposeTree, lc, lightest, pal6, reduceMotion } from './three-kit';
+import { disposeTree, lc, lightest, pal6, reduceMotion } from './three-kit';
 
 type Wall = 'back' | 'front' | 'left' | 'right';
 export type ViewKey = 'auto' | 'iso' | 'top' | 'reset';
+export type ViewMode = 'live' | 'render';
+/** A finished render job's room model: the job id (cache key) and its API path (`modelUrl`). */
+export interface RenderModel {
+  jobId: string;
+  path: string;
+}
 
 export interface ViewerScene {
   roomId: string;
@@ -23,8 +34,22 @@ export interface ViewerScene {
 
 export interface Viewer {
   build(s: ViewerScene): void;
+  /** Load (or drop, with null) the render's room; resolves once it is ready to show. */
+  setRender(r: RenderModel | null): Promise<void>;
+  setMode(m: ViewMode): void;
   view(k: ViewKey): void;
   dispose(): void;
+}
+
+/** One room the viewer can show: its content, the walls the cutaway may hide, and how to frame it. */
+interface Stage {
+  group: THREE.Group;
+  /** wall groups, each with userData.n = its outward normal */
+  walls: THREE.Object3D[];
+  /** default camera distance */
+  base: number;
+  /** half-size of the shadow camera */
+  half: number;
 }
 
 const FLOORS: Record<string, string> = {
@@ -32,6 +57,24 @@ const FLOORS: Record<string, string> = {
   carpet: '#C8B9A6', vinyl: '#BFA585', laminate: '#B88A5F',
 };
 const DOOR_H = 2.05;
+
+/**
+ * render_layout.py's look, as far as three.js goes:
+ * - background: the flat PEACH (0.97, 0.82, 0.71) it composites the render onto (display values);
+ * - key: its sun, from T(3.2, 8.35, -10.83) (render_layout passes three.js coordinates through T(), so
+ *   this is already a three.js direction: high, behind the back wall, a little right), light colour
+ *   #FFAE6E softened toward white the way AgX desaturates it;
+ * - fill: the world colour #FFE2C6 as the hemisphere sky, plus RoomEnvironment for soft bounce and
+ *   reflections (Cycles' 4 diffuse bounces and the window area lights have no cheap equivalent);
+ * - AgX Punchy, exposure +0.35 → ACES Filmic, exposure a touch above 1.
+ */
+const LOOK = {
+  background: new THREE.Color().setRGB(0.97, 0.82, 0.71, THREE.SRGBColorSpace),
+  exposure: 1.0,
+  key: { dir: new THREE.Vector3(3.2, 8.35, -10.83).normalize(), colour: '#FFC898', intensity: 2.6 },
+  fill: { sky: '#FFE2C6', ground: '#8A7462', intensity: 1.1 },
+  env: 0.55,
+};
 
 export function createViewer(host: HTMLElement, onAuto: (on: boolean) => void): Viewer | null {
   let renderer: THREE.WebGLRenderer;
@@ -43,7 +86,7 @@ export function createViewer(host: HTMLElement, onAuto: (on: boolean) => void): 
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.95;
+  renderer.toneMappingExposure = LOOK.exposure;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   const cv = renderer.domElement;
@@ -53,17 +96,18 @@ export function createViewer(host: HTMLElement, onAuto: (on: boolean) => void): 
   const V = { az: 0.75, el: 0.5, dist: 8, taz: 0.75, tel: 0.5, tdist: 8, base: 8, auto: true };
   const cam = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#F3F0EB');
-  scene.add(new THREE.HemisphereLight(lc(0xfff4e6), lc(0x8a7462), 0.6 * LI));
-  const sun = new THREE.DirectionalLight(lc(0xffe7c8), 1.05 * LI);
-  sun.position.set(-4, 6, 5);
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.radius = 5;
-  scene.add(sun);
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const roomEnv = new RoomEnvironment();
+  const envTex = pmrem.fromScene(roomEnv, 0.04).texture;
+  pmrem.dispose();
+  roomEnv.dispose();
+  const sun = rig(scene, envTex);
 
-  let content: THREE.Group | null = null;
-  let walls: THREE.Group[] = [];
+  let live: Stage | null = null;
+  let rendered: Stage | null = null;
+  let renderJob = '';
+  let renderLoad: Promise<void> = Promise.resolve();
+  let mode: ViewMode = 'live';
   let roomKey = '';
   let gen = 0;
   let models: ModelCache | null = null;
@@ -114,7 +158,8 @@ export function createViewer(host: HTMLElement, onAuto: (on: boolean) => void): 
     raf = requestAnimationFrame(loop);
     const w = host.clientWidth;
     const h = host.clientHeight;
-    if (!w || !h || !content) return;
+    const st = active();
+    if (!w || !h || !st) return;
     const pr = renderer.getPixelRatio();
     if (cv.width !== Math.round(w * pr) || cv.height !== Math.round(h * pr)) {
       renderer.setSize(w, h, false);
@@ -130,26 +175,78 @@ export function createViewer(host: HTMLElement, onAuto: (on: boolean) => void): 
     cam.lookAt(0, 0.75, 0);
     // dollhouse cutaway: hide the walls between the camera and the room
     dir.set(cam.position.x, 0, cam.position.z).normalize();
-    for (const wl of walls) wl.visible = V.el > 1.2 || (wl.userData.n as THREE.Vector3).dot(dir) < 0.25;
+    for (const wl of st.walls) wl.visible = V.el > 1.2 || (wl.userData.n as THREE.Vector3).dot(dir) < 0.25;
     renderer.render(scene, cam);
   };
   loop();
 
-  function clearContent() {
-    if (!content) return;
-    scene.remove(content);
+  /** The room on screen: the render when asked for and loaded, else the live room. */
+  function active(): Stage | null {
+    return mode === 'render' && rendered ? rendered : live;
+  }
+
+  /** Show the active stage, hide the other, and fit the camera and shadows to it (keeping the angle). */
+  function frame(reset = false) {
+    const st = active();
+    if (live) live.group.visible = st === live;
+    if (rendered) rendered.group.visible = st === rendered;
+    if (!st) return;
+    Object.assign(sun.shadow.camera, { left: -st.half, right: st.half, top: st.half, bottom: -st.half, near: 0.5, far: 40 });
+    sun.shadow.camera.updateProjectionMatrix();
+    if (reset) {
+      V.dist = V.tdist = st.base;
+      V.az = V.taz = 0.75;
+      V.el = V.tel = 0.5;
+      setAuto(true);
+    } else if (st.base !== V.base) {
+      V.tdist *= st.base / V.base;
+    }
+    V.base = st.base;
+  }
+
+  function clearLive() {
+    if (!live) return;
+    scene.remove(live.group);
     // procedural meshes are ours to free; product models share the cache's geometry
-    content.traverse((o) => {
+    live.group.traverse((o) => {
       if (o.userData.owned) disposeTree(o);
     });
-    content = null;
-    walls = [];
+    live = null;
+  }
+
+  function clearRendered() {
+    if (!rendered) return;
+    scene.remove(rendered.group);
+    disposeTree(rendered.group);
+    rendered = null;
+  }
+
+  function setRender(r: RenderModel | null): Promise<void> {
+    if ((r?.jobId ?? '') === renderJob) return renderLoad;
+    renderJob = r?.jobId ?? '';
+    clearRendered();
+    frame();
+    if (!r) return (renderLoad = Promise.resolve());
+    const job = r.jobId;
+    renderLoad = loadRenderModel(r.jobId, r.path).then((root) => {
+      if (job !== renderJob || disposed) {
+        disposeTree(root);
+        return;
+      }
+      rendered = renderStage(root);
+      scene.add(rendered.group);
+      frame();
+    });
+    renderLoad.catch(() => {
+      if (job === renderJob) renderJob = ''; // let the next setRender retry
+    });
+    return renderLoad;
   }
 
   function build({ roomId, plan, layout, palette }: ViewerScene) {
     gen++;
     const my = gen;
-    clearContent();
+    clearLive();
     if (modelsRoom !== roomId) {
       models?.dispose();
       models = new ModelCache(roomId);
@@ -163,8 +260,11 @@ export function createViewer(host: HTMLElement, onAuto: (on: boolean) => void): 
     const TH = 0.1;
     const g = new THREE.Group();
     g.position.set(-w / 2, 0, -d / 2);
-    content = g;
-    scene.add(g);
+    const root = new THREE.Group();
+    root.add(g);
+    const stage: Stage = { group: root, walls: [], base: Math.max(w, d) * 1.8 + 2.2, half: Math.max(w, d) / 2 + 1.5 };
+    live = stage;
+    scene.add(root);
     const mat = (c: THREE.ColorRepresentation) => new THREE.MeshStandardMaterial({ color: lc(c), roughness: 0.82 });
 
     // floor
@@ -186,7 +286,7 @@ export function createViewer(host: HTMLElement, onAuto: (on: boolean) => void): 
       ['left', d, new THREE.Vector3(-1, 0, 0)],
       ['right', d, new THREE.Vector3(1, 0, 0)],
     ];
-    walls = specs.map(([wall, len, n]) => {
+    stage.walls = specs.map(([wall, len, n]) => {
       const wg = new THREE.Group();
       wg.userData.n = n;
       wg.userData.owned = true;
@@ -209,7 +309,9 @@ export function createViewer(host: HTMLElement, onAuto: (on: boolean) => void): 
         const off = wall === 'back' || wall === 'left' ? -TH / 2 : (along ? d : w) + TH / 2;
         if (along) mesh.position.set(mid, (lo + hi) / 2, off);
         else mesh.position.set(off, (lo + hi) / 2, mid);
-        mesh.castShadow = mesh.receiveShadow = true;
+        // walls take shadows but cast none: the key comes from behind the back wall, as Blender's sun does
+        // through the windows, and a solid wall would put the whole room in shade
+        mesh.receiveShadow = true;
         wg.add(mesh);
       };
       let u = u0;
@@ -241,19 +343,11 @@ export function createViewer(host: HTMLElement, onAuto: (on: boolean) => void): 
     const SHELL = new Set(['floor', 'wall', 'ceiling', 'zone', 'window', 'door', 'opening']);
     for (const o of layout?.objects ?? []) if (!SHELL.has(o.type)) placeObject(g, o, P, H, my);
 
-    // light and camera for this room size
-    const half = Math.max(w, d) / 2 + 1.5;
-    Object.assign(sun.shadow.camera, { left: -half, right: half, top: half, bottom: -half, far: 60 });
-    sun.shadow.camera.updateProjectionMatrix();
+    // light and camera for this room size (a new room starts from the default view)
     const key = `${roomId}|${w}|${d}`;
-    if (key !== roomKey) {
-      roomKey = key;
-      V.base = Math.max(w, d) * 1.8 + 2.2;
-      V.dist = V.tdist = V.base;
-      V.az = V.taz = 0.75;
-      V.el = V.tel = 0.5;
-      setAuto(true);
-    }
+    const fresh = key !== roomKey;
+    roomKey = key;
+    frame(fresh && active() === live);
   }
 
   function placeObject(g: THREE.Group, o: PlacedObject, P: string[], H: number, my: number) {
@@ -293,8 +387,15 @@ export function createViewer(host: HTMLElement, onAuto: (on: boolean) => void): 
       });
   }
 
+  let disposed = false;
   return {
     build,
+    setRender,
+    setMode(m) {
+      if (m === mode) return;
+      mode = m;
+      frame();
+    },
     view(k) {
       if (k === 'auto') setAuto(!V.auto);
       if (k === 'top') {
@@ -314,16 +415,20 @@ export function createViewer(host: HTMLElement, onAuto: (on: boolean) => void): 
       }
     },
     dispose() {
+      disposed = true;
       cancelAnimationFrame(raf);
       gen++;
+      renderJob = '';
       cv.removeEventListener('pointerdown', onDown);
       cv.removeEventListener('pointermove', onMove);
       cv.removeEventListener('pointerup', onUp);
       cv.removeEventListener('pointercancel', onUp);
       cv.removeEventListener('wheel', onWheel);
-      clearContent();
+      clearLive();
+      clearRendered();
       models?.dispose();
       sun.dispose();
+      envTex.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
       cv.remove();
@@ -345,4 +450,74 @@ function fitModel(model: THREE.Object3D, w: number, h: number, d: number, wall: 
   const out = stretchTo(model, s.x * sc, s.y * sc, s.z * sc);
   if (wall) out.position.z = -d / 2 + (s.z * sc) / 2; // flush with the wall behind it
   return out;
+}
+
+/** The shared light rig (see LOOK); returns the shadow-casting key. */
+function rig(scene: THREE.Scene, env: THREE.Texture): THREE.DirectionalLight {
+  scene.background = LOOK.background;
+  scene.environment = env;
+  scene.environmentIntensity = LOOK.env;
+  scene.add(new THREE.HemisphereLight(LOOK.fill.sky, LOOK.fill.ground, LOOK.fill.intensity));
+  const sun = new THREE.DirectionalLight(LOOK.key.colour, LOOK.key.intensity);
+  sun.position.copy(LOOK.key.dir).multiplyScalar(14);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = 0.02;
+  scene.add(sun);
+  return sun;
+}
+
+const WHITE = new THREE.Color(1, 1, 1);
+const CONCRETE = '#BCB4A8';
+
+const WALL_N: Record<string, THREE.Vector3> = {
+  back: new THREE.Vector3(0, 0, -1),
+  front: new THREE.Vector3(0, 0, 1),
+  left: new THREE.Vector3(-1, 0, 0),
+  right: new THREE.Vector3(1, 0, 0),
+};
+
+/**
+ * Stage a render's room.glb. Blender is Z-up, but the glTF exporter writes Y-up (Blender (x, y, z) →
+ * glTF (x, z, -y)), and render_layout.py builds in three.js coordinates through T(), so the file comes
+ * back in the live viewer's frame: Y up, back wall at -z, left wall at -x, room centred on the origin.
+ * To be safe it is still re-centred on its floor (x/z) and dropped so the floor's top is at y = 0.
+ * Objects are named `<layer>.<zone>.<thing>` (GLTFLoader keeps the original in userData.name):
+ * `architecture.<side>.wall*` become cutaway walls, the shell only receives shadows.
+ */
+function renderStage(model: THREE.Group): Stage {
+  const walls: THREE.Object3D[] = [];
+  let floor: THREE.Box3 | null = null;
+  model.updateMatrixWorld(true);
+  for (const top of model.children) {
+    const name = String(top.userData.name ?? top.name);
+    const wall = /^architecture\.(back|front|left|right)\.wall/.exec(name);
+    const shell = name.startsWith('architecture.');
+    if (wall) {
+      top.userData.n = WALL_N[wall[1]];
+      walls.push(top);
+    }
+    if (/^architecture\.[^.]+\.floor/.test(name)) floor = (floor ?? new THREE.Box3()).union(new THREE.Box3().setFromObject(top));
+    top.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.castShadow = !shell;
+      mesh.receiveShadow = true;
+      // the exporter can't carry Blender's procedural concrete (noise + voronoi into Base Color), so the
+      // floor arrives plain white: give it the concrete's mid tone (between its #ADA498 and #CBC3B7 ramp)
+      for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+        const std = m as THREE.MeshStandardMaterial;
+        if (std.name === 'concrete' && !std.map && std.color?.equals(WHITE)) std.color.set(CONCRETE);
+      }
+    });
+  }
+  const box = floor ?? new THREE.Box3().setFromObject(model);
+  const c = box.getCenter(new THREE.Vector3());
+  model.position.set(-c.x, -(floor ? box.max.y : box.min.y), -c.z);
+  const size = box.getSize(new THREE.Vector3());
+  const group = new THREE.Group();
+  group.add(model);
+  const m = Math.max(size.x, size.z, 1);
+  return { group, walls, base: m * 1.8 + 2.2, half: m / 2 + 1.5 };
 }

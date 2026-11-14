@@ -67,3 +67,31 @@ export class ModelCache {
     this.parsed.clear();
   }
 }
+
+/* ---------------- the render's room model ---------------- */
+
+const RENDER_BYTES = new Map<string, Promise<ArrayBuffer>>();
+
+/**
+ * The Blender render's whole room (`room.glb`, GET /rooms/:roomId/renders/:jobId/model). A job's model
+ * never changes, so its bytes are cached per job for the session; the viewer parses its own copy.
+ */
+export function renderModelBytes(jobId: string, path: string): Promise<ArrayBuffer> {
+  let p = RENDER_BYTES.get(jobId);
+  if (!p) {
+    p = fetch(apiUrl(path), { headers: { 'x-dev-user': devUser() } }).then((res) => {
+      if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`);
+      return res.arrayBuffer();
+    });
+    p.catch(() => RENDER_BYTES.delete(jobId));
+    RENDER_BYTES.set(jobId, p);
+  }
+  return p;
+}
+
+/** Parse a render's room.glb into a fresh scene (the caller owns it and must dispose it). */
+export async function loadRenderModel(jobId: string, path: string): Promise<THREE.Group> {
+  const buf = await renderModelBytes(jobId, path);
+  const gltf = await new GLTFLoader().parseAsync(buf, '');
+  return gltf.scene;
+}

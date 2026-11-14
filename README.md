@@ -38,6 +38,7 @@ moodboard  ──▶ style        (palette 60/30/10 + vibe + shop keywords; Clau
 - **Shared types:** `packages/contracts` (zod)
 
 - **Web app:** Vite + React 18 + TypeScript, react-query, zustand, three.js (see `apps/web/README.md`)
+- **Desktop app:** Electron shell for Mac: the studio with pinterest.com as a side panel tab, `npm run desktop` (see `apps/desktop/README.md`)
 
 ```
 apps/web/src/    the studio: home carousel, editor (pages + frames), live 3D room, side panel (jenna chat, shopping list)

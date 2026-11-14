@@ -1,0 +1,42 @@
+{
+  "name": "@hey-jenna/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "hey jenna studio for Mac: the studio and pinterest.com side by side",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && esbuild src/main.ts src/preload-studio.ts src/preload-pinterest.ts --bundle --platform=node --target=node22 --format=cjs --external:electron --outdir=dist",
+    "dev": "npm run build && electron .",
+    "dist": "npm run build -w @hey-jenna/web && npm run build && electron-builder --mac dmg --publish never"
+  },
+  "devDependencies": {
+    "electron": "45.3.2",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.25.12",
+    "typescript": "^5.9.3"
+  },
+  "build": {
+    "appId": "com.heyjenna.desktop",
+    "productName": "hey jenna",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../web/dist",
+        "to": "web"
+      }
+    ],
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.graphics-design",
+      "identity": null,
+      "notarize": false
+    },
+    "npmRebuild": false
+  }
+}

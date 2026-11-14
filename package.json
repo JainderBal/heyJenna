@@ -14,7 +14,8 @@
     "test:e2e": "npm run build -w @hey-jenna/contracts && npm run test:e2e -w @hey-jenna/api",
     "db:up": "docker compose up -d db",
     "db:migrate": "npm run db:migrate -w @hey-jenna/api",
-    "worker": "python3 workers/render/worker.py --env-file apps/api/.env"
+    "worker": "python3 workers/render/worker.py --env-file apps/api/.env",
+    "desktop": "npm run dev -w @hey-jenna/desktop"
   },
   "engines": {
     "node": ">=20"

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { RoomsModule } from '../rooms/rooms.module';
 import { StyleModule } from '../style/style.module';
 import { EbayAdapter } from './adapters/ebay.adapter';
+import { EtsyAdapter } from './adapters/etsy.adapter';
 import { IkeaAdapter } from './adapters/ikea.adapter';
 import { LinkAdapter } from './adapters/link.adapter';
 import { MockAdapter } from './adapters/mock.adapter';
@@ -21,11 +22,12 @@ import { SourcingService } from './sourcing.service';
     MockAdapter,
     IkeaAdapter,
     EbayAdapter,
+    EtsyAdapter,
     WebSearchAdapter,
     {
       // all sources as one list; SOURCES + each source's keys decide which actually run
       provide: SOURCE_ADAPTERS,
-      inject: [MockAdapter, IkeaAdapter, EbayAdapter, WebSearchAdapter],
+      inject: [MockAdapter, IkeaAdapter, EbayAdapter, EtsyAdapter, WebSearchAdapter],
       useFactory: (...adapters) => adapters,
     },
   ],

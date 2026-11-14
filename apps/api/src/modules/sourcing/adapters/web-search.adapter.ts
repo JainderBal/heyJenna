@@ -7,7 +7,13 @@ import { findPrice, RawListing, SourceAdapter, SourceQuery } from './source.adap
  * Finds listings on Kijiji, Facebook Marketplace and IKEA through a search engine API (Brave).
  * We never scrape those sites: we only keep what the search engine returns (title, link, snippet, thumbnail).
  */
-const SITES: { source: ListingSource; site: string; isItem: RegExp }[] = [
+export interface SiteSpec {
+  source: ListingSource;
+  site: string;
+  isItem: RegExp;
+}
+
+const SITES: SiteSpec[] = [
   { source: 'kijiji', site: 'kijiji.ca', isItem: /kijiji\.ca\/v-/ },
   { source: 'facebook', site: 'facebook.com/marketplace', isItem: /facebook\.com\/marketplace\/item\// },
   { source: 'ikea', site: 'ikea.com/ca', isItem: /ikea\.com\/ca\/[a-z]{2}\/p\// },
@@ -36,7 +42,8 @@ export class WebSearchAdapter implements SourceAdapter {
     return batches.flat();
   }
 
-  private async searchSite(s: (typeof SITES)[number], text: string, count: number): Promise<RawListing[]> {
+  /** One `site:` search; also used by the Etsy adapter when it has no Etsy key. */
+  async searchSite(s: SiteSpec, text: string, count: number): Promise<RawListing[]> {
     const url = new URL('https://api.search.brave.com/res/v1/web/search');
     url.searchParams.set('q', `site:${s.site} ${text}`);
     url.searchParams.set('count', String(Math.min(count, 20)));
@@ -51,7 +58,7 @@ export class WebSearchAdapter implements SourceAdapter {
       .filter((r) => s.isItem.test(r.url))
       .map((r) => {
         const description = stripTags(r.description ?? '');
-        const title = stripTags(r.title).replace(/\s*[|-]\s*(Kijiji|Facebook Marketplace|IKEA).*$/i, '');
+        const title = stripTags(r.title).replace(/\s*[|-]\s*(Kijiji|Facebook Marketplace|IKEA|Etsy).*$/i, '');
         return {
           source: s.source,
           externalId: r.url,
@@ -61,7 +68,7 @@ export class WebSearchAdapter implements SourceAdapter {
           price: findPrice(`${r.title} ${description}`),
           currency: 'CAD',
           imageUrl: r.thumbnail?.src ?? null,
-          condition: s.source === 'ikea' ? 'new' : 'used',
+          condition: s.source === 'ikea' ? 'new' : s.source === 'etsy' ? 'unknown' : 'used',
           location: null,
         } satisfies RawListing;
       });

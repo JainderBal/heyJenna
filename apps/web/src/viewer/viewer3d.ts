@@ -236,8 +236,10 @@ export function createViewer(host: HTMLElement, onAuto: (on: boolean) => void): 
       return wg;
     });
 
-    // furniture
-    for (const o of layout?.objects ?? []) placeObject(g, o, P, H, my);
+    // furniture: the layout also lists the room shell (floor, walls) and planning zones, which this viewer
+    // already builds from the floor plan or which aren't physical, so skip them
+    const SHELL = new Set(['floor', 'wall', 'ceiling', 'zone', 'window', 'door', 'opening']);
+    for (const o of layout?.objects ?? []) if (!SHELL.has(o.type)) placeObject(g, o, P, H, my);
 
     // light and camera for this room size
     const half = Math.max(w, d) / 2 + 1.5;

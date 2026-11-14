@@ -178,7 +178,7 @@ svg{display:block}
 /* home (project carousel) */
 .homev{position:fixed;inset:0;z-index:50;background:#fff;overflow:auto;font:14px/1.45 var(--ui)}
 .hv-top{display:flex;align-items:center;gap:12px;height:56px;padding:0 max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px))}
-.hv-top .sp{flex:1}
+.hv-top .hv-spacer{flex:1}
 .hv-word{font-weight:700;font-size:14px;letter-spacing:-.01em}
 .hv-body{display:flex;flex-direction:column;align-items:center;padding-bottom:32px}
 .hv-jenna{display:block;width:130px;height:138px;cursor:grab;touch-action:none}

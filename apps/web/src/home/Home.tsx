@@ -70,7 +70,7 @@ export function Home() {
     <div className="homev">
       <header className="hv-top">
         <span className="hv-word">hey jenna</span>
-        <span className="sp" />
+        <span className="hv-spacer" />
         <div className="avatar">J</div>
       </header>
       <section className="hv-body">

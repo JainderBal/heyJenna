@@ -35,16 +35,11 @@ export async function solveWithRepairs(engine: LayoutEngine, spec: EngineSpec, r
   let current: EngineSpec = { ...spec, furniture: [...spec.furniture] };
   // the best attempt so far, together with what had been dropped for it
   let best: { result: EngineResult; dropped: Dropped[] } | undefined;
-  let noGain = 0; // drops in a row that didn't reduce failures
   for (let round = 0; ; round++) {
     const result = await engine.run(current);
-    if (!best || result.summary.fail < best.result.summary.fail) {
-      best = { result, dropped: [...dropped] };
-      noGain = 0;
-    } else noGain++;
+    if (!best || result.summary.fail < best.result.summary.fail) best = { result, dropped: [...dropped] };
     const fails = result.checks.filter((c) => c.status === 'fail');
-    // stop when it passes, after `rounds` tries, or when dropping things isn't helping (not a crowding problem)
-    if (!fails.length || round >= rounds || noGain >= 2) return best;
+    if (!fails.length || round >= rounds) return best;
 
     const why = fails.map((c) => `${c.rule}: ${c.detail}`).join('; ');
     const named = new Set(fails.flatMap((c) => [...c.detail.matchAll(/[a-z_]+_\d+/g)].map((m) => m[0])));

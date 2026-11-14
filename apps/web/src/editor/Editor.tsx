@@ -17,7 +17,7 @@ import { LeftPanel } from './LeftPanel';
 import { Rail } from './Rail';
 import { useMoodboardPaste } from './useMoodboardPaste';
 import { Toast } from './Toast';
-import { FoundFrame, PlanFrame, RoomsIntake } from './frames/FloorPlanFrames';
+import { FoundFrame, Plan3DFrame, PlanFrame } from './frames/FloorPlanFrames';
 import { MoodboardFrame, PaletteFrame, Room3DFrame, ShoppingListFrame } from './frames/RoomFrames';
 import { pagesOf, planFrames, projectPalette, roomFrames, roomPalette, type Frame } from './model';
 
@@ -99,14 +99,12 @@ export function Editor() {
 
   const body = (f: Frame) => {
     switch (f.type) {
-      case 'drop':
-        return <RoomsIntake projectId={projectId} empty />;
-      case 'add':
-        return <RoomsIntake projectId={projectId} empty={false} />;
       case 'plan':
         return <PlanFrame projectId={projectId} rooms={rooms} palette={projPal} upload={upload} />;
+      case 'plan3d':
+        return <Plan3DFrame projectId={projectId} rooms={rooms} palette={projPal} />;
       case 'found':
-        return <FoundFrame rooms={rooms} palette={projPal} />;
+        return <FoundFrame projectId={projectId} rooms={rooms} palette={projPal} />;
       case 'mood':
         return room && <MoodboardFrame room={room} style={style.data} palette={palette} />;
       case 'pal':

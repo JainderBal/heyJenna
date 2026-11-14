@@ -6,15 +6,15 @@
  * when it has one, else as a procedural clay piece in the palette.
  *
  * It can also show a finished Blender render's room (`room.glb`) in the same orbit: `setRender()`
- * loads it, `setMode('render' | 'live')` picks which room is on screen. Both share one light rig that
- * approximates render_layout.py's look (see `rig()`).
+ * loads it, `setMode('render' | 'live')` picks which room is on screen. Both share the prototype's soft,
+ * bright light rig (see LOOK and `rig()`).
  */
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { FloorPlan, Layout, PlacedObject } from '../api/types';
 import { ModelCache, loadRenderModel } from './models';
 import { clayPiece, pieceColour, pieceKind, stretchTo } from './pieces';
-import { disposeTree, lc, lightest, pal6, reduceMotion } from './three-kit';
+import { LI, disposeTree, lc, lightest, pal6, reduceMotion } from './three-kit';
 
 type Wall = 'back' | 'front' | 'left' | 'right';
 export type ViewKey = 'auto' | 'iso' | 'top' | 'reset';
@@ -59,22 +59,27 @@ const FLOORS: Record<string, string> = {
 const DOOR_H = 2.05;
 
 /**
- * render_layout.py's look, as far as three.js goes:
- * - background: the flat PEACH (0.97, 0.82, 0.71) it composites the render onto (display values);
- * - key: its sun, from T(3.2, 8.35, -10.83) (render_layout passes three.js coordinates through T(), so
- *   this is already a three.js direction: high, behind the back wall, a little right), light colour
- *   #FFAE6E softened toward white the way AgX desaturates it;
- * - fill: the world colour #FFE2C6 as the hemisphere sky, plus RoomEnvironment for soft bounce and
- *   reflections (Cycles' 4 diffuse bounces and the window area lights have no cheap equivalent);
- * - AgX Punchy, exposure +0.35 → ACES Filmic, exposure a touch above 1.
+ * The prototype's viewer look (viewerFor in saas-ui/hey-jenna-app.html), for both rooms:
+ * - background: the frame's pale #F3F0EB (as .viewer in CSS, so the canvas edge disappears);
+ * - key: its warm sun from the front left, (-4, 6, 5), #FFE7C8 at 1.05;
+ * - fill: hemisphere #FFF4E6 / #8A7462 at 0.6;
+ * - ACES Filmic at exposure 0.95.
+ * Colours and intensities are the r128 ones, read the way r128 did (see three-kit `lc` / `LI`).
+ * The render's room is PBR-textured (no r128 colour boost), so it also gets a soft RoomEnvironment
+ * bounce (`envRender`) to read as bright and airy as the clay room; the live room gets none, as in the prototype.
  */
 const LOOK = {
-  background: new THREE.Color().setRGB(0.97, 0.82, 0.71, THREE.SRGBColorSpace),
-  exposure: 1.0,
-  key: { dir: new THREE.Vector3(3.2, 8.35, -10.83).normalize(), colour: '#FFC898', intensity: 2.6 },
-  fill: { sky: '#FFE2C6', ground: '#8A7462', intensity: 1.1 },
-  env: 0.55,
+  background: new THREE.Color('#F3F0EB'),
+  exposure: 0.95,
+  key: { dir: new THREE.Vector3(-4, 6, 5).normalize(), colour: lc(0xffe7c8), intensity: 1.05 * LI },
+  fill: { sky: lc(0xfff4e6), ground: lc(0x8a7462), intensity: 0.6 * LI },
+  envLive: 0,
+  envRender: 0.7,
 };
+
+/** The prototype's light wall and floor tones, which the render's dark shell is lightened toward. */
+const LIGHT_WALL = lc('#F6F0E4');
+const LIGHT_FLOOR = lc('#B88A5F');
 
 export function createViewer(host: HTMLElement, onAuto: (on: boolean) => void): Viewer | null {
   let renderer: THREE.WebGLRenderer;
@@ -190,6 +195,7 @@ export function createViewer(host: HTMLElement, onAuto: (on: boolean) => void): 
     const st = active();
     if (live) live.group.visible = st === live;
     if (rendered) rendered.group.visible = st === rendered;
+    scene.environmentIntensity = st && st === rendered ? LOOK.envRender : LOOK.envLive;
     if (!st) return;
     Object.assign(sun.shadow.camera, { left: -st.half, right: st.half, top: st.half, bottom: -st.half, near: 0.5, far: 40 });
     sun.shadow.camera.updateProjectionMatrix();
@@ -309,8 +315,7 @@ export function createViewer(host: HTMLElement, onAuto: (on: boolean) => void): 
         const off = wall === 'back' || wall === 'left' ? -TH / 2 : (along ? d : w) + TH / 2;
         if (along) mesh.position.set(mid, (lo + hi) / 2, off);
         else mesh.position.set(off, (lo + hi) / 2, mid);
-        // walls take shadows but cast none: the key comes from behind the back wall, as Blender's sun does
-        // through the windows, and a solid wall would put the whole room in shade
+        // walls take shadows but cast none, so the near walls never put the room in shade (bright and airy)
         mesh.receiveShadow = true;
         wg.add(mesh);
       };
@@ -456,12 +461,13 @@ function fitModel(model: THREE.Object3D, w: number, h: number, d: number, wall: 
 function rig(scene: THREE.Scene, env: THREE.Texture): THREE.DirectionalLight {
   scene.background = LOOK.background;
   scene.environment = env;
-  scene.environmentIntensity = LOOK.env;
+  scene.environmentIntensity = LOOK.envLive;
   scene.add(new THREE.HemisphereLight(LOOK.fill.sky, LOOK.fill.ground, LOOK.fill.intensity));
   const sun = new THREE.DirectionalLight(LOOK.key.colour, LOOK.key.intensity);
   sun.position.copy(LOOK.key.dir).multiplyScalar(14);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.radius = 5;
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.02;
   scene.add(sun);
@@ -470,6 +476,26 @@ function rig(scene: THREE.Scene, env: THREE.Texture): THREE.DirectionalLight {
 
 const WHITE = new THREE.Color(1, 1, 1);
 const CONCRETE = '#BCB4A8';
+
+/**
+ * The render's shell (`architecture.*`) comes in the palette's dark wall colours, so the room reads
+ * dark beside the prototype's light clay room. Lighten each shell material toward the prototype's
+ * light wall (or floor) tone, keeping a light tint of the original so the palette still shows.
+ * Materials are cloned: GLTFLoader shares them with furniture that uses the same colour.
+ */
+function lightenShell(m: THREE.Material, floor: boolean): THREE.Material {
+  const std = m as THREE.MeshStandardMaterial;
+  if (!std.color) return m;
+  const c = std.color;
+  const lum = c.r * 0.2126 + c.g * 0.7152 + c.b * 0.0722; // linear
+  const target = floor ? LIGHT_FLOOR : LIGHT_WALL;
+  // already light: a touch toward the tone; dark: most of the way, so only a tint of it is left
+  const t = lum > 0.55 ? 0.25 : floor ? 0.6 : 0.82;
+  const out = std.clone();
+  out.color.copy(c).lerp(target, t);
+  if (std.map) out.color.lerp(WHITE, 0.3); // a texture keeps its pattern; lift what multiplies it
+  return out;
+}
 
 const WALL_N: Record<string, THREE.Vector3> = {
   back: new THREE.Vector3(0, 0, -1),
@@ -484,7 +510,8 @@ const WALL_N: Record<string, THREE.Vector3> = {
  * back in the live viewer's frame: Y up, back wall at -z, left wall at -x, room centred on the origin.
  * To be safe it is still re-centred on its floor (x/z) and dropped so the floor's top is at y = 0.
  * Objects are named `<layer>.<zone>.<thing>` (GLTFLoader keeps the original in userData.name):
- * `architecture.<side>.wall*` become cutaway walls, the shell only receives shadows.
+ * `architecture.<side>.wall*` become cutaway walls, the shell only receives shadows and is lightened
+ * toward the prototype's light walls and floor (`lightenShell`).
  */
 function renderStage(model: THREE.Group): Stage {
   const walls: THREE.Object3D[] = [];
@@ -498,18 +525,21 @@ function renderStage(model: THREE.Group): Stage {
       top.userData.n = WALL_N[wall[1]];
       walls.push(top);
     }
-    if (/^architecture\.[^.]+\.floor/.test(name)) floor = (floor ?? new THREE.Box3()).union(new THREE.Box3().setFromObject(top));
+    const isFloor = /^architecture\.[^.]+\.floor/.test(name);
+    if (isFloor) floor = (floor ?? new THREE.Box3()).union(new THREE.Box3().setFromObject(top));
     top.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
       mesh.castShadow = !shell;
       mesh.receiveShadow = true;
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       // the exporter can't carry Blender's procedural concrete (noise + voronoi into Base Color), so the
       // floor arrives plain white: give it the concrete's mid tone (between its #ADA498 and #CBC3B7 ramp)
-      for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+      for (const m of mats) {
         const std = m as THREE.MeshStandardMaterial;
         if (std.name === 'concrete' && !std.map && std.color?.equals(WHITE)) std.color.set(CONCRETE);
       }
+      if (shell) mesh.material = Array.isArray(mesh.material) ? mats.map((m) => lightenShell(m, isFloor)) : lightenShell(mats[0], isFloor);
     });
   }
   const box = floor ?? new THREE.Box3().setFromObject(model);

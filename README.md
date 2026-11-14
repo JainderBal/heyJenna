@@ -4,7 +4,11 @@ Give it a **moodboard** and a **floor plan**. It finds **real furniture you can 
 (eBay, Etsy, Kijiji, Facebook Marketplace, IKEA, or any link you paste) in the same style and colours,
 places it in your room with interior-design rules, and lets you move or swap pieces.
 
-This repo is the **backend** (the frontend comes later in `apps/web`).
+This repo holds the whole product: the **API** (`apps/api`), the **studio web app** (`apps/web`, React),
+the Python **layout engine** and the Blender **render worker**.
+
+- New here (person or agent)? Read [`docs/STATUS.md`](docs/STATUS.md) first: what's built, what's left, how we work.
+- Setting up production? [`docs/production-setup.md`](docs/production-setup.md) lists every account and key.
 
 ## How it works
 
@@ -33,7 +37,10 @@ moodboard  ──▶ style        (palette 60/30/10 + vibe + shop keywords; Clau
 - **Moodboard reading:** Claude (`claude-opus-5-5`) with schema-checked JSON; rule-based fallback without a key
 - **Shared types:** `packages/contracts` (zod)
 
+- **Web app:** Vite + React 18 + TypeScript, react-query, zustand, three.js (see `apps/web/README.md`)
+
 ```
+apps/web/src/    the studio: home carousel, editor (pages + frames), live 3D room, side panel (jenna chat, shopping list)
 apps/api/src/
   common/        config · database · auth · storage · http (safe fetch) · validation
   modules/
@@ -58,11 +65,14 @@ npm run db:up                                  # local Postgres (stand-in for Su
 cp apps/api/.env.example apps/api/.env
 npm run db:migrate
 npm run dev                                    # API on http://localhost:3000
+npm run web                                    # studio on http://localhost:5173 (proxies /api to the API)
 npm run worker                                 # render worker (needs Blender 4.2+ and WORKER_TOKEN in apps/api/.env)
 ```
 
-With the defaults (`AUTH_MODE=dev`, `SOURCES=mock,…`) everything works with **no keys**:
-mock products, rule-based moodboard reading, no login.
+With the defaults (`AUTH_MODE=dev`) everything works with **no keys**: real IKEA products and their
+3D models, rule-based moodboard reading and jenna chat, no login. Open http://localhost:5173, press +,
+use "Draw rooms → Use sample plan", add moodboard images, then Find products → Lay out the room.
+After pulling new code: `npm run build -w @hey-jenna/contracts`, `cd apps/api && npx prisma generate && npx prisma migrate deploy`.
 
 | Turn on | Set in `apps/api/.env` |
 |---|---|
@@ -76,6 +86,7 @@ mock products, rule-based moodboard reading, no login.
 | A UI on another origin | `CORS_ORIGINS` (comma-separated; default `http://localhost:5173`) |
 | Background jobs off in this instance | `JOBS_RUNNER=off` (jobs then wait for an instance with it on) |
 | Etsy | `ETSY_API_KEY` (Open API v3); without it, `BRAVE_SEARCH_API_KEY` finds etsy.com listings instead |
+| Renders (Blender worker) | `WORKER_TOKEN` (16+ chars, same value for the API and the worker; make one with `openssl rand -hex 32`) |
 
 ## Try the flow
 

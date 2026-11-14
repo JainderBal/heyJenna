@@ -28,14 +28,21 @@ npx tsc -p apps/web --noEmit        # type-check only
 ```
 src/
   api/        client.ts (fetch + ApiError) · hooks.ts (react-query) · events.ts (SSE → invalidation) · types.ts (API response shapes)
-  app/        App.tsx (routes) · useEditorStore.ts (page, selection, side panel tabs, toast)
-  home/       Home.tsx · HomeCarousel.tsx (stub: plain row)
-  jenna/      JennaCube.tsx (stub: static face)
-  editor/     Editor shell, Canvas (pan/zoom/focus), LeftPanel, Rail, Dock, Toast, model.ts (pages + frames), frames/
-  viewer/     RoomViewer.tsx (stub)
-  sidepanel/  SidePanel.tsx · PinterestPanel.tsx / ChatPanel.tsx / ShopPreview.tsx (stubs)
+  app/        App.tsx (routes) · useEditorStore.ts (page, selection, side panel tabs, toast) · openPinterest.ts
+  home/       Home.tsx · HomeCarousel.tsx + carousel3d.ts (WebGL curved carousel) · plusCard.ts (animated + card)
+  jenna/      JennaCube.tsx + jenna3d.ts (the 3D terrazzo jenna)
+  editor/     Editor shell, Canvas (pan/zoom/focus), LeftPanel, Rail, Dock, Toast, model.ts (pages + frames),
+              useMoodboardPaste.ts, frames/ (FloorPlanFrames, RoomFrames)
+  viewer/     RoomViewer.tsx + viewer3d.ts (live 360° room) · models.ts (real IKEA GLBs via /api) · pieces.ts (clay stand-ins)
+  sidepanel/  SidePanel.tsx (tabs) · ChatPanel.tsx (jenna) · ShopPreview.tsx (live shopping list)
   styles/     studio.css (ported from the prototype)
 ```
+
+**Pinterest:** there is no Pinterest API. The rail button and the Moodboard frame's "Open Pinterest"
+open pinterest.com in a window docked beside the studio; users drag a pin onto a moodboard, or copy
+its image and press ⌘V on a room page. Pin images (`i.pinimg.com`) go to
+`POST /rooms/:roomId/moodboard/pins`, which adds them without replacing the board. Pasting an image
+*file* goes through the upload endpoint, which replaces the board (see docs/STATUS.md).
 
 Routes: `/` home, `/p/:projectId?page=plan|<roomId>&sel=<frameId>`.
 

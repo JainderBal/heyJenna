@@ -85,8 +85,12 @@ export class SourcingService {
       }),
     );
 
-    const saved = await this.repo.replaceUnpicked(roomId, slots.map((s) => s.type), keep);
-    summary.listings = saved.sort((a, b) => a.type.localeCompare(b.type) || b.score - a.score).map(toListingResponse);
+    // Only replace furniture types that came back with results: a failed or empty search keeps the old ones
+    const refreshed = summary.searched.filter((s) => s.kept > 0).map((s) => s.type);
+    const missing = summary.searched.filter((s) => s.kept === 0).map((s) => s.type);
+    if (missing.length) summary.errors.push(`no results this time for: ${missing.join(', ')} (kept earlier results)`);
+    const saved = await this.repo.replaceUnpicked(roomId, refreshed, keep);
+    summary.listings = (await this.repo.listByRoom(roomId)).sort((a, b) => a.type.localeCompare(b.type) || b.score - a.score).map(toListingResponse);
     this.log.log(`room ${roomId}: kept ${saved.length} listings from ${summary.sources.join(', ')}`);
     return summary;
   }

@@ -104,7 +104,20 @@ export class IkeaAdapter implements SourceAdapter {
     });
   }
 
+  /** At most 4 IKEA requests in flight across the whole app; retry twice with backoff on errors / 429 / 5xx. */
   private async query(text: string, limit: number): Promise<IkeaProduct[]> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await gate(() => this.queryOnce(text, limit));
+      } catch (e) {
+        if (attempt >= 2) throw e;
+        this.log.warn(`IKEA search "${text}" failed (${(e as Error).message}); retrying`);
+        await new Promise((r) => setTimeout(r, 600 * 3 ** attempt));
+      }
+    }
+  }
+
+  private async queryOnce(text: string, limit: number): Promise<IkeaProduct[]> {
     const url = new URL(`https://sik.search.blue.cdtapps.com/${this.config.get('IKEA_LOCALE')}/search-result-page`);
     url.searchParams.set('q', text);
     url.searchParams.set('size', String(Math.min(24, limit * 2)));
@@ -128,4 +141,18 @@ function wordHex(word: string): string {
   const lin = [x * 3.2406 - y * 1.5372 - z * 0.4986, -x * 0.9689 + y * 1.8758 + z * 0.0415, x * 0.0557 - y * 0.204 + z * 1.057];
   const g = (c: number) => Math.round(255 * Math.max(0, Math.min(1, c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055)));
   return '#' + lin.map((c) => g(c).toString(16).padStart(2, '0')).join('').toUpperCase();
+}
+
+/** A tiny shared limiter: be polite to IKEA's servers and avoid being rate-limited. */
+let inFlight = 0;
+const waiting: (() => void)[] = [];
+async function gate<T>(fn: () => Promise<T>, max = 4): Promise<T> {
+  if (inFlight >= max) await new Promise<void>((r) => waiting.push(r));
+  inFlight++;
+  try {
+    return await fn();
+  } finally {
+    inFlight--;
+    waiting.shift()?.();
+  }
 }

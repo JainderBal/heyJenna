@@ -129,6 +129,7 @@ curl $B/rooms/$ROOM/renders/$JOB/model -o room.glb
 | POST | `/rooms/:roomId/moodboard/pins` | add Pinterest pins to the moodboard `{pins: [{id, imageUrl (i.pinimg.com), link?}]}` (max 8 images in total); style and dials are re-derived |
 | POST | `/rooms/:roomId/pins/similar` | `{pins}` (max 30) → `{ranked: [{pin, distance}], unreadable}`, closest to the room palette first (CIELAB distance) |
 | GET | `/pinterest/boards` · `/pinterest/boards/:boardId/pins` | your boards / a board's pins `{id, title, imageUrl, size, link}`; `?bookmark=` pages. 501 without `PINTEREST_ACCESS_TOKEN` |
+| POST | `/pinterest/boards/import` | import a **public** board from its RSS feed, no API key: `{boardUrl}` (pinterest.com or a regional domain) → `{board: {title, url}, pins: [{id, title, imageUrl (736x), link}]}`; 400 for non-board URLs, 404 for a missing or private board. Pins can go straight into `/rooms/:roomId/moodboard/pins` and `pins/similar` |
 | GET / PATCH | `/rooms/:roomId/style` | style profile / tweak it |
 | POST | `/rooms/:roomId/listings/search` | search all sources. `?async=1` → `202 {jobId}` at once; progress + result over the events stream |
 | POST | `/rooms/:roomId/listings/link` | add a pasted product link (auto-picked) |

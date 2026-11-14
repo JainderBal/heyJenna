@@ -54,3 +54,35 @@ export function dialWords(type: FurnitureType, d: StyleDialValues | undefined): 
 
 /** Decorative-detail words, for the `ornament` dial. */
 export const ORNATE = /\b(carved|ornate|tufted|fringe[d]?|scalloped|gilded|tassel)/i;
+
+const SEATING: FurnitureType[] = ['sofa', 'armchair'];
+const ROUNDABLE: FurnitureType[] = ['sofa', 'armchair', 'pouf', 'coffee_table', 'side_table', 'desk', 'sideboard', 'mirror', 'floor_lamp'];
+const LEGGED: FurnitureType[] = ['sofa', 'armchair', 'coffee_table', 'side_table', 'desk', 'sideboard'];
+const LOW_TALL: FurnitureType[] = ['sofa', 'armchair', 'coffee_table', 'sideboard', 'shelf'];
+const BULKY: FurnitureType[] = ['sofa', 'armchair', 'pouf', 'coffee_table', 'side_table', 'desk', 'sideboard', 'shelf'];
+
+const LEG_WORD: Partial<Record<StyleDialValues['leg_style'], string>> = {
+  tapered_splayed: 'tapered legs', straight_square: 'square legs', turned: 'turned legs', cabriole: 'cabriole legs',
+  hairpin: 'hairpin legs', tubular_chrome: 'chrome legs', sled_frame: 'sled base', block: 'block legs', bun: 'bun feet', plinth: 'plinth',
+};
+const ARM_WORD: Record<StyleDialValues['arm_style'], string> = {
+  none: 'armless', track: 'track arm', slope: 'sloped arm', rolled: 'rolled arm', flared: 'flared arm', rounded_wrap: 'curved arm', wood_frame: 'wood frame',
+};
+
+/**
+ * Furniture-shape dials (curvature, line_direction, leg_lift, leg_style, mass, arm_style, modularity) → shop words,
+ * most telling first. The first one feeds the extra IKEA search; all of them are a small scoring tiebreaker.
+ */
+export function shapeWords(type: FurnitureType, d: StyleDialValues | undefined): string[] {
+  if (!d) return [];
+  const w: string[] = [];
+  if (type === 'sofa' && d.modularity > 0.65) w.push('modular', 'sectional');
+  if (type === 'shelf' && d.modularity > 0.65) w.push('modular');
+  if (SEATING.includes(type)) w.push(ARM_WORD[d.arm_style]);
+  if (LEGGED.includes(type) && LEG_WORD[d.leg_style]) w.push(LEG_WORD[d.leg_style]!);
+  if (ROUNDABLE.includes(type) && d.curvature > 0.7) w.push('rounded', 'curved', 'arched');
+  if (LEGGED.includes(type) && d.leg_lift > 0.7) w.push('legs');
+  if (BULKY.includes(type)) { if (d.mass > 0.7) w.push('chunky', 'thick'); else if (d.mass < 0.25) w.push('slim', 'slender', 'thin'); }
+  if (LOW_TALL.includes(type)) { if (d.line_direction > 0.75) w.push('low'); else if (d.line_direction < 0.25) w.push('tall'); }
+  return [...new Set(w)];
+}

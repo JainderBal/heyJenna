@@ -1,5 +1,5 @@
 import { DIAL_DEFAULTS, StyleProfile } from '@hey-jenna/contracts';
-import { dialWords, materialWord } from './dial-words';
+import { dialWords, materialWord, shapeWords } from './dial-words';
 import { queryParts } from './query';
 import { scoreListing } from './scoring';
 
@@ -32,5 +32,38 @@ describe('dial words', () => {
     expect(boucle.matchedWords).toContain('boucle');
     expect(tufted.style).toBeLessThan(sleek.style);
     expect(dialWords('sofa', dials)).toEqual(expect.arrayContaining(['boucle', 'velvet']));
+  });
+
+  describe('shape dials', () => {
+    const round = { ...dials, curvature: 0.9, mass: 0.9, modularity: 0.9, arm_style: 'rolled' as const, leg_style: 'hairpin' as const, leg_lift: 0.9 };
+    const sharp = { ...dials, curvature: 0.1, mass: 0.1, modularity: 0.1, arm_style: 'track' as const, leg_style: 'plinth' as const, leg_lift: 0.1, line_direction: 0.1 };
+    it('different dial values give different words, only for types they suit', () => {
+      expect(shapeWords('sofa', round)).toEqual(expect.arrayContaining(['modular', 'sectional', 'rolled arm', 'hairpin legs', 'rounded', 'curved', 'arched', 'chunky']));
+      expect(shapeWords('sofa', sharp)).toEqual(expect.arrayContaining(['track arm', 'plinth', 'slim', 'tall']));
+      expect(shapeWords('sofa', sharp)).not.toContain('rounded');
+      expect(shapeWords('coffee_table', round)).toContain('hairpin legs');
+      expect(shapeWords('coffee_table', round)).not.toContain('rolled arm');
+      expect(shapeWords('coffee_table', round)).not.toContain('modular');
+      expect(shapeWords('rug', round)).toEqual([]);
+      expect(shapeWords('sofa', undefined)).toEqual([]);
+    });
+    it('the IKEA search gets the top shape word', () => {
+      expect(queryParts('sofa', { ...style, dials: round }).shape).toBe('modular');
+      expect(queryParts('sofa', { ...style, dials: sharp }).shape).toBe('track arm');
+      expect(queryParts('rug', { ...style, dials: round }).shape).toBeUndefined();
+    });
+    it('shape words reorder listings but stay a tiebreaker', () => {
+      const s = { ...style, dials: round };
+      const plain = scoreListing(listing('mid century sofa'), s, plan);
+      const shaped = scoreListing(listing('mid century modular sofa with rolled arm'), s, plan);
+      expect(shaped.style).toBeGreaterThan(plain.style);
+      expect(shaped.matchedWords).toEqual(expect.arrayContaining(['modular', 'rolled arm']));
+      expect(shaped.style - plain.style).toBeLessThanOrEqual(0.15);
+      const sharpScore = scoreListing(listing('mid century modular sofa with rolled arm'), { ...style, dials: sharp }, plan);
+      expect(sharpScore.style).toBeLessThan(shaped.style);
+      // a wrong-sized listing with perfect shape words still loses to a right-sized plain one
+      const tiny = scoreListing({ ...listing('modular rolled arm sofa'), size: { w: 0.6, d: 0.5, h: 0.5 } }, s, plan);
+      expect(tiny.total).toBeLessThan(plain.total);
+    });
   });
 });

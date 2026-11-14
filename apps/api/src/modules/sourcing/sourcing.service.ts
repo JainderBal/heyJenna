@@ -172,6 +172,14 @@ export class SourcingService implements OnModuleInit {
     return toListingResponse(saved);
   }
 
+  /** One listing, 404 unless the person owns the room and the listing is in it. */
+  async getOwnedListing(roomId: string, ownerId: string, listingId: string): Promise<Listing> {
+    await this.rooms.getOwnedRoom(roomId, ownerId);
+    const listing = await this.repo.findInRoom(listingId, roomId);
+    if (!listing) throw new NotFoundException('Listing not found');
+    return listing;
+  }
+
   /** For the layout module: one listing from this room (caller must own the room). */
   async getListing(roomId: string, listingId: string): Promise<Listing | null> {
     return this.repo.findInRoom(listingId, roomId);

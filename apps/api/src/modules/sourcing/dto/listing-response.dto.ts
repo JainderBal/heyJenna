@@ -18,6 +18,8 @@ export interface ListingResponseDto {
   score: number;
   scoreDetail: ScoreDetail;
   picked: boolean;
+  /** 3D model of the product (IKEA), when the product page has one. */
+  modelUrl: string | null;
 }
 
 export interface SearchSummaryDto {

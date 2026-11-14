@@ -21,5 +21,6 @@ export function toListingResponse(l: Listing): ListingResponseDto {
     score: l.score,
     scoreDetail: l.scoreDetail as unknown as ScoreDetail,
     picked: l.picked,
+    modelUrl: l.modelUrl || null,
   };
 }

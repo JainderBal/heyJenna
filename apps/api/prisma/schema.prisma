@@ -56,6 +56,7 @@ model Listing {
   score         Float
   scoreDetail   Json     @map("score_detail")
   picked        Boolean  @default(false)          // the person chose this one for its slot
+  modelUrl      String?  @map("model_url")       // 3D model (GLB) from the product page; "" = page checked, none found
   createdAt     DateTime @default(now()) @map("created_at")
 
   @@unique([roomId, source, externalId])

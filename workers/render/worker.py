@@ -11,7 +11,7 @@ shared WORKER_TOKEN; it never touches the database. Standard library only.
 Env: API_URL (default http://localhost:3000), WORKER_TOKEN (required),
      BLENDER_BIN, SAMPLES (default 128), PCT (resolution %, default 100), POLL_SECONDS (3)
 """
-import argparse, json, os, socket, subprocess, sys, tempfile, time, urllib.error, urllib.request, uuid
+import argparse, hashlib, json, os, socket, subprocess, sys, tempfile, time, urllib.error, urllib.parse, urllib.request, uuid
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPT = os.path.join(HERE, "blender", "render_layout.py")
@@ -47,8 +47,45 @@ class Api:
         return self._send(path, b"".join(parts) + f"--{b}--\r\n".encode(), f"multipart/form-data; boundary={b}")
 
 
+MODEL_CACHE = os.path.expanduser(os.environ.get("MODEL_CACHE", "~/.cache/hey-jenna/models"))
+MODEL_HOSTS = tuple(h.strip() for h in os.environ.get("MODEL_HOSTS", "web-api.ikea.com").split(",") if h.strip())
+MAX_MODEL_BYTES = 40 * 1024 * 1024
+
+
+def fetch_model(url):
+    """Download a product's 3D model once (cached by URL). Only https, only from MODEL_HOSTS, size-limited."""
+    u = urllib.parse.urlparse(url)
+    if u.scheme != "https" or u.hostname not in MODEL_HOSTS: return None
+    os.makedirs(MODEL_CACHE, exist_ok=True)
+    path = os.path.join(MODEL_CACHE, hashlib.sha1(url.encode()).hexdigest() + ".glb")
+    if os.path.exists(path): return path
+    req = urllib.request.Request(url, headers={"user-agent": "hey-jenna/0.1 (hackathon prototype; furniture matching)"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        data = r.read(MAX_MODEL_BYTES + 1)
+    if len(data) > MAX_MODEL_BYTES or data[:4] != b"glTF": return None
+    with open(path + ".part", "wb") as f: f.write(data)
+    os.replace(path + ".part", path)
+    return path
+
+
+def attach_models(layout):
+    """Give each placed product with a 3D model a local file the renderer can import."""
+    n = 0
+    for o in layout.get("objects", []):
+        url = (o.get("product") or {}).get("modelUrl")
+        if not url: continue
+        try:
+            path = fetch_model(url)
+            if path: o["model_path"] = path; n += 1
+        except Exception as e:
+            print(f"  model for {o['id']} unavailable: {e}")
+    return n
+
+
 def render(layout, workdir, blender, samples, pct):
     src, png, glb = (os.path.join(workdir, n) for n in ("layout.json", "room.png", "room.glb"))
+    models = attach_models(layout)
+    if models: print(f"  {models} real product models")
     json.dump(layout, open(src, "w"))
     env = dict(os.environ, SAMPLES=str(samples), PCT=str(pct))
     t = time.time()

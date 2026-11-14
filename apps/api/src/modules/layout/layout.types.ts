@@ -11,6 +11,8 @@ export interface PlacedProduct {
   price: number | null;
   currency: string;
   imageUrl: string | null;
+  /** 3D model of the real product; the render worker uses it instead of a stand-in shape. */
+  modelUrl: string | null;
 }
 
 export interface PlacedObject extends EngineObject {

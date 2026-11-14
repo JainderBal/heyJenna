@@ -4,7 +4,7 @@ import { Listing, Room } from '@prisma/client';
 import { AppConfig } from '../../common/config/app-config.service';
 import { RoomsService } from '../rooms/rooms.service';
 import { StyleService } from '../style/style.service';
-import { parseIkeaMeasurements } from './adapters/ikea-product-page';
+import { findIkeaModelUrl, parseIkeaMeasurements } from './adapters/ikea-product-page';
 import { LinkAdapter } from './adapters/link.adapter';
 import { safeFetch } from '../../common/http/safe-fetch';
 import { Prisma } from '@prisma/client';
@@ -131,25 +131,30 @@ export class SourcingService {
       slot,
       listings: all.filter((l) => l.type === slot.type).slice(0, slot.count),
     }));
-    // IKEA search results have no sizes: read the real ones for just the pieces going into the room
+    // IKEA search results have no sizes or 3D models: read them for just the pieces going into the room
     for (const c of chosen)
-      c.listings = await Promise.all(c.listings.map((l) => (l.source === 'ikea' && l.sizeEstimated ? this.ikeaSize(l) : l)));
+      c.listings = await Promise.all(c.listings.map((l) => (l.source === 'ikea' && l.modelUrl === null ? this.ikeaDetails(l) : l)));
     return chosen;
   }
 
-  /** Reads width/depth/height from the IKEA product page once and stores it. Keeps the estimate on failure. */
-  private async ikeaSize(listing: Listing): Promise<Listing> {
+  /**
+   * Reads the IKEA product page once: real width/depth/height (if believable) and the link to the
+   * 3D model IKEA's "View in 3D" viewer uses. Stored, so each product page is read at most once.
+   */
+  private async ikeaDetails(listing: Listing): Promise<Listing> {
     try {
       const { body } = await safeFetch(listing.url, { accept: 'text/html', maxBytes: 4 * 1024 * 1024 });
-      const size = parseIkeaMeasurements(body.toString('utf8'));
-      if (!size || !plausibleSize(listing.type as FType, size)) {
-        if (size) this.log.warn(`ignoring odd IKEA size for ${listing.title.slice(0, 40)}: ${size.w}×${size.d}×${size.h} m`);
-        return listing;
+      const html = body.toString('utf8');
+      let size = parseIkeaMeasurements(html);
+      if (size && !plausibleSize(listing.type as FType, size)) {
+        this.log.warn(`ignoring odd IKEA size for ${listing.title.slice(0, 40)}: ${size.w}×${size.d}×${size.h} m`);
+        size = null;
       }
-      this.log.log(`IKEA size for ${listing.title.slice(0, 40)}: ${size.w}×${size.d}×${size.h} m`);
-      return await this.repo.setSize(listing.id, size as unknown as Prisma.InputJsonValue);
+      const modelUrl = findIkeaModelUrl(html) ?? '';
+      this.log.log(`IKEA ${listing.title.slice(0, 40)}: size ${size ? `${size.w}×${size.d}×${size.h} m` : 'estimated'}, 3D model ${modelUrl ? 'yes' : 'no'}`);
+      return await this.repo.setDetails(listing.id, { size: size ? (size as unknown as Prisma.InputJsonValue) : undefined, modelUrl });
     } catch (e) {
-      this.log.warn(`couldn't read IKEA size for ${listing.url}: ${(e as Error).message}`);
+      this.log.warn(`couldn't read IKEA page ${listing.url}: ${(e as Error).message}`);
       return listing;
     }
   }

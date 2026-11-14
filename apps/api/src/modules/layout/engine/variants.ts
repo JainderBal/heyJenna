@@ -42,9 +42,9 @@ export function fillerCount(r: EngineResult): number {
   return r.objects.filter((o) => o.id.startsWith('fill_') && o.layer !== 'plants').length;
 }
 
-/** Lower is better: broken rules ≫ pieces left out > a loose seating group > warnings > clutter. */
+/** Lower is better: broken rules and pieces left out (5 pieces cost more than one broken rule) > a loose seating group > warnings > clutter. */
 export function badness(r: EngineResult, dropped: Dropped[]): number {
-  return r.summary.fail * 100 + dropped.length * 10 + seatingSpread(r) * 15 + r.summary.warn * 3 + fillerCount(r) * 2;
+  return r.summary.fail * 100 + dropped.length * 25 + seatingSpread(r) * 15 + r.summary.warn * 3 + fillerCount(r) * 2;
 }
 
 /** Lays the room out every way in VARIANTS (in parallel, each auto-repaired) and keeps the best. */

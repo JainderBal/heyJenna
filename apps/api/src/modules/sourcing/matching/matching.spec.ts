@@ -12,6 +12,10 @@ describe('classifyTitle', () => {
     ['Wool rug 160x230', 'rug'],
     ['Teak sideboard / credenza', 'sideboard'],
     ['Box of books', null],
+    ['OLIVBLAD Plant stand, black', null],
+    ['BROKTRAST Plant pot, gray black', null],
+    ['FEJKA Artificial potted plant with pot', 'plant'],
+    ['STRELITZIA Potted plant', 'plant'],
   ])('%s → %s', (title, type) => expect(classifyTitle(title)).toBe(type));
 });
 

@@ -20,10 +20,15 @@ export interface PlacedObject extends EngineObject {
 }
 
 /** What we store per layout (the layouts.data column). */
-export interface LayoutData extends Omit<EngineResult, 'objects'> {
+export interface LayoutData {
   objects: PlacedObject[];
+  checks: EngineResult['checks'];
+  summary: EngineResult['summary'];
+  zones: EngineResult['zones'];
+  focal_point: EngineResult['focal_point'];
   dropped: Dropped[];
   edits: number;
+  [extra: string]: unknown; // the rest of the engine output (palette, layers, notes…)
 }
 
 /** Layers a person may move around (walls, windows, zones and wall art stay put). */

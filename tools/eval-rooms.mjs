@@ -32,6 +32,7 @@ for (const id of process.argv.slice(2)) {
     colour: colour.length ? (colour.reduce((a, b) => a + b, 0) / colour.length).toFixed(2) : '-',
     'table/sofa': sofa && table ? (table.size.w / sofa.size.w).toFixed(2) : '-',
     'rug-sofa (m)': sofa && rug ? (rug.size.w - sofa.size.w).toFixed(2) : '-',
+    variant: JSON.stringify(layout.variant ?? {}),
     price: layout.shoppingList.total,
     secs: `${((t1 - t0) / 1000).toFixed(0)}+${((t2 - t1) / 1000).toFixed(0)}`,
   });

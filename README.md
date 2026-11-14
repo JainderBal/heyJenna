@@ -20,6 +20,9 @@ moodboard  ──▶ style        (palette 60/30/10 + vibe + shop keywords; Clau
                  │
                  ▼
      move / turn / swap / remove pieces · shopping list with total price
+                 │
+                 ▼
+             render         (job queue in Postgres → Blender worker → PNG + .glb 3D model)
 ```
 
 ## Stack
@@ -38,7 +41,9 @@ apps/api/src/
     style/       moodboard → palette + vibe
     sourcing/    shopping list · sources (mock, eBay, web search, link) · sizes · scoring · picks
     layout/      engine adapter · spec builder · auto-repair · edits · shopping list
+    render/      render jobs (Postgres queue, SKIP LOCKED) · worker endpoints · image / model files
 engines/layout/  Python design engine
+workers/render/  Blender render worker (Python, stdlib only) — see its README
 packages/contracts/
 ```
 
@@ -52,6 +57,7 @@ npm run db:up                                  # local Postgres (stand-in for Su
 cp apps/api/.env.example apps/api/.env
 npm run db:migrate
 npm run dev                                    # API on http://localhost:3000
+npm run worker                                 # render worker (needs Blender 4.2+ and WORKER_TOKEN in apps/api/.env)
 ```
 
 With the defaults (`AUTH_MODE=dev`, `SOURCES=mock,…`) everything works with **no keys**:
@@ -91,6 +97,12 @@ curl -X POST  $B/rooms/$ROOM/layouts
 curl -X PATCH $B/rooms/$ROOM/layouts/$LAYOUT/objects/desk_1 -H 'content-type: application/json' -d '{"x": 1.2, "rotationDeg": 90}'
 curl -X PATCH $B/rooms/$ROOM/layouts/$LAYOUT/objects/sofa_1 -H 'content-type: application/json' -d '{"listingId": "…"}'
 curl          $B/rooms/$ROOM/layouts/$LAYOUT/shopping-list
+
+# 5. render it (the worker picks the job up)
+curl -X POST $B/rooms/$ROOM/layouts/$LAYOUT/renders
+curl $B/rooms/$ROOM/renders/$JOB                 # status → "done"
+curl $B/rooms/$ROOM/renders/$JOB/image -o room.png
+curl $B/rooms/$ROOM/renders/$JOB/model -o room.glb
 ```
 
 ## Endpoints
@@ -111,6 +123,10 @@ curl          $B/rooms/$ROOM/layouts/$LAYOUT/shopping-list
 | GET | `/rooms/:roomId/layouts/:layoutId/shopping-list` | items + total |
 | PATCH | `/rooms/:roomId/layouts/:layoutId/objects/:objectId` | move/turn `{x, y, rotationDeg}` or swap `{listingId}` |
 | DELETE | `/rooms/:roomId/layouts/:layoutId/objects/:objectId` | remove a piece |
+| POST | `/rooms/:roomId/layouts/:layoutId/renders` | queue a render |
+| GET | `/rooms/:roomId/renders` · `/rooms/:roomId/renders/:jobId` | render status |
+| GET | `/rooms/:roomId/renders/:jobId/image` · `/model` | the PNG / .glb |
+| POST | `/internal/render-jobs/claim` · `/:jobId/complete` · `/:jobId/fail` | render workers only (`x-worker-token`) |
 
 ## Tests
 
@@ -123,4 +139,6 @@ npm test        # unit tests, including real runs of the Python engine
 - Rooms are rectangles (4 walls). L-shaped rooms need polygon support in the engine.
 - A layout takes ~4 s; over-full rooms that need auto-repair can take ~20–25 s.
 - Some rooms keep one failed check (e.g. tight seat access with large real products); it is reported in `checks`.
-- No 3D render yet: the Blender render worker is the next piece.
+- Renders colour pieces from the moodboard palette, not from each product's own colour yet.
+- The renderer cuts windows and doors in the back wall only.
+- A full-quality render takes ~45 s on an M1 Pro.

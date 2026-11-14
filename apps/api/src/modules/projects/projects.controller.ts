@@ -1,15 +1,22 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthUser, CurrentUser } from '../../common/auth/auth.decorators';
 import { ZodPipe } from '../../common/validation/zod.pipe';
 import { BulkRoomsDto, BulkRoomsSchema } from './dto/bulk-rooms.dto';
 import { CreateProjectDto, CreateProjectSchema } from './dto/create-project.dto';
 import { UpdateProjectDto, UpdateProjectSchema } from './dto/update-project.dto';
+import { FloorPlanService } from './floor-plan/floor-plan.service';
 import { ProjectsService } from './projects.service';
+
+const IMAGE_TYPES = /^image\/(jpeg|png|webp|gif|avif|heic|heif)$/;
 
 /** HTTP in/out for projects. No logic here. */
 @Controller('projects')
 export class ProjectsController {
-  constructor(private readonly projects: ProjectsService) {}
+  constructor(
+    private readonly projects: ProjectsService,
+    private readonly floorPlans: FloorPlanService,
+  ) {}
 
   @Post()
   create(@CurrentUser() user: AuthUser, @Body(new ZodPipe(CreateProjectSchema)) dto: CreateProjectDto) {
@@ -53,5 +60,26 @@ export class ProjectsController {
     @Body(new ZodPipe(BulkRoomsSchema)) dto: BulkRoomsDto,
   ) {
     return this.projects.createRooms(id, user.id, dto);
+  }
+
+  /**
+   * POST /projects/:id/floor-plan  (multipart `image`, or `imageUrl`)
+   * Preview of every room found; `?create=1` also creates them (all or nothing).
+   */
+  @Post(':id/floor-plan')
+  @UseInterceptors(
+    FileInterceptor('image', {
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => cb(null, IMAGE_TYPES.test(file.mimetype)),
+    }),
+  )
+  readFloorPlan(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file?: Express.Multer.File,
+    @Body('imageUrl') imageUrl?: string,
+    @Query('create') create?: string,
+  ) {
+    return this.floorPlans.read(id, user.id, { file: file?.buffer, imageUrl: imageUrl || undefined }, create === '1' || create === 'true');
   }
 }

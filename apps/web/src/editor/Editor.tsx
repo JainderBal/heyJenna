@@ -84,7 +84,15 @@ export function Editor() {
   const upload = useEditorStore((s) => s.planUploads[projectId]);
   const palette = useMemo(() => roomPalette(style.data, projPal), [style.data, projPal]);
 
+  const setSearch = useEditorStore((s) => s.setSearch);
   useRoomEvents(room?.id, (e: RoomEvent) => {
+    if (room) {
+      const d = e.data as { done?: number; total?: number; error?: string };
+      if (e.type === 'listings.search.started') setSearch(room.id, { state: 'running', done: 0, total: null, error: undefined });
+      if (e.type === 'listings.search.progress') setSearch(room.id, { state: 'running', done: d.done ?? 0, total: d.total ?? null });
+      if (e.type === 'listings.search.finished') setSearch(room.id, { state: 'done' });
+      if (e.type === 'listings.search.failed') setSearch(room.id, { state: 'failed', error: d.error, thenLayOut: false });
+    }
     const msg = EVENT_TOASTS[e.type];
     if (msg) toast(typeof msg === 'function' ? msg(e) : msg);
   });
@@ -144,7 +152,7 @@ export function Editor() {
       case 'room3d':
         return room && <Room3DFrame room={room} layout={layout.data} palette={palette} />;
       case 'list':
-        return room && <ShoppingListFrame room={room} layout={layout.data} listings={listings.data} />;
+        return room && <ShoppingListFrame room={room} layout={layout.data} listings={listings.data} hasMoodboard={(style.data?.imageCount ?? 0) > 0} />;
     }
   };
 
@@ -224,7 +232,7 @@ const small = () => typeof matchMedia === 'function' && matchMedia('(max-width: 
 
 const EVENT_TOASTS: Partial<Record<RoomEvent['type'], string | ((e: RoomEvent) => string)>> = {
   'listings.search.finished': (e) => (typeof e.data.listingCount === 'number' ? `found ${e.data.listingCount} products` : 'search finished: products are in'),
-  'listings.search.failed': 'the product search failed',
+  'listings.search.failed': (e) => `the product search failed${typeof e.data.error === 'string' ? `: ${e.data.error}` : ''}`,
   'render.done': 'render ready',
   'render.failed': 'the render failed',
 };

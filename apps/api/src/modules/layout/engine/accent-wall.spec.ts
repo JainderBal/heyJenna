@@ -20,6 +20,10 @@ describe('accent wall', () => {
     expect(L).toBeGreaterThanOrEqual(34);
     expect(L).toBeLessThanOrEqual(66);
   });
+  it('picks the cobalt of a blue board, not its small rust pop', () => {
+    const hex = accentWallColour({ dominant: ['#C3BCAE', '#1D1C1F'], secondary: ['#375379', '#6792AA', '#57301B'], accent: ['#B65226'] });
+    expect(['blue', 'navy']).toContain(nearestColourName(hex));
+  });
   it('uses the window wall and keeps its finish', () => {
     expect(accentWall({ ...plan, walls: {} })).toBe('back');
     const style = { palette: { dominant: ['#EDE6D8'], secondary: ['#2F7A45'], accent: ['#2F7A45'] } } as never;

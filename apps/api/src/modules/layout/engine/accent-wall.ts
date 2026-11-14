@@ -18,19 +18,24 @@ function midTone(hex: string): string {
 }
 
 /**
- * The accent wall's colour, taken from the moodboard: the boldest secondary/accent colour
- * that stands apart from the main wall colour (dominant), brought to a mid tone.
+ * The accent wall's colour, taken from the moodboard. Design rule (60/30/10): the wall belongs to
+ * the 30 % secondary colours (the most-seen colourful one); the 10 % accents stay small pops. Only when every secondary colour
+ * is neutral (greys, beiges, black) does the boldest accent take the wall. Brought to a mid tone.
  */
 export function accentWallColour(palette: StyleProfile['palette']): string {
   const base: Lab = rgbToLab(hexToRgb(palette.dominant[0]));
-  const candidates = [...palette.accent, ...palette.secondary].map((hex) => {
-    const lab = rgbToLab(hexToRgb(hex));
-    const lightPenalty = lab[0] < 20 || lab[0] > 85 ? 25 : 0;
-    const score = chroma(lab) + Math.min(labDistance(lab, base), 40) * 0.5 - lightPenalty;
-    return { hex, score };
-  });
-  candidates.sort((a, b) => b.score - a.score);
-  return midTone(candidates[0]?.hex ?? palette.dominant[0]);
+  const rank = (hexes: string[]) =>
+    hexes
+      .map((hex) => {
+        const lab = rgbToLab(hexToRgb(hex));
+        const lightPenalty = lab[0] < 20 || lab[0] > 85 ? 25 : 0;
+        return { hex, chroma: chroma(lab), score: chroma(lab) + Math.min(labDistance(lab, base), 40) * 0.5 - lightPenalty };
+      })
+      .sort((a, b) => b.score - a.score);
+  // secondary colours come ordered by how much of the moodboard they cover: take the first colourful one
+  const colourful = palette.secondary.find((hex) => chroma(rgbToLab(hexToRgb(hex))) >= 20);
+  const pick = colourful ? { hex: colourful } : rank(palette.accent)[0] ?? rank(palette.secondary)[0];
+  return midTone(pick?.hex ?? palette.dominant[0]);
 }
 
 /** Which wall carries the accent: the one marked as feature, else the wall with the most window, else the back wall. */

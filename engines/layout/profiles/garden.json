@@ -1,0 +1,62 @@
+{
+  "name": "garden",
+  "source": "moodboard: green garden room (linen, rattan, botanicals)",
+  "palette": {
+    "dominant": [
+      "#F4F1E8",
+      "#D9D2C3"
+    ],
+    "secondary": [
+      "#6B8F5E",
+      "#C8A27A",
+      "#8A6A4F"
+    ],
+    "accent": [
+      "#E3B23C",
+      "#D9826B",
+      "#9BB7D4"
+    ]
+  },
+  "shape_family": "garden",
+  "materials": {
+    "wood": "#C8A27A",
+    "wood_light": "#E1C9A6",
+    "metal": "black",
+    "floor": "#C9A57A",
+    "curtain": "#EDE6D6",
+    "fabric": "linen"
+  },
+  "styling_density": "layered",
+  "plant_count": 6,
+  "art": {
+    "content": "botanical prints",
+    "arrangement": "pair",
+    "colours": [
+      "#6B8F5E",
+      "#E3B23C",
+      "#D9826B",
+      "#F4F1E8"
+    ]
+  },
+  "light_warmth_k": 3000,
+  "features": {
+    "allow": [
+      "window_seat",
+      "ceiling_beam",
+      "half_wall",
+      "platform",
+      "wainscoting"
+    ],
+    "prefer": [
+      "window_seat",
+      "ceiling_beam"
+    ],
+    "max": 2
+  },
+  "fillers": [
+    "plant_group",
+    "pouf",
+    "lounge_chair",
+    "side_table"
+  ]
+}

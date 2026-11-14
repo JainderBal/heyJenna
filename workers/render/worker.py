@@ -82,9 +82,10 @@ def attach_models(layout):
     return n
 
 
-def render(layout, workdir, blender, samples, pct):
+def render(layout, workdir, blender, samples, pct, dials=None):
     src, png, glb = (os.path.join(workdir, n) for n in ("layout.json", "room.png", "room.glb"))
     models = attach_models(layout)
+    if dials: layout["render_dials"] = dials  # style dials -> blender/dial_mapping.py
     if models: print(f"  {models} real product models")
     json.dump(layout, open(src, "w"))
     env = dict(os.environ, SAMPLES=str(samples), PCT=str(pct))
@@ -109,7 +110,7 @@ def work_one(api, worker_id, blender, samples, pct):
     print(f"job {jid} (layout {job['layoutId']}, attempt {job['attempts']})")
     try:
         with tempfile.TemporaryDirectory(prefix="hj-render-") as d:
-            png, glb = render(claimed["layout"], d, blender, samples, pct)
+            png, glb = render(claimed["layout"], d, blender, samples, pct, claimed.get("dials"))
             files = {"image": ("room.png", open(png, "rb").read(), "image/png")}
             if glb: files["model"] = ("room.glb", open(glb, "rb").read(), "model/gltf-binary")
             api.post_files(f"/internal/render-jobs/{jid}/complete", files)

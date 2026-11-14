@@ -5,6 +5,8 @@ import { StorageService } from '../../common/storage/storage.service';
 import { LayoutService } from '../layout/layout.service';
 import { LayoutData } from '../layout/layout.types';
 import { RoomsService } from '../rooms/rooms.service';
+import { StyleService } from '../style/style.service';
+import { RenderDials, renderDialsOf } from './render-dials';
 import { RenderJobResponseDto } from './dto/render-job-response.dto';
 import { toRenderJobResponse } from './mappers/render-job.mapper';
 import { RenderRepository } from './render.repository';
@@ -12,6 +14,8 @@ import { RenderRepository } from './render.repository';
 export interface ClaimedJob {
   job: RenderJobResponseDto;
   layout: LayoutData;
+  /** Materials and lighting dials; null until the room has a moodboard. */
+  dials: RenderDials | null;
 }
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
@@ -26,6 +30,7 @@ export class RenderService {
     private readonly repo: RenderRepository,
     private readonly rooms: RoomsService,
     private readonly layouts: LayoutService,
+    private readonly style: StyleService,
     private readonly storage: StorageService,
     private readonly events: RoomEventsService,
   ) {}
@@ -61,7 +66,12 @@ export class RenderService {
     const job = await this.repo.claimNext(workerId);
     if (!job) return null;
     this.log.log(`job ${job.id} → ${workerId} (attempt ${job.attempts})`);
-    return { job: this.announce('render.running', job), layout: await this.layouts.getDataForWorker(job.roomId, job.layoutId) };
+    const profile = await this.style.getProfile(job.roomId);
+    return {
+      job: this.announce('render.running', job),
+      layout: await this.layouts.getDataForWorker(job.roomId, job.layoutId),
+      dials: profile ? renderDialsOf(profile.dials) : null,
+    };
   }
 
   async complete(jobId: string, image?: Buffer, model?: Buffer): Promise<RenderJobResponseDto> {

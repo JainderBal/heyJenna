@@ -16,6 +16,8 @@ Used by ../worker.py. Windows and doors are cut in the back wall only; others ar
 """
 import bpy, bmesh, math, os, sys, json
 from mathutils import Vector
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import dial_mapping
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
@@ -112,6 +114,7 @@ def kelvin(k):  # colour temperature -> hex (Tanner Helland's fit)
     g = 99.47 * math.log(t) - 161.12 if t <= 66 else 288.1 * (t - 60) ** -0.0755
     b = 255 if t >= 66 else (0 if t <= 19 else 138.5 * math.log(t - 10) - 305.04)
     return "#" + "".join(f"{int(max(0, min(255, v))):02X}" for v in (r, g, b))
+DM = dial_mapping.map_dials(LAY.get("render_dials"))  # style dials -> render settings (see dial_mapping.py)
 LAMP = kelvin(PROF.get("light_warmth_k", 2700))
 
 def point_light(name, loc, energy, hexc, soft=0.15):
@@ -526,7 +529,31 @@ for wid, (a, b, sill, head) in WINS.items():
         ao.location = T((a + b) / 2, (sill + head) / 2, -D / 2 - TH - 0.3); ao.rotation_euler = (-math.pi / 2, 0, 0)
     for ob in build(f"lighting.{wid}.daylight_01", "lighting", win_light): ob.name = f"lighting.{wid}.daylight_01"
 wo = bpy.data.worlds.new("world"); sc.world = wo; wo.use_nodes = True
-bg = wo.node_tree.nodes["Background"]; bg.inputs["Color"].default_value = lin("#FFE2C6"); bg.inputs["Strength"].default_value = 0.85
+bg = wo.node_tree.nodes["Background"]; bg.inputs["Color"].default_value = lin("#FFE2C6"); bg.inputs["Strength"].default_value = DM["world_strength"]
+
+# ---------------------------------------------------------------- style dials: materials, lamps, palette (settings from dial_mapping.py)
+def apply_dials():
+    srgb = lambda c: c * 12.92 if c <= 0.0031308 else 1.055 * c ** (1 / 2.4) - 0.055
+    for m in bpy.data.materials:
+        b = m.node_tree.nodes.get("Principled BSDF") if m.use_nodes else None
+        if not b: continue
+        glowing = b.inputs["Emission Strength"].default_value > 0
+        if not glowing:  # palette: recolour through the pure mapping
+            c = b.inputs["Base Color"].default_value
+            hx = "#" + "".join(f"{int(max(0, min(1, srgb(v))) * 255):02X}" for v in c[:3])
+            b.inputs["Base Color"].default_value = lin(dial_mapping.adjust_colour(hx, DM["colour"]))
+        b.inputs["Roughness"].default_value = max(0.04, min(1.0, b.inputs["Roughness"].default_value * DM["roughness_scale"]))
+        if DM["bump_strength"] > 0.01 and not glowing and m.name.startswith("#"):  # fine noise bump on the flat clay colours
+            nt = m.node_tree; noise = nt.nodes.new("ShaderNodeTexNoise"); noise.inputs["Scale"].default_value = 180
+            bump = nt.nodes.new("ShaderNodeBump"); bump.inputs["Strength"].default_value = DM["bump_strength"]; bump.inputs["Distance"].default_value = 0.02
+            nt.links.new(noise.outputs["Fac"], bump.inputs["Height"]); nt.links.new(bump.outputs["Normal"], b.inputs["Normal"])
+    for ld in bpy.data.lights:  # fill = daylight, accent = lamps the layout placed
+        fill = ld.name in ("sun", "window")
+        ld.energy *= DM["light_scale"] * (DM["fill_scale"] if fill else DM["accent_scale"])
+    for l in DM["extra_lamps"]:
+        x, y = l["pos"][0] * W - W / 2, l["pos"][1] * D - D / 2
+        point_light("lighting.dial." + l["name"], (x, l["h"], y), l["energy"], LAMP, soft=0.3)  # point lamps: no orientation to get wrong
+apply_dials()
 
 # ---------------------------------------------------------------- camera: identical to v6
 cd = bpy.data.cameras.new("cam"); cd.type = "ORTHO"; cd.ortho_scale = 8.9; cd.clip_end = 100

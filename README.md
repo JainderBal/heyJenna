@@ -71,7 +71,8 @@ mock products, rule-based moodboard reading, no login.
 | Supabase Storage | `STORAGE_DRIVER=supabase`, `SUPABASE_SERVICE_ROLE_KEY` |
 | Claude reads moodboards | `ANTHROPIC_API_KEY` |
 | eBay | `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET` |
-| Kijiji / FB Marketplace / IKEA | `BRAVE_SEARCH_API_KEY` (search engine results only; no scraping) |
+| Kijiji / FB Marketplace | `BRAVE_SEARCH_API_KEY` (search engine results only; no scraping) |
+| IKEA (+ 3D models) | nothing: uses IKEA's own search and model files, on by default (`IKEA_LOCALE`, default `ca/en`) |
 | A UI on another origin | `CORS_ORIGINS` (comma-separated; default `http://localhost:5173`) |
 | Background jobs off in this instance | `JOBS_RUNNER=off` (jobs then wait for an instance with it on) |
 | Pinterest import | `PINTEREST_ACCESS_TOKEN` (Pinterest API v5; one token per deployment, no OAuth flow yet; without it `/pinterest/*` answers 501) |

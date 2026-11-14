@@ -71,6 +71,8 @@ mock products, rule-based moodboard reading, no login.
 | Claude reads moodboards | `ANTHROPIC_API_KEY` |
 | eBay | `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET` |
 | Kijiji / FB Marketplace / IKEA | `BRAVE_SEARCH_API_KEY` (search engine results only; no scraping) |
+| A UI on another origin | `CORS_ORIGINS` (comma-separated; default `http://localhost:5173`) |
+| Background jobs off in this instance | `JOBS_RUNNER=off` (jobs then wait for an instance with it on) |
 
 ## Try the flow
 
@@ -116,10 +118,11 @@ curl $B/rooms/$ROOM/renders/$JOB/model -o room.glb
 | GET / PATCH / DELETE | `/rooms/:id` | one room |
 | POST | `/rooms/:roomId/moodboard` | upload moodboard (multipart `images`, optional `imageUrls` JSON) |
 | GET / PATCH | `/rooms/:roomId/style` | style profile / tweak it |
-| POST | `/rooms/:roomId/listings/search` | search all sources |
+| POST | `/rooms/:roomId/listings/search` | search all sources. `?async=1` → `202 {jobId}` at once; progress + result over the events stream |
 | POST | `/rooms/:roomId/listings/link` | add a pasted product link (auto-picked) |
 | GET | `/rooms/:roomId/listings?type=sofa` | listings |
 | PATCH | `/rooms/:roomId/listings/:listingId` | `{picked}` |
+| GET | `/rooms/:roomId/listings/:listingId/model` | the product's 3D model (GLB), fetched once from IKEA and cached |
 | POST / GET | `/rooms/:roomId/layouts` | generate / list layouts |
 | GET | `/rooms/:roomId/layouts/:layoutId` | one layout (objects, checks, dropped, shopping list) |
 | GET | `/rooms/:roomId/layouts/:layoutId/shopping-list` | items + total |
@@ -129,6 +132,9 @@ curl $B/rooms/$ROOM/renders/$JOB/model -o room.glb
 | POST | `/rooms/:roomId/layouts/:layoutId/renders` | queue a render |
 | GET | `/rooms/:roomId/renders` · `/rooms/:roomId/renders/:jobId` | render status |
 | GET | `/rooms/:roomId/renders/:jobId/image` · `/model` | the PNG / .glb |
+| GET | `/rooms/:roomId/events` | live updates (server-sent events): `data: {type, roomId, at, data}` for `listings.search.*`, `layout.generated`, `layout.object.added/moved/removed`, `render.queued/running/done/failed`, `job.queued/running/done/failed`; `: ping` every 20 s. EventSource can't send headers, so this route also takes `?access_token=` (or `?dev_user=` in dev) |
+| GET | `/rooms/:roomId/jobs/:jobId` | a background job's status / result (polling fallback) |
+| GET | `/models?url=<https://web-api.ikea.com/…glb>` | any allowed 3D model (`MODEL_HOSTS`; https, ≤ 40 MB, must be glTF), cached in storage; `model/gltf-binary`, long cache headers, `x-cache: hit/miss` |
 | POST | `/internal/render-jobs/claim` · `/:jobId/complete` · `/:jobId/fail` | render workers only (`x-worker-token`) |
 
 ## Tests
@@ -145,3 +151,4 @@ npm test        # unit tests, including real runs of the Python engine
 - Renders colour pieces from the moodboard palette, not from each product's own colour yet.
 - The renderer cuts windows and doors in the back wall only.
 - A full-quality render takes ~45 s on an M1 Pro.
+- Live updates are in memory: with several API instances, each only sees its own events (needs Postgres LISTEN/NOTIFY or Redis).

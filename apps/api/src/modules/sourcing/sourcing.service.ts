@@ -1,6 +1,8 @@
-import { BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { JobsService } from '../../common/jobs/jobs.service';
 import { FloorPlan, FurnitureType } from '@hey-jenna/contracts';
 import { Listing, Room } from '@prisma/client';
+import { RoomEventsService } from '../../common/events/events.service';
 import { AppConfig } from '../../common/config/app-config.service';
 import { RoomsService } from '../rooms/rooms.service';
 import { StyleService } from '../style/style.service';
@@ -31,9 +33,15 @@ export interface ChosenSlot {
   listings: Listing[]; // best first; picked ones always first
 }
 
+const LISTING_SEARCH = 'listing_search';
+interface ListingSearchPayload {
+  ownerId: string;
+  dto: SearchListingsDto;
+}
+
 /** Finds real products that match the room's moodboard, and remembers which ones the person picked. */
 @Injectable()
-export class SourcingService {
+export class SourcingService implements OnModuleInit {
   private readonly log = new Logger(SourcingService.name);
 
   constructor(
@@ -43,10 +51,46 @@ export class SourcingService {
     private readonly link: LinkAdapter,
     private readonly config: AppConfig,
     @Inject(SOURCE_ADAPTERS) private readonly adapters: SourceAdapter[],
+    private readonly events: RoomEventsService,
+    private readonly jobs: JobsService,
   ) {}
 
-  async search(roomId: string, ownerId: string, dto: SearchListingsDto): Promise<SearchSummaryDto> {
+  onModuleInit(): void {
+    this.jobs.register(LISTING_SEARCH, async (job) => {
+      const { ownerId, dto } = job.payload as unknown as ListingSearchPayload;
+      const summary = await this.search(job.roomId!, ownerId, dto, job.id);
+      // the listings themselves are fetched with GET /listings; keep the stored result small
+      return { listingCount: summary.listings.length, searched: summary.searched, sources: summary.sources, errors: summary.errors } as never;
+    });
+  }
+
+  /** Same search, run by the jobs runner; the result is announced on the room's live-update stream. */
+  async searchInBackground(roomId: string, ownerId: string, dto: SearchListingsDto): Promise<{ jobId: string; status: string }> {
+    await this.rooms.getOwnedRoom(roomId, ownerId);
+    const payload: ListingSearchPayload = { ownerId, dto };
+    const job = await this.jobs.enqueue({ kind: LISTING_SEARCH, roomId, payload: payload as never, maxAttempts: 2 });
+    return { jobId: job.id, status: job.status };
+  }
+
+  /** Search and tell the room's live-update streams when it starts and ends (jobId set when run as a background job). */
+  async search(roomId: string, ownerId: string, dto: SearchListingsDto, jobId?: string): Promise<SearchSummaryDto> {
     const room = await this.rooms.getOwnedRoom(roomId, ownerId);
+    const ref = jobId ? { jobId } : {};
+    this.events.publish(roomId, 'listings.search.started', { ...ref, types: dto.types ?? null });
+    try {
+      const summary = await this.runSearch(room, dto);
+      this.events.publish(roomId, 'listings.search.finished', {
+        ...ref, searched: summary.searched, sources: summary.sources, errors: summary.errors, listingCount: summary.listings.length,
+      });
+      return summary;
+    } catch (e) {
+      this.events.publish(roomId, 'listings.search.failed', { ...ref, error: (e as Error).message });
+      throw e;
+    }
+  }
+
+  private async runSearch(room: Room, dto: SearchListingsDto): Promise<SearchSummaryDto> {
+    const roomId = room.id;
     const style = await this.style.getProfile(roomId);
     if (!style) throw new ConflictException('Upload a moodboard first: products are matched to its style');
     const plan = room.floorPlan as unknown as FloorPlan;
@@ -126,6 +170,14 @@ export class SourcingService {
     const saved = await this.repo.setPicked(listing.id, picked);
     if (picked) await this.limitPicked(room, saved);
     return toListingResponse(saved);
+  }
+
+  /** One listing, 404 unless the person owns the room and the listing is in it. */
+  async getOwnedListing(roomId: string, ownerId: string, listingId: string): Promise<Listing> {
+    await this.rooms.getOwnedRoom(roomId, ownerId);
+    const listing = await this.repo.findInRoom(listingId, roomId);
+    if (!listing) throw new NotFoundException('Listing not found');
+    return listing;
   }
 
   /** For the layout module: one listing from this room (caller must own the room). */

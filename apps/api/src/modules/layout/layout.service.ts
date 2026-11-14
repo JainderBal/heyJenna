@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { FloorPlan, ListingSource, Size } from '@hey-jenna/contracts';
 import { Layout, Listing } from '@prisma/client';
+import { RoomEventsService } from '../../common/events/events.service';
 import { RoomsService } from '../rooms/rooms.service';
 import { SourcingService } from '../sourcing/sourcing.service';
 import { StyleService } from '../style/style.service';
@@ -32,6 +33,7 @@ export class LayoutService {
     private readonly style: StyleService,
     private readonly sourcing: SourcingService,
     @Inject(LAYOUT_ENGINE) private readonly engine: LayoutEngine,
+    private readonly events: RoomEventsService,
   ) {}
 
   async generate(roomId: string, ownerId: string): Promise<LayoutResponseDto> {
@@ -52,7 +54,9 @@ export class LayoutService {
     const specIds = new Set(spec.furniture.map((f) => f.id));
     const objects = solved.result.objects.map((o) => attach(o as PlacedObject, index, suggestedIds, specIds));
     const data: LayoutData = { ...solved.result, objects, dropped: solved.dropped, edits: 0, variant: solved.variant, variantsTried: solved.tried };
-    return toLayoutResponse(await this.repo.create(roomId, data));
+    const saved = await this.repo.create(roomId, data);
+    this.events.publish(roomId, 'layout.generated', { layoutId: saved.id, summary: saved.summary });
+    return toLayoutResponse(saved);
   }
 
   async list(roomId: string, ownerId: string): Promise<LayoutResponseDto[]> {
@@ -97,7 +101,9 @@ export class LayoutService {
       if (e instanceof EditError) throw new BadRequestException(e.message);
       throw e;
     }
-    return { layout: toLayoutResponse(await this.repo.save(layout.id, data)), warnings: [...new Set(warnings)] };
+    const saved = await this.repo.save(layout.id, data);
+    this.events.publish(roomId, 'layout.object.moved', { layoutId, objectId, ...(dto.listingId ? { listingId: dto.listingId } : {}) });
+    return { layout: toLayoutResponse(saved), warnings: [...new Set(warnings)] };
   }
 
   async removeObject(roomId: string, ownerId: string, layoutId: string, objectId: string): Promise<EditResultDto> {
@@ -111,7 +117,9 @@ export class LayoutService {
       if (e instanceof EditError) throw new BadRequestException(e.message);
       throw e;
     }
-    return { layout: toLayoutResponse(await this.repo.save(layout.id, data)), warnings: removed.length > 1 ? [`also removed ${removed.slice(1).join(', ')}`] : [] };
+    const saved = await this.repo.save(layout.id, data);
+    this.events.publish(roomId, 'layout.object.removed', { layoutId, objectId, removed });
+    return { layout: toLayoutResponse(saved), warnings: removed.length > 1 ? [`also removed ${removed.slice(1).join(', ')}`] : [] };
   }
 
   /**
@@ -138,7 +146,9 @@ export class LayoutService {
     data.objects.push(added.o);
     data.edits++;
     await this.sourcing.setPicked(roomId, ownerId, listing.id, true);
-    return { layout: toLayoutResponse(await this.repo.save(layout.id, data)), warnings: added.warnings };
+    const saved = await this.repo.save(layout.id, data);
+    this.events.publish(roomId, 'layout.object.added', { layoutId, objectId: added.o.id, listingId: listing.id });
+    return { layout: toLayoutResponse(saved), warnings: added.warnings };
   }
 
   /** Hang a wall piece where the person says, or on the best free stretch of a visible wall. */

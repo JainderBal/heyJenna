@@ -21,8 +21,23 @@ const Env = z.object({
   PYTHON_BIN: z.string().default('python3'),
   /** Shared secret render workers send in x-worker-token. Unset = worker routes are off. */
   WORKER_TOKEN: z.string().min(16).optional(),
+  /** Browser origins allowed to call the API (comma-separated), e.g. the React dev server. */
+  CORS_ORIGINS: z.string().default('http://localhost:5173'),
+  /** Comment line sent on idle SSE streams so proxies keep them open. */
+  SSE_HEARTBEAT_MS: z.coerce.number().int().min(1000).default(20_000),
+  /** In-process runner for the general jobs queue (e.g. background product searches). */
+  JOBS_RUNNER: z.enum(['on', 'off']).default('on'),
+  JOBS_POLL_MS: z.coerce.number().int().min(100).default(1000),
+  JOBS_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(2),
+  /** Hosts 3D models (GLB) may be fetched from, same rule as the render worker's MODEL_HOSTS. */
+  MODEL_HOSTS: z.string().default('web-api.ikea.com'),
 });
 export type Env = z.infer<typeof Env>;
+
+/** "a, b,,c" → ["a", "b", "c"] */
+export function csv(value: string): string[] {
+  return value.split(',').map((v) => v.trim()).filter(Boolean);
+}
 
 /** Used by ConfigModule: empty strings count as "not set", then the shape is checked. */
 export function validateEnv(raw: Record<string, unknown>): Env {

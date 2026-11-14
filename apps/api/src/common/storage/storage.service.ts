@@ -14,9 +14,13 @@ export class StorageService {
   constructor(private readonly config: AppConfig) {}
 
   async save(folder: string, data: Buffer, ext: string, contentType: string): Promise<string> {
-    const key = `${folder}/${randomUUID()}.${ext}`;
+    return this.saveAs(`${folder}/${randomUUID()}.${ext}`, data, contentType);
+  }
+
+  /** Save under a fixed key (a cache: same input → same key), replacing what was there. */
+  async saveAs(key: string, data: Buffer, contentType: string): Promise<string> {
     if (this.config.get('STORAGE_DRIVER') === 'supabase') {
-      const { error } = await this.client().storage.from(this.config.get('SUPABASE_BUCKET')).upload(key, data, { contentType });
+      const { error } = await this.client().storage.from(this.config.get('SUPABASE_BUCKET')).upload(key, data, { contentType, upsert: true });
       if (error) throw error;
     } else {
       const path = join(this.localRoot, key);
@@ -33,6 +37,17 @@ export class StorageService {
       return Buffer.from(await data.arrayBuffer());
     }
     return readFile(join(this.localRoot, key));
+  }
+
+  /** The file, or null if nothing is stored under this key. */
+  async tryLoad(key: string): Promise<Buffer | null> {
+    try {
+      return await this.load(key);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null;
+      if (this.config.get('STORAGE_DRIVER') === 'supabase') return null; // supabase-js reports "not found" as a generic error
+      throw e;
+    }
   }
 
   private client(): SupabaseClient {

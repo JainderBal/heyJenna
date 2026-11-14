@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { z } from 'zod';
 import { AuthUser, CurrentUser } from '../../common/auth/auth.decorators';
 import { ZodPipe } from '../../common/validation/zod.pipe';
@@ -7,20 +8,28 @@ import { ListListingsDto, ListListingsSchema } from './dto/list-listings.dto';
 import { SearchListingsDto, SearchListingsSchema } from './dto/search-listings.dto';
 import { SourcingService } from './sourcing.service';
 
+const AsyncQuerySchema = z.object({ async: z.preprocess((v) => v === '1' || v === 'true', z.boolean()) });
 const PickSchema = z.object({ picked: z.boolean() });
 
 @Controller('rooms/:roomId/listings')
 export class SourcingController {
   constructor(private readonly sourcing: SourcingService) {}
 
-  /** Search every enabled source for the room's shopping list, in the moodboard's style. */
+  /**
+   * Search every enabled source for the room's shopping list, in the moodboard's style.
+   * ?async=1 → 202 {jobId} at once; progress and the result come over GET /rooms/:roomId/events.
+   */
   @Post('search')
-  search(
+  async search(
     @CurrentUser() user: AuthUser,
     @Param('roomId', ParseUUIDPipe) roomId: string,
     @Body(new ZodPipe(SearchListingsSchema)) dto: SearchListingsDto,
+    @Query(new ZodPipe(AsyncQuerySchema)) q: { async: boolean },
+    @Res({ passthrough: true }) res: Response,
   ) {
-    return this.sourcing.search(roomId, user.id, dto);
+    if (!q.async) return this.sourcing.search(roomId, user.id, dto);
+    res.status(202);
+    return this.sourcing.searchInBackground(roomId, user.id, dto);
   }
 
   /** Add a product the person found themselves (eBay, Kijiji, FB Marketplace, IKEA, any shop). */

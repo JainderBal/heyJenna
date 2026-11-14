@@ -96,3 +96,26 @@ model RenderJob {
   @@index([layoutId])
   @@map("render_jobs")
 }
+
+/// General job queue for work the API does in the background (e.g. kind "listing_search").
+/// Same pattern as render_jobs: claimed with FOR UPDATE SKIP LOCKED, failed jobs retry with backoff.
+model Job {
+  id          String    @id @default(uuid()) @db.Uuid
+  kind        String
+  payload     Json
+  roomId      String?   @map("room_id") @db.Uuid   // for owner checks and live updates; no FK so any job can use the table
+  status      String    @default("queued")          // queued | running | done | failed
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3) @map("max_attempts")
+  runAfter    DateTime  @default(now()) @map("run_after")
+  lockedBy    String?   @map("locked_by")
+  result      Json?
+  error       String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  startedAt   DateTime? @map("started_at")
+  finishedAt  DateTime? @map("finished_at")
+
+  @@index([status, runAfter])
+  @@index([roomId])
+  @@map("jobs")
+}

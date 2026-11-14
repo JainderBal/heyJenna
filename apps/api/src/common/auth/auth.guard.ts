@@ -21,12 +21,12 @@ export class AuthGuard implements CanActivate {
     const req = ctx.switchToHttp().getRequest();
 
     if (this.config.get('AUTH_MODE') === 'dev') {
-      req.user = { id: String(req.headers['x-dev-user'] ?? 'dev-user') };
+      req.user = { id: String(req.headers['x-dev-user'] ?? streamParam(req, 'dev_user') ?? 'dev-user') };
       return true;
     }
 
     const header: string | undefined = req.headers.authorization;
-    const token = header?.startsWith('Bearer ') ? header.slice(7) : undefined;
+    const token = header?.startsWith('Bearer ') ? header.slice(7) : streamParam(req, 'access_token');
     if (!token) throw new UnauthorizedException('Missing login token');
     try {
       const payload = await this.verify(token);
@@ -49,4 +49,14 @@ export class AuthGuard implements CanActivate {
     this.jwks ??= createRemoteJWKSet(new URL(`${this.config.get('SUPABASE_URL')}/auth/v1/.well-known/jwks.json`));
     return (await jwtVerify(token, this.jwks, { audience })).payload;
   }
+}
+
+/**
+ * EventSource can't send headers, so only the live-updates stream (GET …/events) may pass the
+ * login as a query parameter. Everything else must use the Authorization header.
+ */
+function streamParam(req: { method: string; path?: string; query?: Record<string, unknown> }, name: string): string | undefined {
+  if (req.method !== 'GET' || !req.path?.endsWith('/events')) return undefined;
+  const v = req.query?.[name];
+  return typeof v === 'string' && v ? v : undefined;
 }

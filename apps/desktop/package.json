@@ -10,6 +10,7 @@
     "dist": "npm run build -w @hey-jenna/web && npm run build && electron-builder --mac dmg --publish never"
   },
   "devDependencies": {
+    "@types/node": "^26.6.6",
     "electron": "45.3.2",
     "electron-builder": "^26.18.0",
     "esbuild": "^0.25.12",

@@ -1,7 +1,7 @@
 # hey jenna
 
 Give it a **moodboard** and a **floor plan**. It finds **real furniture you can buy**
-(eBay, Kijiji, Facebook Marketplace, IKEA, or any link you paste) in the same style and colours,
+(eBay, Etsy, Kijiji, Facebook Marketplace, IKEA, or any link you paste) in the same style and colours,
 places it in your room with interior-design rules, and lets you move or swap pieces.
 
 This repo is the **backend** (the frontend comes later in `apps/web`).
@@ -40,7 +40,7 @@ apps/api/src/
     rooms/       hand-drawn floor plans
     projects/    a home or job that groups rooms
     style/       moodboard → palette + vibe
-    sourcing/    shopping list · sources (mock, eBay, web search, link) · sizes · scoring · picks
+    sourcing/    shopping list · sources (mock, eBay, Etsy, web search, link) · sizes · scoring · picks
     layout/      engine adapter · spec builder · auto-repair · edits · shopping list
     render/      render jobs (Postgres queue, SKIP LOCKED) · worker endpoints · image / model files
 engines/layout/  Python design engine
@@ -74,6 +74,7 @@ mock products, rule-based moodboard reading, no login.
 | Kijiji / FB Marketplace / IKEA | `BRAVE_SEARCH_API_KEY` (search engine results only; no scraping) |
 | A UI on another origin | `CORS_ORIGINS` (comma-separated; default `http://localhost:5173`) |
 | Background jobs off in this instance | `JOBS_RUNNER=off` (jobs then wait for an instance with it on) |
+| Etsy | `ETSY_API_KEY` (Open API v3); without it, `BRAVE_SEARCH_API_KEY` finds etsy.com listings instead |
 
 ## Try the flow
 

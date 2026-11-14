@@ -42,6 +42,7 @@ function sourceOf(url: string): ListingSource {
   if (host.includes('kijiji.')) return 'kijiji';
   if (host.includes('facebook.')) return 'facebook';
   if (host.includes('ikea.')) return 'ikea';
+  if (host.includes('etsy.')) return 'etsy';
   return 'link';
 }
 

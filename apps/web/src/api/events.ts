@@ -4,7 +4,9 @@
  */
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { apiUrl, devUser } from './client';
+import { apiUrl } from './client';
+import { authQuery } from './auth';
+import { useAccessToken } from './useAccessToken';
 import { qk } from './hooks';
 import type { RenderJob, RoomEvent } from './types';
 
@@ -17,11 +19,12 @@ type Listener = (e: RoomEvent) => void;
 export function useRoomEvents(roomId: string | undefined, onEvent?: Listener) {
   const qc = useQueryClient();
   const listener = useRef(onEvent);
+  const token = useAccessToken();
   listener.current = onEvent;
   useEffect(() => {
     if (!roomId || typeof EventSource === 'undefined') return;
-    // EventSource can't send headers: in AUTH_MODE=dev the user goes in ?dev_user= instead.
-    const es = new EventSource(apiUrl(`/rooms/${roomId}/events`, { dev_user: devUser() }));
+    // EventSource can't send headers: the login goes in ?dev_user= (AUTH_MODE=dev) or ?access_token=.
+    const es = new EventSource(apiUrl(`/rooms/${roomId}/events`, authQuery()));
     es.onmessage = (m) => {
       let e: RoomEvent;
       try {
@@ -65,5 +68,6 @@ export function useRoomEvents(roomId: string | undefined, onEvent?: Listener) {
       listener.current?.(e);
     };
     return () => es.close();
-  }, [roomId, qc]);
+    // a refreshed token reopens the stream with the new one
+  }, [roomId, qc, token]);
 }

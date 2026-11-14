@@ -11,6 +11,7 @@ export function toRoomResponse(room: Room): RoomResponseDto {
     floorPlan,
     needs: room.needs,
     projectId: room.projectId,
+    planPosition: room.planX !== null && room.planY !== null ? { x: room.planX, y: room.planY } : null,
     areaM2: Math.round(floorPlan.width * floorPlan.depth * 100) / 100,
     createdAt: room.createdAt.toISOString(),
     updatedAt: room.updatedAt.toISOString(),

@@ -1,16 +1,17 @@
 /**
- * Thin fetch wrapper for the hey jenna API. In dev, Vite proxies /api → http://localhost:3000
- * (prefix stripped), so every path here is the API path with /api in front.
+ * Thin fetch wrapper for the hey jenna API. Every path here is an API path ("/rooms/1") put after
+ * the API base: `VITE_API_URL` when set at build time (e.g. https://api.heyjenna.app), else `/api`,
+ * which Vite proxies to http://localhost:3000 in dev (prefix stripped) and the desktop app forwards
+ * to its configured API.
  */
-const API_BASE = '/api';
+import { authHeaders } from './auth';
 
-/** AUTH_MODE=dev on the API: who we are. Override with localStorage `hj-dev-user` to test as someone else. */
-export function devUser(): string {
-  try {
-    return localStorage.getItem('hj-dev-user') || 'dev-user';
-  } catch {
-    return 'dev-user';
-  }
+export { devUser } from './auth';
+
+/** The API base without a trailing slash: VITE_API_URL, default `/api`. */
+export function apiBase(): string {
+  const v = (import.meta.env.VITE_API_URL ?? '').trim().replace(/\/+$/, '');
+  return v || '/api';
 }
 
 /** Any non-2xx answer. `message` is the API's own message when it sends one (Nest: `{statusCode, message, error}`). */
@@ -38,17 +39,21 @@ export interface RequestOptions {
   signal?: AbortSignal;
 }
 
-/** `/rooms/1` + {a: 1} → `/api/rooms/1?a=1`. Paths that already start with /api are left alone. */
+/**
+ * `/rooms/1` + {a: 1} → `<API base>/rooms/1?a=1`. Paths that already start with the base, and
+ * absolute http(s) URLs, are left alone; a query is appended to one that has its own.
+ */
 export function apiUrl(path: string, query?: Query): string {
-  const base = path.startsWith(API_BASE + '/') ? path : API_BASE + (path.startsWith('/') ? path : '/' + path);
+  const API_BASE = apiBase();
+  const base = /^https?:\/\//.test(path) || path.startsWith(API_BASE + '/') ? path : API_BASE + (path.startsWith('/') ? path : '/' + path);
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(query ?? {})) if (v !== undefined && v !== null) qs.set(k, String(v));
   const s = qs.toString();
-  return s ? `${base}?${s}` : base;
+  return s ? `${base}${base.includes('?') ? '&' : '?'}${s}` : base;
 }
 
 export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T> {
-  const headers: Record<string, string> = { accept: 'application/json', 'x-dev-user': devUser() };
+  const headers: Record<string, string> = { accept: 'application/json', ...authHeaders() };
   let body: BodyInit | undefined;
   if (opts.body instanceof FormData) body = opts.body;
   else if (opts.body !== undefined) {
@@ -83,9 +88,16 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
  * are fetched here and shown through an object URL.
  */
 export async function apiBlob(path: string, signal?: AbortSignal): Promise<Blob> {
-  const res = await fetch(apiUrl(path), { headers: { 'x-dev-user': devUser() }, signal });
+  const res = await fetch(apiUrl(path), { headers: authHeaders(), signal });
   if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`);
   return res.blob();
+}
+
+/** A binary answer as bytes (GLB models for three.js), with the login headers. */
+export async function apiBytes(path: string, signal?: AbortSignal): Promise<ArrayBuffer> {
+  const res = await fetch(apiUrl(path), { headers: authHeaders(), signal });
+  if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`);
+  return res.arrayBuffer();
 }
 
 function messageOf(data: unknown): string | null {

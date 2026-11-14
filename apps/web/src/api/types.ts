@@ -11,11 +11,12 @@ import type {
   MoodboardImage,
   MoodboardImagesResponse,
   PinRef,
+  PlanPosition,
   Size,
   StyleProfile,
 } from '@hey-jenna/contracts';
 
-export type { ChatResponse, FloorPlan, FurnitureType, MoodboardImage, MoodboardImagesResponse, PinRef, StyleProfile };
+export type { ChatResponse, FloorPlan, FurnitureType, MoodboardImage, MoodboardImagesResponse, PinRef, PlanPosition, StyleProfile };
 
 /** GET /projects, /projects/:id */
 export interface Project {
@@ -34,6 +35,8 @@ export interface Room {
   floorPlan: FloorPlan;
   needs: string[];
   projectId: string | null;
+  /** Where the room sits on its project's plan, metres from the top-left (y = down the page); null = not placed. */
+  planPosition: PlanPosition | null;
   areaM2: number;
   createdAt: string;
   updatedAt: string;

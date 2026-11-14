@@ -2,12 +2,14 @@
  * Routes:
  *   /                → Home (project carousel)
  *   /p/:projectId    → Editor, with ?page=plan|<roomId> and ?sel=<frameId>[/<layer>]
+ * Behind AuthGate: a sign-in screen first when Supabase login is configured (VITE_SUPABASE_*).
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Home } from '../home/Home';
 import { Editor } from '../editor/Editor';
 import { isApiError } from '../api/client';
+import { AuthGate } from './auth/AuthGate';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,13 +25,15 @@ const queryClient = new QueryClient({
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/p/:projectId" element={<Editor />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
+      <AuthGate>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/p/:projectId" element={<Editor />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthGate>
     </QueryClientProvider>
   );
 }

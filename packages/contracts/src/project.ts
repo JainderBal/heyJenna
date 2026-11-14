@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FloorPlan } from './floor-plan';
+import { FloorPlan, PlanPosition } from './floor-plan';
 
 const Hex = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
 
@@ -16,5 +16,7 @@ export const BulkRoomInput = z.object({
   name: z.string().min(1).max(120),
   floorPlan: FloorPlan,
   needs: z.array(z.string().min(1).max(200)).max(20).default([]),
+  /** Where it sits on the plan (e.g. from a floor-plan read). */
+  planPosition: PlanPosition.nullable().optional(),
 });
 export type BulkRoomInput = z.infer<typeof BulkRoomInput>;

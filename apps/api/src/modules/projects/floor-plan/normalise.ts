@@ -59,4 +59,4 @@ export function normalisePlan(reading: PlanReading): FloorPlanPreview {
 }
 
 export const toBulkRooms = (rooms: DetectedRoom[]): BulkRoomInput[] =>
-  rooms.map((r) => ({ name: r.name, floorPlan: r.floorPlan, needs: [] }));
+  rooms.map((r) => ({ name: r.name, floorPlan: r.floorPlan, needs: [], planPosition: r.position }));

@@ -15,6 +15,8 @@ model Room {
   floorPlan Json      @map("floor_plan")         // contracts FloorPlan
   needs     String[]
   projectId String?   @map("project_id") @db.Uuid  // optional: rooms can live outside a project
+  planX     Float?    @map("plan_x")              // where it sits on the project's plan, metres from the top-left
+  planY     Float?    @map("plan_y")              // (null = not placed yet)
   project   Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")

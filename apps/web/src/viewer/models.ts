@@ -1,14 +1,14 @@
 /**
  * Real product models (IKEA GLBs) for the room viewer. The API serves them at
- * GET /rooms/:roomId/listings/:listingId/model behind the dev login header, so they are fetched
- * like src/api/client.ts does (x-dev-user) as an ArrayBuffer and handed to GLTFLoader.parse.
+ * GET /rooms/:roomId/listings/:listingId/model behind login, so they are fetched with the login
+ * headers (src/api/client.ts apiBytes) as an ArrayBuffer and handed to GLTFLoader.parse.
  *
  * Bytes are cached per listing for the session (no GPU memory); each viewer parses a listing once
  * and clones it for every object that uses it, and disposes its parsed copies on unmount.
  */
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { ApiError, apiUrl, devUser } from '../api/client';
+import { apiBytes } from '../api/client';
 import { disposeTree as disposeModel } from './three-kit';
 
 const BYTES = new Map<string, Promise<ArrayBuffer>>();
@@ -21,10 +21,7 @@ function bytes(roomId: string, listingId: string): Promise<ArrayBuffer> {
   const key = `${roomId}/${listingId}`;
   let p = BYTES.get(key);
   if (!p) {
-    p = fetch(apiUrl(modelPath(roomId, listingId)), { headers: { 'x-dev-user': devUser() } }).then((res) => {
-      if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`);
-      return res.arrayBuffer();
-    });
+    p = apiBytes(modelPath(roomId, listingId));
     p.catch(() => BYTES.delete(key)); // let a later viewer try again
     BYTES.set(key, p);
   }
@@ -79,10 +76,7 @@ const RENDER_BYTES = new Map<string, Promise<ArrayBuffer>>();
 function renderModelBytes(jobId: string, path: string): Promise<ArrayBuffer> {
   let p = RENDER_BYTES.get(jobId);
   if (!p) {
-    p = fetch(apiUrl(path), { headers: { 'x-dev-user': devUser() } }).then((res) => {
-      if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`);
-      return res.arrayBuffer();
-    });
+    p = apiBytes(path);
     p.catch(() => RENDER_BYTES.delete(jobId));
     RENDER_BYTES.set(jobId, p);
   }

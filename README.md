@@ -130,7 +130,7 @@ curl $B/rooms/$ROOM/renders/$JOB/model -o room.glb
 |---|---|---|
 | GET | `/health` | health check (public) |
 | POST / GET | `/rooms` | create / list rooms (optional `projectId` on create) |
-| GET / PATCH / DELETE | `/rooms/:id` | one room |
+| GET / PATCH / DELETE | `/rooms/:id` | one room. Rooms carry `planPosition` (`{x, y}` metres from the plan's top-left, or null); PATCH `{planPosition}` moves a room on the plan |
 | POST / GET | `/projects` | create / list projects `{name, kind?, palette?}` |
 | GET / PATCH / DELETE | `/projects/:id` | one project (delete keeps its rooms) |
 | GET | `/projects/:id/rooms` | rooms in a project |
@@ -139,7 +139,7 @@ curl $B/rooms/$ROOM/renders/$JOB/model -o room.glb
 | POST | `/rooms/:roomId/moodboard` | upload moodboard (multipart `images`, optional `imageUrls` JSON); replaces the board, `?append=1` adds to it (max 8 images) |
 | POST | `/rooms/:roomId/moodboard/pins` | add image links (e.g. pins dragged from Pinterest) to the moodboard `{pins: [{id, imageUrl (i.pinimg.com), link?}]}` (max 8 images in total); style and dials are re-derived |
 | GET | `/rooms/:roomId/moodboard` | the stored moodboard images: `{images: [{id, url, source: 'upload' \| 'pin', link?}]}`. Pins keep their `i.pinimg.com` url and link; uploads point at the route below (a path on this API). `{images: []}` before any moodboard |
-| GET | `/rooms/:roomId/moodboard/images/:imageId` | streams one stored image with its content type (`Cache-Control: private`); 404 for an unknown image |
+| GET | `/rooms/:roomId/moodboard/images/:imageId` | streams one stored image with its content type (`Cache-Control: private`); 404 for an unknown image. `<img>` can't send headers, so this route also takes `?access_token=` (or `?dev_user=` in dev) |
 | DELETE | `/rooms/:roomId/moodboard/images/:imageId` | removes one image, re-derives style and dials from the rest, returns `{images}` left. Removing the last one clears the style (`GET /style` is 404 again) |
 | GET / PATCH | `/rooms/:roomId/style` | style profile / tweak it |
 | POST | `/rooms/:roomId/listings/search` | search all sources. `?async=1` → `202 {jobId}` at once; progress + result over the events stream |

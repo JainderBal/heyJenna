@@ -18,27 +18,28 @@ A moodboard plus a floor plan → every room laid out in 3D with real, buyable f
 - Side panel tabs: jenna chat, live shopping list (photos, prices, seller links, 3D badge, "not for sale" built-ins and props), Style (the room's 55 dials by section: sliders, selects, chips, a measured / preset / edited hint, reset per dial and all, filter; saved with a debounced `PATCH /rooms/:roomId/style`).
 - Edit furniture in the live 3D room: click a piece to pick it, drag it over the floor (5 cm snap), turn it (±15°, 90°, R / Shift+R), remove it (button or Delete). Saved through `PATCH/DELETE …/layouts/:layoutId/objects/:objectId`; the API's refusals and warnings show in the viewer. Live mode only.
 - Swap a product: "Swap" on each shopping-list piece (frame and side panel) lists the room's other listings of the same type, or takes a pasted product link as a candidate (`PATCH …/objects/:objectId {listingId}`).
+- Room positions on the plan are saved in the API (`planPosition`); drag a room on the Plan frame to move it. Positions an older studio kept in localStorage move to the API once.
+- Login with Supabase when `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are set: sign-in screen (email magic link, Google), Bearer token on every API call, sign out from the home avatar. Unset (local dev), nothing changes: no login, `x-dev-user`. Not tried against a real Supabase project yet.
+- Production API URL: `VITE_API_URL` (default `/api`, the dev proxy). See `apps/web/.env.example`.
 
 **Desktop app (`apps/desktop`)**: Electron shell for Mac: the studio, with pinterest.com as a side panel tab (persistent login, "+ Add to moodboard" on pins), unsigned `.dmg` via `npm run dist -w @hey-jenna/desktop`.
 
-**API (`apps/api`)**: projects and rooms, floor plan from a photo, moodboard (uploads, with `?append=1` to add to the board, and pins) → style + 55 style dials (the profile keeps the derived values for reset), sourcing (IKEA, eBay, Etsy, Brave web search for Kijiji / FB Marketplace, pasted links), layout engine (Python) with edits, shopping list, render jobs + Blender worker, jenna chat (Claude tool use, rules without a key), live room events (SSE), background jobs, IKEA 3D model proxy with cache, CORS.
+**API (`apps/api`)**: projects and rooms (with their position on the plan), floor plan from a photo, moodboard (uploads, with `?append=1` to add to the board, and pins) → style + 55 style dials (the profile keeps the derived values for reset), sourcing (IKEA, eBay, Etsy, Brave web search for Kijiji / FB Marketplace, pasted links), layout engine (Python) with edits, shopping list, render jobs + Blender worker, jenna chat (Claude tool use, rules without a key), live room events (SSE), background jobs, IKEA 3D model proxy with cache, CORS.
 
 Style dials: shape dials steer sourcing, materials/lighting/palette dials steer renders. See `docs/style-dials.md`.
 
 ## Not built yet (roughly in priority order)
 
-3. **Save room positions on the plan** in the API (today they're in the browser's localStorage).
-4. **Layout and props style dials** (symmetry, furniture float, rug shape, curtains, art and textile amounts…): unfinished work on branch `feat/dials-layout` (all tests pass, not reviewed).
-7. **Login** with Supabase (`AUTH_MODE=supabase`) and the web app sending the user's token instead of `x-dev-user`.
-8. **Production config for the web app:** an API URL setting or a host rewrite of `/api` (see `docs/production-setup.md`).
-10. Share, Assets, Sellers and Styles on the left rail ("coming soon"); phone and tablet layouts; the landing page as part of the app.
+1. **Layout and props style dials** (symmetry, furniture float, rug shape, curtains, art and textile amounts…): unfinished work on branch `feat/dials-layout` (all tests pass, not reviewed).
+2. **Login in the desktop app:** the magic link and Google return to a web URL, not the app's `hj://studio/` page.
+3. Share, Assets, Sellers and Styles on the left rail ("coming soon"); phone and tablet layouts; the landing page as part of the app.
 
-Not checked with real keys yet: Claude chat and floor-plan reading, Etsy, eBay, Brave.
+Not checked with real keys yet: Claude chat and floor-plan reading, Etsy, eBay, Brave, Supabase login.
 
 ## How we work
 
 - **Branches and PRs:** every change goes on a feature branch and a PR into `main`. Agents work in their own git worktree (`git worktree add -b feat/x ~/repos/hey-jenna-x origin/main`) so parallel work doesn't collide.
-- **Before merging:** `npm test` (API, ~170 tests), `npx tsc -p apps/api --noEmit`, `npx tsc -p apps/web --noEmit`, `npm run build -w @hey-jenna/web`. New migrations: apply them to a scratch database and check `prisma migrate diff` shows no drift.
+- **Before merging:** `npm test` (API ~190 tests with jest, web with vitest), `npx tsc -p apps/api --noEmit`, `npx tsc -p apps/web --noEmit`, `npm run build -w @hey-jenna/web`. New migrations: apply them to a scratch database and check `prisma migrate diff` shows no drift.
 - **After pulling:** `npm install`, `npm run build -w @hey-jenna/contracts`, `cd apps/api && npx prisma generate && npx prisma migrate deploy`.
 - **Contracts:** request and response shapes live in `packages/contracts` (zod). The web app mirrors some response types by hand in `apps/web/src/api/types.ts`; move them into contracts when you touch them.
 - **No scraping:** sources use official APIs, IKEA's own public search, or search-engine results.

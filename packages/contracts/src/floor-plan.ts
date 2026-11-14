@@ -44,3 +44,13 @@ export const FloorPlan = z.object({
   features: z.array(z.object({ type: z.string(), wall: Wall, position: z.number() })).default([]),
 });
 export type FloorPlan = z.infer<typeof FloorPlan>;
+
+/**
+ * Where a room sits on its project's floor plan drawing: metres from the plan's top-left corner
+ * (x to the right, y down the page). null/absent = not placed yet (the studio packs it).
+ */
+export const PlanPosition = z.object({
+  x: z.number().finite().min(-500).max(500),
+  y: z.number().finite().min(-500).max(500),
+});
+export type PlanPosition = z.infer<typeof PlanPosition>;

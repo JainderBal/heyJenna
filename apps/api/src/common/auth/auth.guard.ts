@@ -52,11 +52,15 @@ export class AuthGuard implements CanActivate {
 }
 
 /**
- * EventSource can't send headers, so only the live-updates stream (GET …/events) may pass the
- * login as a query parameter. Everything else must use the Authorization header.
+ * EventSource and `<img src>` can't send headers, so only two GET routes may pass the login as a
+ * query parameter (`?access_token=` / `?dev_user=`): the live-updates stream (…/events) and a stored
+ * moodboard image file (…/moodboard/images/:id). Everything else must use the Authorization header.
  */
-function streamParam(req: { method: string; path?: string; query?: Record<string, unknown> }, name: string): string | undefined {
-  if (req.method !== 'GET' || !req.path?.endsWith('/events')) return undefined;
+const QUERY_LOGIN_ROUTES = [/\/events$/, /\/moodboard\/images\/[^/]+$/];
+
+export function streamParam(req: { method: string; path?: string; query?: Record<string, unknown> }, name: string): string | undefined {
+  const path = req.path;
+  if (req.method !== 'GET' || !path || !QUERY_LOGIN_ROUTES.some((r) => r.test(path))) return undefined;
   const v = req.query?.[name];
   return typeof v === 'string' && v ? v : undefined;
 }

@@ -67,8 +67,8 @@ Swappable parts are Nest providers chosen in the module file: `LAYOUT_ENGINE` (l
 ### prisma (`apps/api/prisma`)
 
 `schema.prisma`: `Project`, `Room` (floor plan + needs as JSON), `Style` (profile + image keys/meta),
-`Listing`, `Layout` (engine result as JSON), `RenderJob`, `Job`. `migrations/` holds 7 migrations
-(init → listing_picked → render_jobs → listing_model_url → jobs → projects → style_image_meta).
+`Listing`, `Layout` (engine result as JSON), `RenderJob`, `Job`. `migrations/` holds 8 migrations
+(init → listing_picked → render_jobs → listing_model_url → jobs → projects → style_image_meta → room_plan_position).
 `npm run db:migrate` (dev) / `db:deploy` (prod). `postinstall` runs `prisma generate`.
 
 ## apps/web
@@ -79,8 +79,8 @@ stripped. More in [`apps/web/README.md`](../apps/web/README.md).
 
 | Folder | What | Notes |
 |---|---|---|
-| `api/` | `client.ts` (`api()`, `apiBlob()`, `apiUrl()`, `ApiError`, `x-dev-user`), `hooks.ts` (every query/mutation + `qk`), `events.ts` (`useRoomEvents`: SSE → invalidation), `types.ts` (hand-mirrored response types) | The only place that knows URLs |
-| `app/` | `App.tsx`, `useEditorStore.ts` (zustand: page, selection, side-panel tabs, toast, focus), `openPinterest.ts` (docked window on the web), `desktopBridge.ts` (`window.heyJennaDesktop` typing) | |
+| `api/` | `client.ts` (`api()`, `apiBlob()`, `apiBytes()`, `apiUrl()` on `VITE_API_URL`, `ApiError`), `auth.ts` (login headers: `x-dev-user` or the Supabase Bearer token), `hooks.ts` (every query/mutation + `qk`), `events.ts` (`useRoomEvents`: SSE → invalidation), `types.ts` (hand-mirrored response types) | The only place that knows URLs |
+| `app/` | `App.tsx`, `auth/` (Supabase sign-in gate, sign-in screen, account menu), `useEditorStore.ts` (zustand: page, selection, side-panel tabs, toast, focus), `openPinterest.ts` (docked window on the web), `desktopBridge.ts` (`window.heyJennaDesktop` typing) | |
 | `home/` | `Home.tsx`, `HomeCarousel.tsx` + `carousel3d.ts` (WebGL curved carousel), `plusCard.ts` (animated "+" card texture) | plain three.js driven from React refs |
 | `jenna/` | `JennaCube.tsx` + `jenna3d.ts` | the 3D terrazzo jenna |
 | `editor/` | `Editor.tsx` (shell), `Canvas.tsx` (pan/zoom/focus), `LeftPanel`, `Rail`, `Dock`, `Toast`, `icons.tsx`, `model.ts` (pages → frames → layers from API data), `plans.ts` (sample plan, placement), `colour.ts`, `useMoodboardPaste.ts`, `SwapPicker.tsx` (swap a shopping-list piece's product), `frames/FloorPlanFrames.tsx`, `frames/RoomFrames.tsx` | Frames are pure views over hooks |

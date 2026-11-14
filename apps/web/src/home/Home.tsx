@@ -7,6 +7,7 @@ import { JennaCube } from '../jenna/JennaCube';
 import { HomeCarousel, type HomeCard } from './HomeCarousel';
 import { DEFAULT_PALETTE, PALS } from '../editor/plans';
 import { ArrowLeft, ArrowRight } from '../editor/icons';
+import { AccountMenu } from '../app/auth/AccountMenu';
 
 const NEW_CARD: HomeCard = { id: 'new', name: 'New project', kind: 'start here', palette: [], isNew: true };
 const NEW_PALS = [PALS.motel, PALS.warm, PALS.rose];
@@ -71,7 +72,7 @@ export function Home() {
       <header className="hv-top">
         <span className="hv-word">hey jenna</span>
         <span className="hv-spacer" />
-        <div className="avatar">J</div>
+        <AccountMenu />
       </header>
       <section className="hv-body">
         <div className="hv-jenna" role="button" tabIndex={0} aria-label="jenna">

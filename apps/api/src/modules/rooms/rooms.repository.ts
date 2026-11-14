@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, Room } from '@prisma/client';
+import { PlanPosition } from '@hey-jenna/contracts';
 import { PrismaService } from '../../common/database/prisma.service';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
@@ -17,6 +18,7 @@ export class RoomsRepository {
         floorPlan: dto.floorPlan as Prisma.InputJsonValue,
         needs: dto.needs,
         projectId: dto.projectId ?? null,
+        ...planColumns(dto.planPosition),
       },
     });
   }
@@ -26,7 +28,7 @@ export class RoomsRepository {
     return this.db.$transaction(
       rooms.map((r) =>
         this.db.room.create({
-          data: { ownerId, projectId, name: r.name, floorPlan: r.floorPlan as Prisma.InputJsonValue, needs: r.needs },
+          data: { ownerId, projectId, name: r.name, floorPlan: r.floorPlan as Prisma.InputJsonValue, needs: r.needs, ...planColumns(r.planPosition) },
         }),
       ),
     );
@@ -57,6 +59,7 @@ export class RoomsRepository {
         needs: dto.needs,
         projectId: dto.projectId,
         floorPlan: dto.floorPlan ? (dto.floorPlan as Prisma.InputJsonValue) : undefined,
+        ...planColumns(dto.planPosition),
       },
     });
   }
@@ -64,4 +67,10 @@ export class RoomsRepository {
   async delete(id: string): Promise<void> {
     await this.db.room.delete({ where: { id } });
   }
+}
+
+/** planPosition → the plan_x / plan_y columns. undefined = leave as is, null = clear (not placed). */
+export function planColumns(pos: PlanPosition | null | undefined): { planX?: number | null; planY?: number | null } {
+  if (pos === undefined) return {};
+  return { planX: pos?.x ?? null, planY: pos?.y ?? null };
 }

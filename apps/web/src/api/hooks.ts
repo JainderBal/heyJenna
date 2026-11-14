@@ -2,10 +2,12 @@
  * react-query hooks for every API call the studio makes. Query keys live in `qk` so the events
  * stream (events.ts) and mutations invalidate the same things.
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
-import type { BulkRoomInput, ChatTurn, FurnitureType, ProjectInput, StyleDialsPatch, Wall } from '@hey-jenna/contracts';
-import { api, apiBlob, isApiError } from './client';
+import type { BulkRoomInput, ChatTurn, PlanPosition, FurnitureType, ProjectInput, StyleDialsPatch, Wall } from '@hey-jenna/contracts';
+import { api, apiBlob, apiUrl, isApiError } from './client';
+import { authEnabled } from './auth';
+import { useAccessToken } from './useAccessToken';
 import type {
   ChatResponse,
   EditResult,
@@ -96,6 +98,45 @@ export function useBulkCreateRooms(projectId: string) {
   });
 }
 
+/** PATCH /rooms/:id { planPosition }: where a room sits on its project's plan (null = not placed). */
+export const savePlanPosition = (roomId: string, planPosition: PlanPosition | null) =>
+  api<Room>(`/rooms/${roomId}`, { method: 'PATCH', body: { planPosition } });
+
+/**
+ * Move rooms on the plan: the cached project rooms change at once, and the PATCHes go out `delayMs`
+ * after the last move (one per room, the latest position), or when the component unmounts.
+ */
+export function usePlanPositionSaver(projectId: string, onError: (e: unknown) => void, delayMs = 600) {
+  const qc = useQueryClient();
+  const pending = useRef(new Map<string, PlanPosition>());
+  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const errorRef = useRef(onError);
+  errorRef.current = onError;
+
+  const flush = useCallback(() => {
+    clearTimeout(timer.current);
+    const batch = [...pending.current];
+    pending.current.clear();
+    for (const [roomId, pos] of batch)
+      savePlanPosition(roomId, pos).catch((e) => {
+        errorRef.current(e);
+        qc.invalidateQueries({ queryKey: qk.projectRooms(projectId) }); // back to what the API has
+      });
+  }, [qc, projectId]);
+
+  useEffect(() => flush, [flush]);
+
+  return useCallback(
+    (roomId: string, pos: PlanPosition) => {
+      qc.setQueryData<Room[]>(qk.projectRooms(projectId), (rooms) => rooms?.map((r) => (r.id === roomId ? { ...r, planPosition: pos } : r)));
+      pending.current.set(roomId, pos);
+      clearTimeout(timer.current);
+      timer.current = setTimeout(flush, delayMs);
+    },
+    [qc, projectId, flush, delayMs],
+  );
+}
+
 /**
  * POST /projects/:id/floor-plan (multipart `image`). Preview by default; `create: true` adds
  * ?create=1 so the rooms are created too. 422 = no ANTHROPIC_API_KEY on the API, or no rooms found.
@@ -183,18 +224,22 @@ export function useAddMoodboardPins(roomId: string) {
 }
 
 export type { MoodboardImage };
-/** Upload urls are API paths ("/rooms/…"); in dev the default user can load them straight through the /api proxy. */
-const moodSrc = (u: string) => (u.startsWith('/') ? `/api${u}` : u);
+/**
+ * Upload urls are API paths ("/rooms/…") put under the API base. In dev the default user loads them
+ * straight through the /api proxy; signed in with Supabase, `<img>` can't send the Bearer header, so
+ * the token goes in `?access_token=` (the API accepts it on this route only).
+ */
+export const moodSrc = (u: string, token: string | null) => (u.startsWith('/') ? apiUrl(u, authEnabled() && token ? { access_token: token } : undefined) : u);
 
 /** GET /rooms/:roomId/moodboard: the images stored on the room's moodboard (uploads and pins). */
-export const useMoodboardImages = (roomId: string) =>
-  useQuery({
+export function useMoodboardImages(roomId: string) {
+  const token = useAccessToken(); // a refreshed token gives fresh image urls
+  return useQuery({
     queryKey: qk.moodboard(roomId),
-    queryFn: async () => {
-      const r = await api<MoodboardImagesResponse>(`/rooms/${roomId}/moodboard`);
-      return r.images.map((i) => ({ ...i, src: moodSrc(i.url) }));
-    },
+    queryFn: async () => (await api<MoodboardImagesResponse>(`/rooms/${roomId}/moodboard`)).images,
+    select: (images) => images.map((i) => ({ ...i, src: moodSrc(i.url, token) })),
   });
+}
 
 /** DELETE /rooms/:roomId/moodboard/images/:imageId, then refresh the board and the re-derived style. */
 export function useDeleteMoodboardImage(roomId: string) {

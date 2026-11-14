@@ -1,10 +1,11 @@
 /**
  * Floor-plan helpers: the prototype's sample plan, and where each room sits on the plan drawing.
- * The API stores each room's own size only, not where it sits in the home, so positions are kept
- * in this browser (localStorage) when we know them (sample plan, floor-plan read) and packed
- * left-to-right otherwise.
+ * The API stores where each room sits (`planPosition`, metres from the top-left; set on create from
+ * the sample plan or a floor-plan read, and when a room is dragged on the plan). Rooms without one
+ * are packed left-to-right. Older studios kept positions in this browser's localStorage; those are
+ * read as a fallback and moved to the API once (`legacySpotsToMove`).
  */
-import type { BulkRoomInput, FloorPlan } from '@hey-jenna/contracts';
+import type { BulkRoomInput, FloorPlan, PlanPosition } from '@hey-jenna/contracts';
 import type { Room } from '../api/types';
 
 /** name, x, z, w, d, kind (metres). From the prototype's PLANS. */
@@ -28,8 +29,9 @@ export const floorPlanOf = (width: number, depth: number): FloorPlan => ({
   features: [],
 });
 
-/** Bulk-create body for a sample plan. */
-export const sampleRooms = (plan: PlanRow[]): BulkRoomInput[] => plan.map(([name, , , w, d]) => ({ name, needs: [], floorPlan: floorPlanOf(w, d) }));
+/** Bulk-create body for a sample plan, each room at its spot on the plan. */
+export const sampleRooms = (plan: PlanRow[]): BulkRoomInput[] =>
+  plan.map(([name, x, z, w, d]) => ({ name, needs: [], floorPlan: floorPlanOf(w, d), planPosition: { x, y: z } }));
 
 /** The prototype's palettes; a project without its own palette gets `motel`. */
 export const PALS = {
@@ -46,18 +48,7 @@ export const DEFAULT_PALETTE = PALS.motel;
 type Spots = Record<string, { x: number; z: number }>;
 const KEY = (projectId: string) => `hj-plan-pos:${projectId}`;
 
-export function savePlanSpots(projectId: string, rooms: Room[], spots: { x: number; z: number }[]) {
-  try {
-    const all: Spots = JSON.parse(localStorage.getItem(KEY(projectId)) || '{}');
-    rooms.forEach((r, i) => {
-      if (spots[i]) all[r.id] = spots[i];
-    });
-    localStorage.setItem(KEY(projectId), JSON.stringify(all));
-  } catch {
-    /* private mode: positions are packed instead */
-  }
-}
-
+/** Positions an older studio kept in this browser (read-only now: the API stores them). */
 function loadSpots(projectId: string): Spots {
   try {
     return JSON.parse(localStorage.getItem(KEY(projectId)) || '{}');
@@ -65,6 +56,32 @@ function loadSpots(projectId: string): Spots {
     return {};
   }
 }
+
+/**
+ * localStorage positions of rooms the API has no position for yet: these should be saved to the API
+ * once. Entries for rooms that already have one (or no longer exist) are just stale.
+ */
+export function legacySpotsToMove(projectId: string, rooms: Room[]): { roomId: string; pos: PlanPosition }[] {
+  const spots = loadSpots(projectId);
+  return rooms.filter((r) => !r.planPosition && valid(spots[r.id])).map((r) => ({ roomId: r.id, pos: { x: spots[r.id].x, y: spots[r.id].z } }));
+}
+
+/** Drop the old localStorage positions of these rooms (after they reached the API); the key goes when empty. */
+export function forgetLegacySpots(projectId: string, roomIds: string[]) {
+  try {
+    const all = loadSpots(projectId);
+    for (const id of roomIds) delete all[id];
+    if (Object.keys(all).length) localStorage.setItem(KEY(projectId), JSON.stringify(all));
+    else localStorage.removeItem(KEY(projectId));
+  } catch {
+    /* private mode */
+  }
+}
+
+const valid = (s: { x: number; z: number } | undefined): s is { x: number; z: number } => !!s && Number.isFinite(s.x) && Number.isFinite(s.z);
+
+/** Snap a dragged position to 5 cm. */
+export const snapPlan = (v: number) => Math.round(v * 20) / 20;
 
 export interface PlacedRoom {
   room: Room;
@@ -74,14 +91,17 @@ export interface PlacedRoom {
   d: number;
 }
 
-/** Every room with a spot on the plan: the stored one, else packed in rows below the known ones. */
+/**
+ * Every room with a spot on the plan: the API's planPosition, else an old localStorage one, else
+ * packed in rows below the known ones.
+ */
 export function placeRooms(projectId: string, rooms: Room[]): PlacedRoom[] {
   const spots = loadSpots(projectId);
   const out: PlacedRoom[] = [];
   const loose: Room[] = [];
   for (const room of rooms) {
-    const s = spots[room.id];
-    if (s) out.push({ room, x: s.x, z: s.z, w: room.floorPlan.width, d: room.floorPlan.depth });
+    const s = room.planPosition ? { x: room.planPosition.x, z: room.planPosition.y } : spots[room.id];
+    if (valid(s)) out.push({ room, x: s.x, z: s.z, w: room.floorPlan.width, d: room.floorPlan.depth });
     else loose.push(room);
   }
   if (!loose.length) return out;

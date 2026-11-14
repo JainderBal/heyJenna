@@ -10,7 +10,7 @@
     "build": "npm run build -w @hey-jenna/contracts && npm run build -w @hey-jenna/api && npm run build -w @hey-jenna/web",
     "dev": "npm run build -w @hey-jenna/contracts && npm run start:dev -w @hey-jenna/api",
     "web": "npm run dev -w @hey-jenna/web",
-    "test": "npm run build -w @hey-jenna/contracts && npm test -w @hey-jenna/api",
+    "test": "npm run build -w @hey-jenna/contracts && npm test -w @hey-jenna/api && npm test -w @hey-jenna/web",
     "db:up": "docker compose up -d db",
     "db:migrate": "npm run db:migrate -w @hey-jenna/api",
     "worker": "python3 workers/render/worker.py --env-file apps/api/.env",

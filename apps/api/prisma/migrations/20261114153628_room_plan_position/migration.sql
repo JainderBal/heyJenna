@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "rooms" ADD COLUMN     "plan_x" DOUBLE PRECISION,
+ADD COLUMN     "plan_y" DOUBLE PRECISION;

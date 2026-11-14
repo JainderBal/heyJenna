@@ -1,19 +1,22 @@
 /**
  * Floor plan page frames (the prototype's Plan, 3D floor plan, Rooms found):
- *  - plan: the rooms drawn to scale. With no rooms yet, or after "+ Add rooms", it holds the intake:
+ *  - plan: the rooms drawn to scale; drag a room to move it (saved to the API as its planPosition,
+ *    debounced after the drop). With no rooms yet, or after "+ Add rooms", it holds the intake:
  *    read a plan photo (POST /projects/:id/floor-plan) → preview → "Create these rooms"; on 422 (no
  *    ANTHROPIC_API_KEY on the API, or no rooms found) → "Draw rooms" by hand, or the sample plan.
  *  - plan3d: the whole plan as an isometric clay model (the prototype's planShot).
  *  - found: one row per room → its page, and "+ Add rooms".
  */
 import { useMemo, useRef, useState } from 'react';
+import type { PlanPosition } from '@hey-jenna/contracts';
 import type { BulkRoomInput } from '@hey-jenna/contracts';
-import { useBulkCreateRooms, useReadFloorPlan } from '../../api/hooks';
+import { useBulkCreateRooms, usePlanPositionSaver, useReadFloorPlan } from '../../api/hooks';
 import { errorText, isApiError } from '../../api/client';
 import type { DetectedRoom, Room } from '../../api/types';
 import { toast, useEditorStore } from '../../app/useEditorStore';
 import { PlanDrop } from '../icons';
-import { PLANS, floorPlanOf, placeRooms, sampleRooms, savePlanSpots } from '../plans';
+import { PLANS, floorPlanOf, placeRooms, sampleRooms, snapPlan, type PlacedRoom } from '../plans';
+import { useMoveLegacyPlanSpots } from '../useLegacyPlanSpots';
 import { shade } from '../colour';
 import { planShot, roomKind } from '../../viewer/three-kit';
 
@@ -60,10 +63,9 @@ function RoomsIntake({ projectId, empty, onClose }: { projectId: string; empty: 
     );
   }
 
-  function create(rooms: BulkRoomInput[], spots: ({ x: number; z: number } | undefined)[]) {
+  function create(rooms: BulkRoomInput[]) {
     bulk.mutate(rooms, {
       onSuccess: (created: Room[]) => {
-        savePlanSpots(projectId, created, spots.filter((s): s is { x: number; z: number } => !!s));
         setMode({ kind: 'idle' });
         setDrafts([]);
         onClose?.();
@@ -88,7 +90,7 @@ function RoomsIntake({ projectId, empty, onClose }: { projectId: string; empty: 
       readPlan(e.dataTransfer.files[0]);
     },
   };
-  const sample = () => create(sampleRooms(PLANS.flat), PLANS.flat.map(([, x, z]) => ({ x, z })));
+  const sample = () => create(sampleRooms(PLANS.flat));
   const input = <input ref={file} type="file" accept="image/*" hidden onChange={(e) => (readPlan(e.target.files?.[0]), (e.target.value = ''))} />;
 
   if (mode.kind === 'preview') {
@@ -116,10 +118,7 @@ function RoomsIntake({ projectId, empty, onClose }: { projectId: string; empty: 
             type="button"
             disabled={busy}
             onClick={() =>
-              create(
-                mode.rooms.map((r) => ({ name: r.name, floorPlan: r.floorPlan, needs: [] })),
-                mode.rooms.map((r) => ({ x: r.position.x, z: r.position.y })),
-              )
+              create(mode.rooms.map((r) => ({ name: r.name, floorPlan: r.floorPlan, needs: [], planPosition: { x: r.position.x, y: r.position.y } })))
             }
           >
             {bulk.isPending ? 'Creating…' : 'Create these rooms'}
@@ -159,10 +158,7 @@ function RoomsIntake({ projectId, empty, onClose }: { projectId: string; empty: 
             type="button"
             disabled={busy || !drafts.length}
             onClick={() =>
-              create(
-                drafts.map((d) => ({ name: d.name, needs: [], floorPlan: floorPlanOf(d.width, d.depth) })),
-                [],
-              )
+              create(drafts.map((d) => ({ name: d.name, needs: [], floorPlan: floorPlanOf(d.width, d.depth) })))
             }
           >
             {bulk.isPending ? 'Creating…' : `Create ${drafts.length || ''} room${drafts.length === 1 ? '' : 's'}`}
@@ -260,23 +256,88 @@ export function PlanFrame({ projectId, rooms, palette, upload }: { projectId: st
   return <PlanDrawing projectId={projectId} rooms={rooms} palette={palette} upload={upload} />;
 }
 
-function PlanDrawing({ projectId, rooms, palette, upload }: { projectId: string; rooms: Room[]; palette: string[]; upload?: string }) {
-  const goPage = useEditorStore((s) => s.goPage);
-  const R = placeRooms(projectId, rooms);
+/** How the plan's metres map onto the 520 × 420 drawing. */
+interface Fit {
+  minX: number;
+  minZ: number;
+  k: number;
+  ox: number;
+  oz: number;
+}
+function fitOf(R: PlacedRoom[]): Fit {
   const minX = Math.min(...R.map((r) => r.x));
   const minZ = Math.min(...R.map((r) => r.z));
   const sx = Math.max(...R.map((r) => r.x + r.w)) - minX;
   const sz = Math.max(...R.map((r) => r.z + r.d)) - minZ;
   const k = Math.min(460 / sx, 330 / sz);
-  const ox = (520 - sx * k) / 2;
-  const oz = 60 + (340 - sz * k) / 2;
+  return { minX, minZ, k, ox: (520 - sx * k) / 2, oz: 60 + (340 - sz * k) / 2 };
+}
+
+interface Drag {
+  id: string;
+  pointerId: number;
+  /** pointer and room at the start, in drawing units and metres */
+  sx: number;
+  sy: number;
+  x0: number;
+  z0: number;
+  /** the drawing's scale is held still while dragging */
+  fit: Fit;
+  x: number;
+  z: number;
+  moved: boolean;
+}
+
+function PlanDrawing({ projectId, rooms, palette, upload }: { projectId: string; rooms: Room[]; palette: string[]; upload?: string }) {
+  const goPage = useEditorStore((s) => s.goPage);
+  useMoveLegacyPlanSpots(projectId, rooms);
+  const savePosition = usePlanPositionSaver(projectId, (e) => toast(`Couldn't save where the room sits: ${errorText(e)}`));
+  const svg = useRef<SVGSVGElement>(null);
+  const [drag, setDrag] = useState<Drag | null>(null);
+  const placed = placeRooms(projectId, rooms);
+  const R = drag ? placed.map((p) => (p.room.id === drag.id ? { ...p, x: drag.x, z: drag.z } : p)) : placed;
+  const { minX, minZ, k, ox, oz } = drag?.fit ?? fitOf(R);
   const order = new Map(rooms.map((r, i) => [r.id, i]));
+
+  /** A pointer event → drawing units (the canvas may be zoomed). */
+  const toDrawing = (e: React.PointerEvent) => {
+    const m = svg.current?.getScreenCTM();
+    if (!m) return { x: e.clientX, y: e.clientY };
+    const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
+    return { x: p.x, y: p.y };
+  };
+
+  function down(e: React.PointerEvent, p: PlacedRoom) {
+    if (e.button !== 0) return;
+    const at = toDrawing(e);
+    setDrag({ id: p.room.id, pointerId: e.pointerId, sx: at.x, sy: at.y, x0: p.x, z0: p.z, fit: fitOf(placed), x: p.x, z: p.z, moved: false });
+  }
+  function move(e: React.PointerEvent) {
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    const at = toDrawing(e);
+    const dx = at.x - drag.sx;
+    const dy = at.y - drag.sy;
+    if (!drag.moved) {
+      if (Math.hypot(dx, dy) < 3) return; // a click or double-click, not a drag
+      svg.current?.setPointerCapture(e.pointerId); // only now, so double-click still reaches the room
+    }
+    setDrag({ ...drag, moved: true, x: snapPlan(drag.x0 + dx / drag.fit.k), z: snapPlan(drag.z0 + dy / drag.fit.k) });
+  }
+  function up(e: React.PointerEvent) {
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    if (drag.moved && (drag.x !== drag.x0 || drag.z !== drag.z0)) {
+      const pos: PlanPosition = { x: drag.x, y: drag.z };
+      savePosition(drag.id, pos);
+    }
+    setDrag(null);
+  }
+
   return (
     <>
-      <svg viewBox="0 0 520 420" width="100%" height="100%">
+      <svg ref={svg} viewBox="0 0 520 420" width="100%" height="100%" onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
         <rect width="520" height="420" fill="#fff" />
         <text x="20" y="32" fontFamily="JetBrains Mono,monospace" fontSize="12" fill="#7A7A7A">
-          {upload ? 'read from your upload' : 'your plan'} · {rooms.length} rooms
+          {upload ? 'read from your upload' : 'your plan'} · {rooms.length} rooms{drag?.moved ? ` · ${drag.x.toFixed(2)}, ${drag.z.toFixed(2)} m` : ''}
         </text>
         {R.map((p) => {
           const i = order.get(p.room.id) ?? 0;
@@ -284,13 +345,22 @@ function PlanDrawing({ projectId, rooms, palette, upload }: { projectId: string;
           const y = oz + (p.z - minZ) * k;
           const w = p.w * k;
           const h = p.d * k;
+          const dragging = drag?.id === p.room.id && drag.moved;
           return (
-            <g key={p.room.id} style={{ cursor: 'pointer' }} onDoubleClick={() => goPage(p.room.id)}>
-              <rect x={x} y={y} width={w} height={h} fill={shade(palette[i % palette.length], 0.6)} stroke="#1E1E1E" strokeWidth="3.5" />
-              <text x={x + w / 2} y={y + h / 2 - 2} textAnchor="middle" fontFamily="Inter,sans-serif" fontWeight="600" fontSize={w < 80 ? 10 : 13} fill="#1E1E1E">
+            <g
+              key={p.room.id}
+              data-own-pointer
+              style={{ cursor: dragging ? 'grabbing' : 'grab' }}
+              opacity={dragging ? 0.85 : 1}
+              onPointerDown={(e) => down(e, p)}
+              onDoubleClick={() => goPage(p.room.id)}
+            >
+              <title>{`${p.room.name}: drag to move, double-click to open`}</title>
+              <rect x={x} y={y} width={w} height={h} fill={shade(palette[i % palette.length], 0.6)} stroke={dragging ? 'var(--select)' : '#1E1E1E'} strokeWidth="3.5" />
+              <text x={x + w / 2} y={y + h / 2 - 2} textAnchor="middle" fontFamily="Inter,sans-serif" fontWeight="600" fontSize={w < 80 ? 10 : 13} fill="#1E1E1E" pointerEvents="none">
                 {p.room.name}
               </text>
-              <text x={x + w / 2} y={y + h / 2 + 14} textAnchor="middle" fontFamily="JetBrains Mono,monospace" fontSize="10" fill="#7A7A7A">
+              <text x={x + w / 2} y={y + h / 2 + 14} textAnchor="middle" fontFamily="JetBrains Mono,monospace" fontSize="10" fill="#7A7A7A" pointerEvents="none">
                 {p.w}×{p.d}
               </text>
             </g>
@@ -308,6 +378,7 @@ function PlanDrawing({ projectId, rooms, palette, upload }: { projectId: string;
 
 /** The prototype's "3D floor plan": every room at its plan position, as an isometric clay model with labels. */
 export function Plan3DFrame({ projectId, rooms, palette }: { projectId: string; rooms: Room[]; palette: string[] }) {
+  useMoveLegacyPlanSpots(projectId, rooms);
   const R = placeRooms(projectId, rooms);
   const key = JSON.stringify([R.map((p) => [p.room.name, p.x, p.z, p.w, p.d]), palette]);
   const src = useMemo(() => {

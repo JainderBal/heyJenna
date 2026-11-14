@@ -17,6 +17,8 @@ import { toListingResponse } from './mappers/listing.mapper';
 import { classifyTitle } from './matching/classify';
 import { buildListing } from './matching/listing-builder';
 import { buildQuery, queryParts } from './matching/query';
+import { plausibleSize } from './matching/dimensions';
+import { FurnitureType as FType } from '@hey-jenna/contracts';
 import { shoppingList, Slot } from './matching/shopping-list';
 
 export interface ChosenSlot {
@@ -140,7 +142,10 @@ export class SourcingService {
     try {
       const { body } = await safeFetch(listing.url, { accept: 'text/html', maxBytes: 4 * 1024 * 1024 });
       const size = parseIkeaMeasurements(body.toString('utf8'));
-      if (!size) return listing;
+      if (!size || !plausibleSize(listing.type as FType, size)) {
+        if (size) this.log.warn(`ignoring odd IKEA size for ${listing.title.slice(0, 40)}: ${size.w}×${size.d}×${size.h} m`);
+        return listing;
+      }
       this.log.log(`IKEA size for ${listing.title.slice(0, 40)}: ${size.w}×${size.d}×${size.h} m`);
       return await this.repo.setSize(listing.id, size as unknown as Prisma.InputJsonValue);
     } catch (e) {

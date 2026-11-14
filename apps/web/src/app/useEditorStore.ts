@@ -5,8 +5,8 @@
 import { create } from 'zustand';
 
 export type PageId = 'plan' | (string & {});
-export type SideTab = 'pins' | 'chat' | 'shop';
-export const SIDE_TABS: SideTab[] = ['pins', 'chat', 'shop'];
+export type SideTab = 'chat' | 'shop';
+export const SIDE_TABS: SideTab[] = ['chat', 'shop'];
 
 /** A request for the canvas to animate to a frame (or fit the page). `n` makes repeats distinct. */
 export interface FocusRequest {

@@ -111,6 +111,19 @@ export function ShopPreview({ roomId, projectId }: SidePanelBodyProps) {
     };
   }, [layout, listings]);
 
+  // pieces the 3D room shows that aren't on the list: built-ins that are part of the room, and styling props
+  const extras = useMemo(() => {
+    if (!layout) return [] as string[];
+    const listed = new Set(layout.shoppingList.items.map((i) => i.objectId));
+    const SHELL = new Set(['floor', 'wall', 'ceiling', 'zone', 'window', 'door', 'opening']);
+    const names = layout.objects
+      .filter((o) => !SHELL.has(o.type) && !listed.has(o.id))
+      .map((o) => (o.type.startsWith('built_in_') ? `${o.type.slice(9).replace(/_/g, ' ')} (built in)` : o.type === 'cup' ? 'vase' : o.type.replace(/_/g, ' ')));
+    const counts = new Map<string, number>();
+    names.forEach((n) => counts.set(n, (counts.get(n) ?? 0) + 1));
+    return [...counts].map(([n, c]) => (c > 1 ? `${c} ${n}s` : n));
+  }, [layout]);
+
   const loading = !!roomId && (layoutQ.isLoading || listingsQ.isLoading);
   const error = layoutQ.error ?? listingsQ.error;
 
@@ -169,6 +182,11 @@ export function ShopPreview({ roomId, projectId }: SidePanelBodyProps) {
               </div>
             </article>
           ))
+        )}
+        {fromLayout && extras.length > 0 && (
+          <p className="pv-extras">
+            <b>Also in the 3D room, not for sale:</b> {extras.join(', ')}.
+          </p>
         )}
       </div>
       {roomId && cards.length > 0 && (

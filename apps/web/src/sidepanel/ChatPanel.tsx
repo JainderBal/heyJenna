@@ -8,7 +8,7 @@ import type { ChatTurn } from '@hey-jenna/contracts';
 import { errorText } from '../api/client';
 import { useChat, useProjectRooms } from '../api/hooks';
 import { useEditorStore } from '../app/useEditorStore';
-import { requestFindSimilar } from './events';
+import { openPinterestWindow } from '../app/openPinterest';
 import type { SidePanelBodyProps } from './types';
 
 interface Msg {
@@ -102,10 +102,8 @@ function RoomChat({ roomId, roomName }: { roomId: string; roomName?: string }) {
     const st = useEditorStore.getState();
     if (a.act === 'similar') {
       say({ who: 'u', text: a.message, local: true });
-      say({ who: 'j', local: true, text: `ranking the pins in the Pinterest tab by how close they sit to the ${name} palette. if it's empty, paste a public board link there first.` });
-      st.spOpen('pins');
-      st.spActivate('chat');
-      requestFindSimilar();
+      say({ who: 'j', local: true, text: 'opened Pinterest beside the studio. drag the pins you like onto the moodboard and i\'ll read them into the room\'s style.' });
+      openPinterestWindow();
       return;
     }
     if (a.act === 'palette') st.select('pal', true);

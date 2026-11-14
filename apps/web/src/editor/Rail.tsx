@@ -1,5 +1,6 @@
 /** The icon rail on the far left. */
 import { useNavigate } from 'react-router-dom';
+import { openPinterestWindow } from '../app/openPinterest';
 import { toast, useEditorStore } from '../app/useEditorStore';
 import { Logo } from './icons';
 
@@ -27,7 +28,7 @@ export function Rail() {
         </span>
         Jenna
       </button>
-      <button className={`item${tabs.includes('pins') ? ' on' : ''}`} type="button" aria-label="Pinterest" onClick={() => spToggle('pins')}>
+      <button className="item" type="button" aria-label="Pinterest" onClick={openPinterestWindow}>
         <span className="ic">
           <svg {...sw}><path d="M8 1.8a4.6 4.6 0 0 1 4.6 4.6c0 3-2.5 4.3-4.6 4.3" /><path d="M8 10.7 6.6 14.4" /><path d="M8 1.8a4.6 4.6 0 0 0-4.6 4.6c0 1.1.4 2.1 1 2.8" /></svg>
         </span>

@@ -15,6 +15,7 @@ import { Canvas } from './Canvas';
 import { Dock } from './Dock';
 import { LeftPanel } from './LeftPanel';
 import { Rail } from './Rail';
+import { useMoodboardPaste } from './useMoodboardPaste';
 import { Toast } from './Toast';
 import { FoundFrame, PlanFrame, RoomsIntake } from './frames/FloorPlanFrames';
 import { MoodboardFrame, PaletteFrame, Room3DFrame, ShoppingListFrame } from './frames/RoomFrames';
@@ -65,6 +66,7 @@ export function Editor() {
   }, [roomsQ.isSuccess, rooms, page]);
 
   const room = page !== 'plan' ? rooms.find((r) => r.id === page) : undefined;
+  useMoodboardPaste(room?.id);
   const pages = useMemo(() => pagesOf(project.data, rooms), [project.data, rooms]);
   const projPal = useMemo(() => projectPalette(project.data), [project.data]);
 

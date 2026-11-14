@@ -7,18 +7,19 @@ import type {
   ChatResponse,
   FloorPlan,
   FurnitureType,
-  ImportBoardRequest,
-  ImportBoardResponse,
-  ImportedPin,
   ListingSource,
-  PinterestBoard,
-  PinterestPin,
-  PinRef,
   Size,
   StyleProfile,
 } from '@hey-jenna/contracts';
 
-export type { ChatResponse, FloorPlan, FurnitureType, ImportBoardRequest, ImportBoardResponse, ImportedPin, PinterestBoard, PinterestPin, PinRef, StyleProfile };
+export type { ChatResponse, FloorPlan, FurnitureType, StyleProfile };
+
+/** A pin as POST /rooms/:roomId/moodboard/pins takes it (imageUrl on i.pinimg.com). */
+export interface PinRef {
+  id: string;
+  imageUrl: string;
+  link?: string;
+}
 
 /** GET /projects, /projects/:id */
 export interface Project {
@@ -188,19 +189,6 @@ export interface RenderJob {
   startedAt: string | null;
   finishedAt: string | null;
   seconds: number | null;
-}
-
-/** GET /pinterest/boards, /pinterest/boards/:id/pins */
-export interface PinterestPage<T> {
-  items: T[];
-  bookmark: string | null;
-}
-
-/** POST /rooms/:roomId/pins/similar */
-export interface SimilarPins {
-  ranked: { pin: PinRef; distance: number }[];
-  /** Pins whose image couldn't be read (apps/api style.service.ts rankPins). */
-  unreadable: { id: string; reason: string }[];
 }
 
 /** One server-sent event from GET /rooms/:roomId/events. */

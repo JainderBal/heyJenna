@@ -10,21 +10,15 @@ import type {
   ChatResponse,
   EditResult,
   FloorPlanReadResult,
-  ImportBoardRequest,
-  ImportBoardResponse,
   JobAccepted,
   Layout,
   Listing,
   PinRef,
-  PinterestBoard,
-  PinterestPage,
-  PinterestPin,
   Project,
   RenderJob,
   Room,
   SearchSummary,
   ShoppingList,
-  SimilarPins,
   StyleProfile,
   StyleResponse,
 } from './types';
@@ -42,8 +36,6 @@ export const qk = {
   shoppingList: (roomId: string, layoutId: string) => ['rooms', roomId, 'layouts', layoutId, 'shopping-list'] as const,
   renders: (roomId: string) => ['rooms', roomId, 'renders'] as const,
   render: (roomId: string, jobId: string) => ['rooms', roomId, 'renders', jobId] as const,
-  pinterestBoards: (bookmark?: string) => ['pinterest', 'boards', bookmark ?? ''] as const,
-  pinterestPins: (boardId: string, bookmark?: string) => ['pinterest', 'boards', boardId, 'pins', bookmark ?? ''] as const,
 };
 
 type Opts<T> = Omit<UseQueryOptions<T, Error, T, readonly unknown[]>, 'queryKey' | 'queryFn'>;
@@ -210,10 +202,6 @@ export function useDeleteMoodboardImage(roomId: string) {
   });
 }
 
-/** POST /rooms/:roomId/pins/similar: rank pins by colour distance to the room's palette. */
-export const useSimilarPins = (roomId: string) =>
-  useMutation({ mutationFn: (pins: PinRef[]) => api<SimilarPins>(`/rooms/${roomId}/pins/similar`, { method: 'POST', body: { pins } }) });
-
 /* ---------------- listings ---------------- */
 
 export const useListings = (roomId: string | undefined, type?: FurnitureType) =>
@@ -371,39 +359,5 @@ export function useChat(roomId: string) {
         if (a.type === 'layout_generated') qc.invalidateQueries({ queryKey: qk.layouts(roomId) });
       }
     },
-  });
-}
-
-/* ---------------- pinterest ---------------- */
-
-/** 501 when the API has no PINTEREST_ACCESS_TOKEN: check `isApiError(error, 501)`. */
-export const usePinterestBoards = (bookmark?: string) =>
-  useQuery({
-    queryKey: qk.pinterestBoards(bookmark),
-    queryFn: () => api<PinterestPage<PinterestBoard>>('/pinterest/boards', { query: { bookmark } }),
-    retry: (n, e) => !isApiError(e, 501) && n < 2,
-  });
-
-export const usePinterestPins = (boardId: string | undefined, bookmark?: string) =>
-  useQuery({
-    queryKey: qk.pinterestPins(boardId ?? '', bookmark),
-    queryFn: () => api<PinterestPage<PinterestPin>>(`/pinterest/boards/${boardId}/pins`, { query: { bookmark } }),
-    enabled: !!boardId,
-    retry: (n, e) => !isApiError(e, 501) && n < 2,
-  });
-
-/** POST /pinterest/boards/import { boardUrl }: a public board's pins read from its RSS feed (no API key). */
-export const useImportPinterestBoard = () =>
-  useMutation({
-    mutationFn: (body: ImportBoardRequest) => api<ImportBoardResponse>('/pinterest/boards/import', { method: 'POST', body }),
-  });
-
-/** POST /rooms/:roomId/moodboard/pins for any room (the pin context menu's "Add to …"). */
-export function useAddPinsToRoom() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ roomId, pins }: { roomId: string; pins: PinRef[] }) =>
-      api<StyleResponse>(`/rooms/${roomId}/moodboard/pins`, { method: 'POST', body: { pins } }),
-    onSuccess: (s, { roomId }) => qc.setQueryData(qk.style(roomId), s),
   });
 }

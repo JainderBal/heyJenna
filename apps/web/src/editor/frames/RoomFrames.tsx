@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useAddMoodboardPins, useDeleteMoodboardImage, useMoodboardImages, useCreateLayout, useCreateRender, useRenderImage, useRenderJob, useSearchListingsAsync, useUploadMoodboard } from '../../api/hooks';
 import { errorText } from '../../api/client';
 import type { Layout, Listing, PinRef, Room, StyleResponse } from '../../api/types';
+import { openPinterestWindow } from '../../app/openPinterest';
 import { toast, useEditorStore } from '../../app/useEditorStore';
 import { RoomViewer } from '../../viewer/RoomViewer';
 import { shade } from '../colour';
@@ -23,7 +24,7 @@ const MAX_IMAGES = 8;
 export const PIN_DRAG_TYPE = 'application/x-hj-pin';
 
 /** First i.pinimg.com image address in dragged text or HTML, upgraded to the 736px size. */
-function pinimgFrom(text: string): string | null {
+export function pinimgFrom(text: string): string | null {
   const m = text.match(/https:\/\/i\.pinimg\.com\/[^\s"'<>)]+\.(?:jpe?g|png|webp|gif)/i);
   return m ? m[0].replace(/\/(?:\d+x|originals)\//, '/736x/') : null;
 }
@@ -105,6 +106,9 @@ export function MoodboardFrame({ room, style, palette }: { room: Room; style: St
       <div className="note mood-h">
         <span>{room.name.toLowerCase()} · the vibe</span>
         <span className="mcount">{busy ? 'reading…' : count ? `${count} images` : 'empty'}</span>
+        <button className="pbtn sm" type="button" onClick={openPinterestWindow}>
+          Open Pinterest
+        </button>
         <button className="pbtn sm" type="button" disabled={busy} onClick={pick}>
           {count ? 'Replace images' : 'Upload images'}
         </button>
@@ -165,7 +169,8 @@ export function Room3DFrame({ room, layout, palette }: { room: Room; layout: Lay
   const create = useCreateRender(room.id);
   const job = useRenderJob(room.id, jobId);
   const img = useRenderImage(job.data);
-  const [showRender, setShowRender] = useState(true);
+  // the live 3D always stays on screen; a finished render is a thumbnail that opens full size on click
+  const [showRender, setShowRender] = useState(false);
   const status = create.isPending ? 'queued' : job.data?.status;
   const working = status === 'queued' || status === 'running';
 
@@ -174,8 +179,8 @@ export function Room3DFrame({ room, layout, palette }: { room: Room; layout: Lay
     create.mutate(layout.id, {
       onSuccess: (j) => {
         setJob(room.id, j.id);
-        setShowRender(true);
-        toast('Render queued: the worker picks it up (~45 s)');
+        setShowRender(false);
+        toast('Render queued: the 3D keeps spinning while the worker renders (~45 s)');
       },
       onError: (e) => toast(errorText(e)),
     });
@@ -184,13 +189,19 @@ export function Room3DFrame({ room, layout, palette }: { room: Room; layout: Lay
   return (
     <div className="viewer" aria-label={`Live 3D model of the ${room.name.toLowerCase()}`}>
       <RoomViewer roomId={room.id} layout={layout ?? null} room={room} palette={palette} />
-      {img && showRender && <img className="render-img" src={img} alt={`Render of the ${room.name.toLowerCase()}`} />}
+      {img && !showRender && (
+        <button type="button" className="render-thumb" title="Open the render" onPointerDown={(e) => e.stopPropagation()} onClick={() => setShowRender(true)}>
+          <img src={img} alt={`Render of the ${room.name.toLowerCase()}`} />
+          <span>Render</span>
+        </button>
+      )}
+      {img && showRender && (
+        <div className="render-full" onPointerDown={(e) => e.stopPropagation()} onClick={() => setShowRender(false)} role="dialog" aria-label="Render">
+          <img src={img} alt={`Render of the ${room.name.toLowerCase()}`} />
+          <button type="button" className="render-close" aria-label="Back to the live 3D">× Back to 3D</button>
+        </div>
+      )}
       <div className="vbtns" style={{ left: 'auto', right: 12, top: 12, bottom: 'auto', transform: 'none' }}>
-        {img && (
-          <button type="button" className={showRender ? 'on' : ''} onClick={() => setShowRender((v) => !v)}>
-            {showRender ? 'Render' : '3D'}
-          </button>
-        )}
         <button type="button" disabled={!layout || working} title={layout ? 'Render a photo-real PNG' : 'Lay out the room first'} onClick={render}>
           {working ? (status === 'running' ? 'Rendering…' : 'Queued…') : status === 'failed' ? 'Render again' : img ? 'Re-render' : 'Render'}
         </button>

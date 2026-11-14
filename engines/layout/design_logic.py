@@ -1129,6 +1129,32 @@ def add_soft_and_props(L, taste):
 
 # ---------------------------------------------------------------- 2g. colour 60/30/10
 ACCENT_ORDER = ["art", "floor_lamp", "table_lamp", "pouf", "side_table", "shelf", "coffee_table", "armchair", "rug", "cat_tree", "desk_chair", "desk"]
+# The 10 % accent is for small pops only; big pieces take the board's main (secondary) colours.
+SMALL_ACCENT = ("art", "floor_lamp", "table_lamp", "ceiling_light", "pouf", "side_table", "desk_chair")
+HERO_TYPES = ("sofa", "armchair")
+
+
+def hex_lab(h):
+    """#RRGGBB -> CIELAB (L, a, b), to judge how colourful and how different two colours look."""
+    def lin(c):
+        c /= 255; return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+    r, g, b = (lin(int(h.lstrip("#")[i:i + 2], 16)) for i in (0, 2, 4))
+    x, y, z = (r * .4124 + g * .3576 + b * .1805) / .95047, r * .2126 + g * .7152 + b * .0722, (r * .0193 + g * .1192 + b * .9505) / 1.08883
+    f = lambda t: t ** (1 / 3) if t > 0.008856 else 7.787 * t + 16 / 116
+    return 116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z))
+
+
+def colourful(h, min_chroma=15): L, a, b = hex_lab(h); return math.hypot(a, b) >= min_chroma and 20 <= L <= 85
+def delta_e(h1, h2): return math.dist(hex_lab(h1), hex_lab(h2))
+def too_dark(h): return hex_lab(h)[0] < 22
+
+
+def signature_colour(pal, avoid=()):
+    """The colour the hero seat wears: the most-seen colourful main colour (secondaries first, ordered by coverage,
+    then the second dominant), skipping colours too close to the walls. None if the board has none."""
+    for c in pal["secondary"] + pal["dominant"][1:]:
+        if colourful(c) and all(delta_e(c, w) > 18 for w in avoid if w): return c
+    return None
 NO_COLOUR = ("curtain", "cushion", "throw", "book", "books", "vase", "computer", "paper", "mug", "cup", "zone")
 
 
@@ -1166,17 +1192,26 @@ def assign_colours(L, statement=None):
             elif (n := f"{o['id']} colour {c} is not in the moodboard palette") not in L.notes: L.notes.append(n)
         else: auto.append(o)
     allarea = sum(tot.values()) + sum(visible_area(o) for o in auto)
-    auto.sort(key=lambda o: (o["id"] != statement, ACCENT_ORDER.index(o["type"]) if o["type"] in ACCENT_ORDER else 99))
+    walls = [f.get("colour") for f in room.spec.get("walls", {}).values() if f.get("colour")]
+    # hero = the piece that carries the board's signature colour: the statement if it's a seat, else the sofa
+    hero = statement if (L.get(statement) or {}).get("type") in HERO_TYPES else next((o["id"] for o in auto if o["type"] == "sofa"), None)
+    sig = signature_colour(pal, walls)
+    auto.sort(key=lambda o: (o["id"] != hero, ACCENT_ORDER.index(o["type"]) if o["type"] in ACCENT_ORDER else 99))
     for o in auto:
         a = visible_area(o)
         if o["type"] == "plant": o["role"], o["colour"] = "natural", "#3E7F3A"; continue
+        if o["id"] == hero and sig:
+            o["role"], o["colour"] = "secondary", sig; tot["secondary"] += a; continue
         if o["type"] == "feature_wall": r = "accent" if len(pal["accent"]) else "secondary"
-        else: r = "accent" if o["id"] == statement or (tot["accent"] + a) / allarea <= R["split"]["accent"] + R["split_tol"] / 3 else "secondary"
+        elif o["type"] in SMALL_ACCENT and (tot["accent"] + a) / allarea <= R["split"]["accent"] + R["split_tol"] / 3: r = "accent"
+        else: r = "secondary"
         tot[r] += a; o["role"] = r
         nb = [q.get("colour") for q in L.objs if q is not o and q.get("colour") and o["box"].gap(q["box"]) < 0.6]
-        walls = [f.get("colour") for f in room.spec.get("walls", {}).values()]
         used = [q.get("colour") for q in L.objs if q.get("colour")]
-        o["colour"] = min(pal[r], key=lambda c: (c in nb) * 10 + (c in walls) * 3 + used.count(c) + pal[r].index(c) * 0.01)
+        near_wall = lambda c: any(delta_e(c, w) < 18 for w in walls)
+        # big pieces never go near-black (they'd read as holes in the room) unless nothing else is left
+        options = [c for c in pal[r] if not too_dark(c)] if o["type"] not in SMALL_ACCENT else pal[r]
+        o["colour"] = min(options or pal[r], key=lambda c: (c in nb) * 10 + near_wall(c) * 3 + (c == sig) * 2 + used.count(c) + pal[r].index(c) * 0.01)
     s = sum(tot.values())
     return {k: round(v / s, 3) for k, v in tot.items()}, shell
 

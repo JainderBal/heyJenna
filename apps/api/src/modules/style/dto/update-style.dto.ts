@@ -1,3 +1,4 @@
+import { StyleDialsPatch } from '@hey-jenna/contracts';
 import { z } from 'zod';
 
 const Hex = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
@@ -11,6 +12,8 @@ export const UpdateStyleSchema = z
     palette: z.object({ dominant: z.array(Hex).min(1), secondary: z.array(Hex).min(1), accent: z.array(Hex).min(1) }),
     shapeFamily: z.enum(['retro', 'modern', 'garden']),
     stylingDensity: z.enum(['sparse', 'balanced', 'layered']),
+    /** Any subset of the 55 dials, e.g. { "plant_amount": 0.8, "rug_type": "jute_sisal" }. */
+    dials: StyleDialsPatch,
   })
   .partial();
 export type UpdateStyleDto = z.infer<typeof UpdateStyleSchema>;

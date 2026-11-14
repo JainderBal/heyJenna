@@ -1,15 +1,16 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { StyleProfile } from '@hey-jenna/contracts';
+import { densityBand, StyleProfile } from '@hey-jenna/contracts';
 import sharp from 'sharp';
 import { safeFetch } from '../../common/http/safe-fetch';
 import { StorageService } from '../../common/storage/storage.service';
 import { RoomsService } from '../rooms/rooms.service';
+import { DENSITY_VALUE, deriveDials } from './analysis/dials';
 import { RuleVibeReader } from './analysis/rule-vibe.reader';
 import { extractPalette, PaletteResult } from './analysis/palette';
 import { Vibe, VIBE_READER, VibeReader } from './analysis/vibe';
 import { StyleResponseDto } from './dto/style-response.dto';
 import { UpdateStyleDto } from './dto/update-style.dto';
-import { toStyleResponse } from './mappers/style.mapper';
+import { readProfile, toStyleResponse } from './mappers/style.mapper';
 import { StyleRepository } from './style.repository';
 
 export interface MoodboardFile {
@@ -56,14 +57,15 @@ export class StyleService {
 
   async update(roomId: string, ownerId: string, dto: UpdateStyleDto): Promise<StyleResponseDto> {
     const current = (await this.get(roomId, ownerId)).profile;
-    const next: StyleProfile = StyleProfile.parse({ ...current, ...dto, source: `${current.source} + edited` });
+    const next: StyleProfile = StyleProfile.parse({ ...current, ...dto, dials: mergeDials(current, dto), source: `${current.source} + edited` });
+    if (dto.dials?.styling_density != null) next.stylingDensity = densityBand(next.dials.styling_density);
     return toStyleResponse(await this.repo.updateProfile(roomId, next));
   }
 
   /** For other modules: the room's style, or null if no moodboard yet. Caller must own the room. */
   async getProfile(roomId: string): Promise<StyleProfile | null> {
     const style = await this.repo.findByRoom(roomId);
-    return style ? (style.profile as unknown as StyleProfile) : null;
+    return style ? readProfile(style.profile) : null;
   }
 
   private async download(urls: string[]): Promise<Buffer[]> {
@@ -113,6 +115,14 @@ export class StyleService {
       warmth: p.warmth,
       saturation: p.saturation,
       lightness: p.lightness,
+      dials: deriveDials(p, v),
     });
   }
+}
+
+/** Current dials + the edited ones. Editing the old stylingDensity choice moves its dial too, so the two never disagree. */
+function mergeDials(current: StyleProfile, dto: UpdateStyleDto): StyleProfile['dials'] {
+  const next = { ...current.dials, ...(dto.dials ?? {}) };
+  if (dto.stylingDensity && dto.dials?.styling_density == null) next.styling_density = DENSITY_VALUE[dto.stylingDensity];
+  return next;
 }

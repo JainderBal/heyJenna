@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { FloorPlan, FurnitureType } from '@hey-jenna/contracts';
 import { Listing, Room } from '@prisma/client';
+import { RoomEventsService } from '../../common/events/events.service';
 import { AppConfig } from '../../common/config/app-config.service';
 import { RoomsService } from '../rooms/rooms.service';
 import { StyleService } from '../style/style.service';
@@ -43,10 +44,28 @@ export class SourcingService {
     private readonly link: LinkAdapter,
     private readonly config: AppConfig,
     @Inject(SOURCE_ADAPTERS) private readonly adapters: SourceAdapter[],
+    private readonly events: RoomEventsService,
   ) {}
 
-  async search(roomId: string, ownerId: string, dto: SearchListingsDto): Promise<SearchSummaryDto> {
+  /** Search and tell the room's live-update streams when it starts and ends (jobId set when run as a background job). */
+  async search(roomId: string, ownerId: string, dto: SearchListingsDto, jobId?: string): Promise<SearchSummaryDto> {
     const room = await this.rooms.getOwnedRoom(roomId, ownerId);
+    const ref = jobId ? { jobId } : {};
+    this.events.publish(roomId, 'listings.search.started', { ...ref, types: dto.types ?? null });
+    try {
+      const summary = await this.runSearch(room, dto);
+      this.events.publish(roomId, 'listings.search.finished', {
+        ...ref, searched: summary.searched, sources: summary.sources, errors: summary.errors, listingCount: summary.listings.length,
+      });
+      return summary;
+    } catch (e) {
+      this.events.publish(roomId, 'listings.search.failed', { ...ref, error: (e as Error).message });
+      throw e;
+    }
+  }
+
+  private async runSearch(room: Room, dto: SearchListingsDto): Promise<SearchSummaryDto> {
+    const roomId = room.id;
     const style = await this.style.getProfile(roomId);
     if (!style) throw new ConflictException('Upload a moodboard first: products are matched to its style');
     const plan = room.floorPlan as unknown as FloorPlan;

@@ -1,4 +1,6 @@
+import { RenderJob } from '@prisma/client';
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { RoomEventsService } from '../../common/events/events.service';
 import { StorageService } from '../../common/storage/storage.service';
 import { LayoutService } from '../layout/layout.service';
 import { LayoutData } from '../layout/layout.types';
@@ -25,13 +27,15 @@ export class RenderService {
     private readonly rooms: RoomsService,
     private readonly layouts: LayoutService,
     private readonly storage: StorageService,
+    private readonly events: RoomEventsService,
   ) {}
 
   // ---------------------------------------------------------------- for people
   async request(roomId: string, ownerId: string, layoutId: string): Promise<RenderJobResponseDto> {
     await this.layouts.getData(roomId, ownerId, layoutId); // 404 unless it's theirs
     const open = await this.repo.findOpenForLayout(layoutId);
-    return toRenderJobResponse(open ?? (await this.repo.create(roomId, layoutId)));
+    if (open) return toRenderJobResponse(open);
+    return this.announce('render.queued', await this.repo.create(roomId, layoutId));
   }
 
   async get(roomId: string, ownerId: string, jobId: string): Promise<RenderJobResponseDto> {
@@ -57,7 +61,7 @@ export class RenderService {
     const job = await this.repo.claimNext(workerId);
     if (!job) return null;
     this.log.log(`job ${job.id} → ${workerId} (attempt ${job.attempts})`);
-    return { job: toRenderJobResponse(job), layout: await this.layouts.getDataForWorker(job.roomId, job.layoutId) };
+    return { job: this.announce('render.running', job), layout: await this.layouts.getDataForWorker(job.roomId, job.layoutId) };
   }
 
   async complete(jobId: string, image?: Buffer, model?: Buffer): Promise<RenderJobResponseDto> {
@@ -70,14 +74,21 @@ export class RenderService {
     const imageKey = await this.storage.save(folder, image, 'png', 'image/png');
     const modelKey = model ? await this.storage.save(folder, model, 'glb', 'model/gltf-binary') : null;
     this.log.log(`job ${job.id} done`);
-    return toRenderJobResponse(await this.repo.complete(job.id, imageKey, modelKey));
+    return this.announce('render.done', await this.repo.complete(job.id, imageKey, modelKey));
   }
 
   async fail(jobId: string, error: string): Promise<RenderJobResponseDto> {
     const job = await this.repo.findById(jobId);
     if (!job) throw new NotFoundException('Job not found');
     this.log.warn(`job ${job.id} failed: ${error.split('\n')[0]}`);
-    return toRenderJobResponse(await this.repo.fail(job.id, error));
+    return this.announce('render.failed', await this.repo.fail(job.id, error));
+  }
+
+  /** Tell the room's open live-update streams, and return the job as the API shows it. */
+  private announce(type: 'render.queued' | 'render.running' | 'render.done' | 'render.failed', job: RenderJob): RenderJobResponseDto {
+    const dto = toRenderJobResponse(job);
+    this.events.publish(job.roomId, type, { job: dto });
+    return dto;
   }
 
   private async load(roomId: string, jobId: string) {

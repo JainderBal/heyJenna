@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { JobsService } from '../../common/jobs/jobs.service';
-import { FloorPlan, FurnitureType } from '@hey-jenna/contracts';
+import { FloorPlan, FurnitureType, RoomKind } from '@hey-jenna/contracts';
 import { Listing, Prisma, Room } from '@prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { RoomEventsService } from '../../common/events/events.service';
@@ -22,7 +22,7 @@ import { buildQuery, queryParts } from './matching/query';
 import { plausibleSize, sizeFor } from './matching/dimensions';
 import { FurnitureType as FType } from '@hey-jenna/contracts';
 import { shoppingList, Slot } from './matching/shopping-list';
-import { BudgetContext, budgetForRoom, layoutSpent, overSlotCeiling, planArea, RoomBudget } from './matching/budget';
+import { BudgetContext, budgetForRoom, layoutSpent, ownRoomBudget, overSlotCeiling, planArea, RoomBudget } from './matching/budget';
 import { chooseSet } from './matching/companions';
 import { glbSize } from './matching/glb-bounds';
 
@@ -94,10 +94,10 @@ export class SourcingService implements OnModuleInit {
   private async runSearch(room: Room, dto: SearchListingsDto): Promise<SearchSummaryDto> {
     const roomId = room.id;
     const style = await this.style.getProfile(roomId);
-    if (!style) throw new ConflictException('Upload a moodboard first: products are matched to its style');
+    if (!style) throw new ConflictException('Upload a moodboard first (to this room or any room in the home): products are matched to its style');
     const plan = room.floorPlan as unknown as FloorPlan;
 
-    const allSlots = shoppingList(plan, room.needs);
+    const allSlots = shoppingList(plan, room.needs, room.kind as RoomKind | null);
     const budget = await this.loadBudget(room, allSlots);
     const slots = allSlots.filter((s) => !dto.types || dto.types.includes(s.type));
     const active = this.activeAdapters();
@@ -202,7 +202,7 @@ export class SourcingService implements OnModuleInit {
   /** For the layout module: per slot, the listings to use (picked first, then best score). */
   async chooseForRoom(room: Room): Promise<ChosenSlot[]> {
     const plan = room.floorPlan as unknown as FloorPlan;
-    const slots = shoppingList(plan, room.needs);
+    const slots = shoppingList(plan, room.needs, room.kind as RoomKind | null);
     const budget = await this.loadBudget(room, slots);
     const all = await this.repo.listByRoom(room.id);
     // Real sizes + 3D model links for the leading candidates (not just the winner), so pieces can be
@@ -221,14 +221,19 @@ export class SourcingService implements OnModuleInit {
   async budgetContext(roomId: string, ownerId: string): Promise<BudgetContext | null> {
     const room = await this.rooms.getOwnedRoom(roomId, ownerId);
     const plan = room.floorPlan as unknown as FloorPlan;
-    const budget = await this.loadBudget(room, shoppingList(plan, room.needs));
+    const budget = await this.loadBudget(room, shoppingList(plan, room.needs, room.kind as RoomKind | null));
     if (!budget) return null;
-    const { budgetCad, roomShare, cap, spentElsewhere } = budget;
-    return { budgetCad, roomShare, cap, spentElsewhere };
+    const { budgetCad, roomShare, cap, spentElsewhere, scope } = budget;
+    return { budgetCad, roomShare, cap, spentElsewhere, scope };
   }
 
-  /** Area share of the project budget. A room with no project, or a project with no budget, is uncapped. */
+  /**
+   * The room's own budget when the person set one (the usual case: each room is budgeted before it's built).
+   * Older projects with only a home budget fall back to this room's area share of it. Neither = uncapped.
+   */
   private async loadBudget(room: Room, slots: Slot[]): Promise<RoomBudget | null> {
+    const own = ownRoomBudget(room.budgetCad, slots);
+    if (own) return own;
     if (!room.projectId) return null;
     const project = await this.db.project.findUnique({ where: { id: room.projectId }, select: { budgetCad: true } });
     if (project?.budgetCad == null) return null;
@@ -288,6 +293,8 @@ export class SourcingService implements OnModuleInit {
         const fromTitle = sizeFor(listing.title, listing.type as FType);
         if (!fromTitle.estimated) size = fromTitle.size;
       }
+      // a bed's headboard (along the wall) is its short side; pages and models give the long side first
+      if (size && listing.type === 'bed' && size.w > size.d) size = { w: size.d, d: size.w, h: size.h };
       const price = findIkeaPrice(html) ?? undefined;
       return await this.repo.setDetails(listing.id, { size: size ? (size as unknown as Prisma.InputJsonValue) : undefined, modelUrl, price });
     } catch (e) {
@@ -298,7 +305,7 @@ export class SourcingService implements OnModuleInit {
 
   /** A slot holds `count` pieces (e.g. 2 armchairs): picking more unpicks the older extras. */
   private async limitPicked(room: Room, saved: Listing): Promise<void> {
-    const count = shoppingList(room.floorPlan as unknown as FloorPlan, room.needs).find((s) => s.type === saved.type)?.count ?? 1;
+    const count = shoppingList(room.floorPlan as unknown as FloorPlan, room.needs, room.kind as RoomKind | null).find((s) => s.type === saved.type)?.count ?? 1;
     const others = (await this.repo.listByRoom(room.id, saved.type)).filter((l) => l.picked && l.id !== saved.id);
     for (const extra of others.slice(Math.max(0, count - 1))) await this.repo.setPicked(extra.id, false);
   }

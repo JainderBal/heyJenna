@@ -20,6 +20,8 @@ export function pieceKind(type: string, name = ''): string {
   if (/chair/.test(t)) return 'chair';
   if (/rug|mat\b/.test(t)) return 'rug';
   if (/\bbed\b|bed_frame|bed frame/.test(t)) return 'bed';
+  if (/wardrobe|armoire/.test(t)) return 'wardrobe';
+  if (/\bbench\b/.test(t)) return 'bench';
   if (/stool/.test(t)) return 'stool';
   if (/mirror/.test(t)) return 'mirror';
   if (/\bart\b|picture|poster|print|frame/.test(t)) return 'art';
@@ -39,6 +41,7 @@ export function pieceKind(type: string, name = ''): string {
 const KIND_PAL: Record<string, number> = {
   sofa: 1, armchair: 0, chair: 0, rug: 3, floor_lamp: 2, lamp: 2, pendant: 2, bed: 5, stool: 1, mirror: 5,
   art: 5, plant: 0, pouf: 4, cat_tree: 4, tv: 5, sideboard: 5, shelf: 5, coffee_table: 5, side_table: 5, table: 5, box: 1,
+  wardrobe: 2, bench: 5,
 };
 
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -114,6 +117,16 @@ function native(kind: string, color: string, P: string[]): THREE.Group {
       box(0.5, 0.12, 0.32, '#FFFFFF', -0.38, 0.58, -0.7, 0.06);
       box(0.5, 0.12, 0.32, '#FFFFFF', 0.38, 0.58, -0.7, 0.06);
       legs(1.6, 2, 0.08, DARK);
+      break;
+    case 'wardrobe':
+      box(1, 2, 0.6, color, 0, 0, 0, 0.02);
+      box(0.47, 1.9, 0.01, shade(color, -0.06), -0.25, 0.05, 0.3);
+      box(0.47, 1.9, 0.01, shade(color, -0.06), 0.25, 0.05, 0.3);
+      break;
+    case 'bench':
+      box(1, 0.06, 0.4, color, 0, 0.42, 0, 0.015);
+      box(0.9, 0.03, 0.34, shade(color, -0.1), 0, 0.12, 0);
+      legs(1, 0.4, 0.42, DARK, 0.05);
       break;
     case 'stool':
       cyl(0.18, 0.18, 0.06, color, 0, 0.7, 0);

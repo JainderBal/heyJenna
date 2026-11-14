@@ -35,6 +35,8 @@ export interface ViewerScene {
   plan: Pick<FloorPlan, 'width' | 'depth'> & Partial<FloorPlan>;
   layout: Layout | null;
   palette: string[];
+  /** Moodboard image urls: the room's wall art shows them (the pins as framed art). */
+  art?: string[];
 }
 
 export interface ViewerHooks {
@@ -380,7 +382,7 @@ export function createViewer(host: HTMLElement, hooks: ViewerHooks): Viewer | nu
     return renderLoad;
   }
 
-  function build({ roomId, plan, layout, palette }: ViewerScene) {
+  function build({ roomId, plan, layout, palette, art = [] }: ViewerScene) {
     gen++;
     const my = gen;
     clearLive();
@@ -416,8 +418,10 @@ export function createViewer(host: HTMLElement, hooks: ViewerHooks): Viewer | nu
     fl.receiveShadow = true;
     shell.add(fl);
 
-    // walls, cut around windows and doors
-    const finish = (wall: Wall) => plan.walls?.[wall]?.colour;
+    // walls, cut around windows and doors. Paint: the layout's (the moodboard's main colour, the accent wall in its
+    // secondary colour, as the engine and the render use), else the plan's own finish, else a light palette tint
+    const laidOut = new Map((layout?.objects ?? []).filter((o) => o.type === 'wall' && o.colour).map((o) => [o.zone, o.colour as string]));
+    const finish = (wall: Wall) => laidOut.get(wall) ?? plan.walls?.[wall]?.colour;
     const backC = lc(P[0]).lerp(lc(light), 0.4);
     const glassM = new THREE.MeshBasicMaterial({ color: lc('#FFF6E2'), side: THREE.DoubleSide });
     const specs: [Wall, number, THREE.Vector3][] = [
@@ -481,6 +485,8 @@ export function createViewer(host: HTMLElement, hooks: ViewerHooks): Viewer | nu
     // furniture: the layout also lists the room shell (floor, walls) and planning zones, which this viewer
     // already builds from the floor plan or which aren't physical, so skip them
     const SHELL = new Set(['floor', 'wall', 'ceiling', 'zone', 'window', 'door', 'opening']);
+    artN = 0;
+    artUrls = art;
     for (const o of layout?.objects ?? []) if (!SHELL.has(o.type)) placeObject(g, o, P, H, my);
     root.updateMatrixWorld(true);
     select(selected);
@@ -506,6 +512,7 @@ export function createViewer(host: HTMLElement, hooks: ViewerHooks): Viewer | nu
     const clay = clayPiece(kind, w, h, d, pieceColour(kind, P, o.colour), P);
     clay.userData.owned = true;
     slot.add(clay);
+    if (kind === 'art' && artUrls.length) hangImage(slot, artUrls[artN++ % artUrls.length], w, h, d, my);
     if (mount === 'ceiling' || kind === 'pendant') {
       const top = base + h;
       if (H - top > 0.02) {
@@ -528,6 +535,55 @@ export function createViewer(host: HTMLElement, hooks: ViewerHooks): Viewer | nu
       })
       .catch(() => {
         /* keep the clay piece */
+      });
+  }
+
+  /* ---- moodboard images on the wall art ---- */
+  let artN = 0;
+  let artUrls: string[] = [];
+  const textures = new Map<string, Promise<THREE.Texture>>();
+  const texLoader = new THREE.TextureLoader();
+  texLoader.setCrossOrigin('anonymous');
+  const loadTexture = (url: string) => {
+    let t = textures.get(url);
+    if (!t) {
+      t = texLoader.loadAsync(url).then((tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.anisotropy = 4;
+        return tex;
+      });
+      t.catch(() => textures.delete(url)); // try again next build
+      textures.set(url, t);
+    }
+    return t;
+  };
+  /** The image fills the art's canvas (cropped to its shape, like a print in a frame), just proud of the panel. */
+  function hangImage(slot: THREE.Group, url: string, w: number, h: number, d: number, my: number) {
+    const pw = w * 0.82;
+    const ph = h * 0.84;
+    loadTexture(url)
+      .then((shared) => {
+        if (my !== gen || !slot.parent) return;
+        const tex = shared.clone();
+        const img = shared.image as { width?: number; height?: number } | undefined;
+        const ia = img?.width && img?.height ? img.width / img.height : 1;
+        const pa = pw / ph;
+        // cover: crop the long side
+        if (ia > pa) {
+          tex.repeat.set(pa / ia, 1);
+          tex.offset.set((1 - pa / ia) / 2, 0);
+        } else {
+          tex.repeat.set(1, ia / pa);
+          tex.offset.set(0, (1 - ia / pa) / 2);
+        }
+        tex.needsUpdate = true;
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7 }));
+        m.position.set(0, h * 0.5, d / 2 + 0.012);
+        m.userData.owned = true;
+        slot.add(m);
+      })
+      .catch(() => {
+        /* a pin that can't be read cross-origin keeps the painted panel in the board's colours */
       });
   }
 
@@ -580,6 +636,8 @@ export function createViewer(host: HTMLElement, hooks: ViewerHooks): Viewer | nu
       clearLive();
       clearRendered();
       models?.dispose();
+      for (const t of textures.values()) t.then((x) => x.dispose()).catch(() => undefined);
+      textures.clear();
       sun.dispose();
       envTex.dispose();
       renderer.dispose();

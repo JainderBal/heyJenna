@@ -50,7 +50,8 @@ TYPE_LAYER = {
     **{t: "architecture" for t in ("floor", "wall", "window", "door")},
     **{t: "features" for t in ("platform", "niche", "built_in_shelf", "half_wall", "feature_wall", "wainscoting", "window_seat", "ceiling_beam")},
     "zone": "zones",
-    **{t: "furniture" for t in ("sofa", "armchair", "coffee_table", "side_table", "shelf", "desk", "desk_chair", "sideboard", "cat_tree", "pouf")},
+    **{t: "furniture" for t in ("sofa", "armchair", "coffee_table", "side_table", "shelf", "desk", "desk_chair", "sideboard", "cat_tree", "pouf",
+                                "bed", "nightstand", "dresser", "wardrobe", "dining_table", "dining_chair", "bench")},
     **{t: "soft_furnishings" for t in ("rug", "curtain", "throw", "cushion")},
     **{t: "lighting" for t in ("ceiling_light", "floor_lamp", "table_lamp")},
     **{t: "decor" for t in ("vase", "books", "book", "computer", "paper", "mug", "cup")},
@@ -866,7 +867,7 @@ def use_points(L):
         if o["meta"].get("on"): continue  # on a platform: reached by stepping up from its edge
         if t == "sofa":
             n = max(1, round(b.w / 0.75)); pts += [(o["id"], b.pt((k + .5 - n / 2) * b.w / n, b.d / 2 + 0.2)) for k in range(n)]
-        elif t in ("armchair", "shelf", "sideboard", "cat_tree", "built_in_shelf", "window_seat"): pts.append((o["id"], b.front(0.25)))
+        elif t in ("armchair", "shelf", "sideboard", "cat_tree", "built_in_shelf", "window_seat", "dresser", "wardrobe", "bench"): pts.append((o["id"], b.front(0.25)))
         elif t == "desk_chair": pts.append((o["id"], b.pt(0, -(b.d / 2 + 0.25))))
     return pts
 
@@ -876,6 +877,8 @@ def walk_check(L):
     starts = [room.at(dr["wall"], dr["position"], 0.5) for dr in room.doors] or [(room.W / 2, room.D - 0.3)]
     wide = flood(d, nx, ny, starts[0], R["walkway"] / 2)
     narrow = flood(d, nx, ny, starts[0], R["squeeze"] / 2)
+    # in a bedroom or dining room a window only needs a 60 cm way past the bed or the chairs
+    to_window = flood(d, nx, ny, starts[0], 0.6 / 2) if getattr(L, "kind", None) else wide
     zone_ok = {}
     for z in L.zones:
         objs = [o for o in L.floor() if o["zone"] == z or o["meta"].get("serves") == z]
@@ -883,7 +886,7 @@ def walk_check(L):
     for w in room.windows:
         off = 0.5
         while off < 1.6 and any(o["box"].contains(*room.at(w["wall"], w["position"], off)) for o in L.floor()): off += 0.05
-        zone_ok[w["id"]] = near(wide, nx, ny, room.at(w["wall"], w["position"], off + 0.2), 0.6)
+        zone_ok[w["id"]] = near(to_window, nx, ny, room.at(w["wall"], w["position"], off + 0.2), 0.6)
     use = {f"{oid}@{r3(p[0])},{r3(p[1])}": near(narrow, nx, ny, p, 0.2) for oid, p in use_points(L)}
     return dict(zones=zone_ok, use=use, grid=(d, nx, ny, wide))
 
@@ -1217,6 +1220,9 @@ def add_soft_and_props(L, taste):
     prop("coffee_table", "coffee_vase", "cup", 0.15, -0.08, 0.12, 0.12, 0.16, prof["palette"]["dominant"][0], upto=2)
     prop("sideboard", "sideboard_vase", "vase", -0.45, 0.0, 0.18, 0.18, 0.4, acc[1 % len(acc)])
     prop("sideboard", "sideboard_books", "books", 0.0 if sbd and sbd["id"] in lamp_on else 0.35, 0.0, 0.3, 0.22, 0.19, acc[0], upto=2)
+    prop("dresser", "dresser_vase", "vase", -0.2, 0.0, 0.16, 0.16, 0.32, acc[1 % len(acc)])
+    prop("dresser", "dresser_books", "books", 0.2, 0.0, 0.26, 0.2, 0.15, acc[0], upto=2)
+    prop("dining_table", "table_vase", "vase", 0.0, 0.0, 0.14, 0.14, 0.28, acc[0])
     prop("desk", "computer", "computer", -0.15, -0.08, 0.4, 0.3, 0.3, "#EFE6D6")
     prop("desk", "desk_paper", "paper", -0.1, 0.18, 0.36, 0.12, 0.02, "#F3E6D3", upto=2)
     prop("desk", "desk_mug", "mug", 0.2, 0.1, 0.1, 0.1, 0.11, acc[0], upto=2)
@@ -1234,8 +1240,8 @@ def add_soft_and_props(L, taste):
 # ---------------------------------------------------------------- 2g. colour 60/30/10
 ACCENT_ORDER = ["art", "floor_lamp", "table_lamp", "pouf", "side_table", "shelf", "coffee_table", "armchair", "rug", "cat_tree", "desk_chair", "desk"]
 # The 10 % accent is for small pops only; big pieces take the board's main (secondary) colours.
-SMALL_ACCENT = ("art", "floor_lamp", "table_lamp", "ceiling_light", "pouf", "side_table", "desk_chair")
-HERO_TYPES = ("sofa", "armchair")
+SMALL_ACCENT = ("art", "floor_lamp", "table_lamp", "ceiling_light", "pouf", "side_table", "desk_chair", "nightstand", "bench")
+HERO_TYPES = ("sofa", "armchair", "bed")
 
 
 def hex_lab(h):
@@ -1298,7 +1304,7 @@ def assign_colours(L, statement=None):
     allarea = sum(tot.values()) + sum(visible_area(o) for o in auto)
     walls = [f.get("colour") for f in room.spec.get("walls", {}).values() if f.get("colour")]
     # hero = the piece that carries the board's signature colour: the statement if it's a seat, else the sofa
-    hero = statement if (L.get(statement) or {}).get("type") in HERO_TYPES else next((o["id"] for o in auto if o["type"] == "sofa"), None)
+    hero = statement if (L.get(statement) or {}).get("type") in HERO_TYPES else next((o["id"] for o in auto if o["type"] in ("sofa", "bed")), None)
     sig = signature_colour(pal, walls)
     auto.sort(key=lambda o: (o["id"] != hero, ACCENT_ORDER.index(o["type"]) if o["type"] in ACCENT_ORDER else 99))
     for o in auto:
@@ -1331,7 +1337,7 @@ def run_checks(L, split, walk):
     fl = L.floor()
     def hosted(a, b): return a["meta"].get("on") == b["id"] or b["meta"].get("on") == a["id"]
     bad = [(a["id"], b["id"]) for k, a in enumerate(fl) for b in fl[k + 1:] if a["box"].overlaps(b["box"], -0.01)
-           and {a["type"], b["type"]} != {"desk", "desk_chair"} and not hosted(a, b)]
+           and {a["type"], b["type"]} not in ({"desk", "desk_chair"}, {"dining_table", "dining_chair"}) and not hosted(a, b)]
     add("no furniture overlaps", not bad, "none" if not bad else ", ".join(f"{a}/{b}" for a, b in bad))
     for z, ok in walk["zones"].items():
         add(f"{R['walkway'] * 100:.0f} cm walkway door -> {z}", ok, "clear route" if ok else "no 90 cm route; the narrowest gap is in the way")
@@ -1378,7 +1384,10 @@ def run_checks(L, split, walk):
             add("art ~2/3 the width of the furniture below", abs(ratio - R["art_ratio"]) <= 0.08, f"{a['box'].w:.2f} m over {below['box'].w:.2f} m = {ratio * 100:.0f}%")
             add(f"art {R['art_gap'][0] * 100:.0f}-{R['art_gap'][1] * 100:.0f} cm above the furniture", R["art_gap"][0] - 0.01 <= gap <= R["art_gap"][1] + 0.01, f"{gap * 100:.0f} cm gap", warn=True)
     layers = {"ceiling": g("ceiling_light"), "floor": g("floor_lamp"), "table": [o for o in L.objs if o["type"] == "table_lamp"]}
-    add("layered lighting: ceiling + floor + table", all(layers.values()), ", ".join(f"{k}: {len(v)}" for k, v in layers.items()))
+    if getattr(L, "kind", None):  # bedrooms, halls, bathrooms…: a ceiling light is the must, lamps are a plus
+        add("lighting: a ceiling light, lamps where they help", bool(layers["ceiling"]), ", ".join(f"{k}: {len(v)}" for k, v in layers.items()), warn=True)
+    else:
+        add("layered lighting: ceiling + floor + table", all(layers.values()), ", ".join(f"{k}: {len(v)}" for k, v in layers.items()))
     lamps = [o for o in L.objs if o["type"] in ("floor_lamp", "table_lamp", "ceiling_light")]
     for z in ("reading", "work", "lounge"):
         if z in L.zones:
@@ -1387,7 +1396,7 @@ def run_checks(L, split, walk):
     if "work" in L.zones:
         add("work spot by a window", bool(L.zones["work"].get("window")), f"desk at {L.zones['work'].get('window') or 'a wall without a window'}", warn=True)
     feats = [L.get(f) for f in L.features]
-    add("room features: 1-2, rule-picked", 1 <= len(feats) <= 2, ", ".join(f"{f['type']} ({f['zone']})" for f in feats) or "none fitted", warn=True)
+    if not getattr(L, "kind", None): add("room features: 1-2, rule-picked", 1 <= len(feats) <= 2, ", ".join(f"{f['type']} ({f['zone']})" for f in feats) or "none fitted", warn=True)
     composition_checks(L, add)
     ox, oy, off = balance(L)
     hint = ""
@@ -1398,11 +1407,244 @@ def run_checks(L, split, walk):
         hint = f"; the {side} side is light" + (f"; fill stopped: {short}" if stop else "")
     fills = [f for f in L.fill_log if f["result"] == "filled"]
     detail = f"weight centre {ox * 100:+.0f}% x, {oy * 100:+.0f}% y off the room centre" + (f" after {len(fills)} fill(s)" if fills else "") + hint
-    add("visual balance", off <= R["balance"][0], detail, warn=off <= R["balance"][1])
+    # a hall, closet or bathroom has a few pieces against the walls: lopsided weight is a hint there, not a broken rule
+    add("visual balance", off <= R["balance"][0], detail, warn=off <= R["balance"][1] or bool(getattr(L, "kind", None)))
     t, tol = R["split"], R["split_tol"]
     add("60/30/10 colour split", all(abs(split[k] - t[k]) <= tol for k in t), " / ".join(f"{k} {split[k] * 100:.0f}%" for k in t) + " (target 60/30/10, +-8 pts)", warn=True)
     for oid, why in L.unplaced: add(f"placed {oid}", False, why, warn=True)
     return C
+
+
+
+# ---------------------------------------------------------------- every other kind of room (bedroom, dining, kitchen, bath, hall…)
+LIVING_KINDS = (None, "living", "office", "other")
+KIND_ZONE = dict(bedroom="sleep", dining="dining", kitchen="dining", bathroom="bath", hallway="entry", entry="entry",
+                 closet="storage", storage="storage", laundry="utility", balcony="balcony")
+KIND_ANCHOR = dict(bedroom="bed", dining="dining_table", kitchen="dining_table", hallway="bench", entry="bench", balcony="armchair")
+
+
+def wall_open(room, wall):
+    """A wall that isn't there (open-plan), as opposed to one the render camera only cuts away."""
+    return bool(room.spec.get("walls", {}).get(wall, {}).get("open"))
+
+
+def place_bed(L, bed, zone, items):
+    """Headboard against a solid wall, centred on it, room for a nightstand each side and a clear walk at the foot.
+    Never under a window (a headboard is taller than the sill) and not on the wall with the door if another works."""
+    room = L.room; s = bed["size"]
+    ns = [i for i in items if i["type"] == "nightstand"]
+    nw, nd = (max(i["size"]["w"] for i in ns), max(i["size"]["d"] for i in ns)) if ns else (0, 0)
+    best = None
+    for wall in WALLS:
+        if wall_open(room, wall): continue
+        Lw = room.wall_len(wall)
+        for t in range(int(max(0, Lw - s["w"]) / 0.05) + 1):
+            u = s["w"] / 2 + t * 0.05
+            bx = room.against(wall, u, s["w"], s["d"])
+            if not L.fits(bx, s["h"], zone): continue
+            sc = -abs(u - Lw / 2) * 1.2
+            if ns:
+                for side in (-1, 1):
+                    nb = Box(*bx.pt(side * (s["w"] / 2 + 0.04 + nw / 2), -s["d"] / 2 + nd / 2), nw, nd, bx.rot)
+                    sc += 2.0 if L.fits(nb, 0.6, zone) else 0
+            foot = Box(*bx.pt(0, s["d"] / 2 + 0.3), s["w"], 0.6, bx.rot)
+            sc += 0 if L.fits(foot, 0.0, zone) else -3
+            sc -= 1.5 if any(d["wall"] == wall for d in room.doors) else 0
+            sc += 1.5 if room.faces_camera(bx.rot) else -2
+            sc -= 1.0 if wall in room.open_walls else 0
+            if best is None or sc > best[0]: best = (sc, bx, wall, u)
+    if not best:
+        L.unplaced.append((bed["id"], "no solid wall long enough for the bed")); return None
+    _, bx, wall, u = best
+    o = L.add(bed, bx, zone, wall=wall)
+    L.focal = dict(kind="bed", wall=wall, position=r3(u), why=f"the bed's headboard wall ({wall}): the bed is what the room is for")
+    for k, (side, it) in enumerate(zip((-1, 1), ns)):
+        nb = Box(*bx.pt(side * (s["w"] / 2 + 0.04 + it["size"]["w"] / 2), -s["d"] / 2 + it["size"]["d"] / 2), it["size"]["w"], it["size"]["d"], bx.rot)
+        if L.fits(nb, it["size"]["h"], zone): L.add(it, nb, zone, beside=bed["id"])
+        else: L.unplaced.append((it["id"], "no room beside the bed"))
+    return o
+
+
+def place_table(L, table, zone, items):
+    """The table in the middle of the free floor, long side along the room, chairs around it, each pulled up to the table."""
+    room = L.room; s = table["size"]
+    chairs = [i for i in items if i["type"] == "dining_chair"]
+    cd = max([c["size"]["d"] for c in chairs] or [0.5])
+    rot = 0 if room.W >= room.D else 90
+    best = None
+    for fx in [k / 10 for k in range(2, 9)]:
+        for fy in [k / 10 for k in range(2, 9)]:
+            c = (room.W * fx, room.D * fy)
+            bx = Box(*c, s["w"], s["d"], rot)
+            if not L.fits(bx, s["h"], zone): continue
+            room_for_chairs = Box(*c, s["w"] + 2 * (cd + 0.25), s["d"] + 2 * (cd + 0.25), rot)
+            sc = -dist(c, (room.W / 2, room.D / 2)) + (2 if L.fits(room_for_chairs, 0.0, zone, rug=False) else 0) + room.daylight(c)
+            if best is None or sc > best[0]: best = (sc, bx)
+    if not best:
+        L.unplaced.append((table["id"], "no free floor for the table")); return None
+    bx = best[1]; o = L.add(table, bx, zone)
+    L.focal = dict(kind="table", wall=WALL_OF_ROT.get(rot, "back"), position=r3(bx.cx if rot == 0 else bx.cy), why="the table is what the room is for")
+    # seats: along both long sides (0.6 m each), then the ends
+    per = max(1, int((s["w"] + 0.05) / 0.6)); spots = []
+    for k in range(per):
+        a = (k + 0.5 - per / 2) * (s["w"] / per)
+        spots += [(a, 1), (a, -1)]
+    spots += [("end", 1), ("end", -1)]
+    for it in chairs:
+        cs = it["size"]; placed = False
+        while spots and not placed:
+            a, side = spots.pop(0)
+            if a == "end":
+                c = bx.pt(side * (s["w"] / 2 + cs["d"] / 2 - 0.08), 0); chair_rot = (bx.rot + (270 if side > 0 else 90)) % 360
+            else:
+                c = bx.pt(a, side * (s["d"] / 2 + cs["d"] / 2 - 0.08)); chair_rot = (bx.rot + (180 if side > 0 else 0)) % 360
+            cb = Box(*c, cs["w"], cs["d"], chair_rot)
+            if L.fits(cb, cs["h"], zone, ignore=(table["id"],)): L.add(it, cb, zone, at=table["id"]); placed = True
+        if not placed: L.unplaced.append((it["id"], "no room for another chair at the table"))
+    return o
+
+
+def place_bench(L, bench, zone):
+    """By the way in: a bench against a wall near the door, to sit and put shoes on."""
+    doors = [L.room.at(d["wall"], d["position"], 0.5) for d in L.room.doors]
+    def pref(b, win):
+        c = b.pt(0, 0)
+        return -min([dist(c, d) for d in doors] or [0]) - (2 if win else 0)
+    return place_against_wall(L, bench, zone, pref)
+
+
+def place_seat_by_window(L, it, zone):
+    """An armchair (bedroom corner, balcony) where the light is, turned toward the room."""
+    room = L.room; base = walk_check(L)
+    def score(b):
+        c = b.pt(0, 0); return room.daylight(c) * 4 - balance_after(L, b, it) * 4 + (1 if room.faces_camera(b.rot) else 0)
+    return place_filler(L, it, zone, score, base, pad=0.1)
+
+
+def place_rug_kind(L, rug, zone, anchor):
+    """Under the lower two thirds of the bed, under the table and the pulled-out chairs, or in the middle of the floor."""
+    room = L.room; s = rug["size"]; rw, rd = s["w"], s["d"]
+    tries = []
+    if anchor and anchor["type"] == "bed":
+        b = anchor["box"]
+        tries = [Box(*b.pt(0, b.d / 2 - rd / 2 + off), rw, rd, b.rot) for off in (0.45, 0.3, 0.15, 0.0)]
+    elif anchor and anchor["type"] == "dining_table":
+        b = anchor["box"]; tries = [Box(*b.pt(0, 0), rw, rd, b.rot), Box(*b.pt(0, 0), rd, rw, (b.rot + 90) % 360)]
+    rot = 0 if room.W >= room.D else 90
+    tries += [Box(room.W / 2, room.D / 2, rw, rd, rot), Box(room.W / 2, room.D / 2, rd, rw, (rot + 90) % 360)]
+    for bx in tries:
+        if L.fits(bx, s["h"], zone, rug=True): return L.add(rug, bx, zone)
+    L.unplaced.append((rug["id"], "the rug is bigger than the free floor")); return None
+
+
+def place_desk_kind(L, desk, chair, zone):
+    """A desk against a wall, by a window if one is free, its chair pulled up to it."""
+    room = L.room; ds = desk["size"]
+    def pref(b, win):
+        pull = room.against(WALL_OF_ROT.get(round(b.rot) % 360, "back"), b.cx if round(b.rot) % 180 == 0 else b.cy, ds["w"], 0.9, ds["d"])
+        return (2 if win else 0) + (0 if L.fits(pull, 0.0, zone) else -5)
+    o = place_against_wall(L, desk, zone, pref)
+    if o and chair:
+        cs = chair["size"]; db = o["box"]
+        cb = Box(*db.pt(0, ds["d"] / 2 + 0.12), cs["w"], cs["d"], db.rot + 180)
+        if L.fits(cb, cs["h"], zone, ignore=(desk["id"],)): L.add(chair, cb, zone)
+        else: L.unplaced.append((chair["id"], "no room to pull the chair up to the desk"))
+    return o
+
+
+def dress_bed(L, taste):
+    """Pillows against the headboard and a throw across the foot, in the moodboard's colours."""
+    bed = next((o for o in L.objs if o["type"] == "bed"), None)
+    if not bed: return
+    pal = L.prof["palette"]; acc = pal["accent"] or pal["secondary"]; b = bed["box"]; top = min(0.55, bed["h"] * 0.55)
+    n = 2 if b.w < 1.3 else 4
+    for k in range(n):
+        u = (k + 0.5 - n / 2) * (b.w / n) * 0.9
+        col = pal["dominant"][0] if k in (0, n - 1) else acc[k % len(acc)]
+        L.add(mk(f"bed_pillow_{k + 1}", "cushion", min(0.55, b.w / n * 0.95), 0.14, 0.36, colour=col),
+              Box(*b.pt(u, -b.d / 2 + 0.3), min(0.55, b.w / n * 0.95), 0.14, b.rot), bed["zone"], mount="surface", elev=top, on=bed["id"])
+    if taste["styling_density"] != "sparse" or L.D.get("throw"):
+        L.add(mk("bed_throw", "throw", b.w * 1.02, 0.5, 0.03, colour=acc[0]), Box(*b.pt(0, b.d / 2 - 0.4), b.w * 1.02, 0.5, b.rot),
+              bed["zone"], mount="surface", elev=top, on=bed["id"])
+
+
+def solve_kind(spec, taste_override=None, profile_override=None):
+    """Lay out a room that isn't a living room: its anchor (bed, dining table, entry bench…) first, then what goes
+    with it, storage against the walls, the rug, plants, soft things, art on the walls. Same checks and export as
+    the living-room designer; rules that only make sense around a sofa simply don't apply."""
+    room = Room(spec["room"]); items = copy.deepcopy(spec.get("furniture", [])); needs = spec.get("needs", [])
+    kind = spec["room"].get("kind") or "other"
+    prof = load_profile(spec, profile_override)
+    for i in items: i["size"] = i.get("size") or i["options"][0]
+    L = Layout(room, prof, {}); L.needs = needs; L.from_dials = {}; L.kind = kind
+    zone = KIND_ZONE.get(kind, "room")
+    if items:
+        taste = run_taste(dict(spec, furniture=items), prof, taste_override)
+    else:
+        taste = dict(statement_piece=None, styling_density="sparse", source="rules", notes="nothing to place", plants=0)
+    L.focal = dict(kind="none", wall="back", position=r3(room.W / 2), why=f"a {kind}: no focal point needed")
+    first = lambda t: next((i for i in items if i["type"] == t), None)
+
+    anchor = None
+    a_type = KIND_ANCHOR.get(kind)
+    if first("bed"): anchor = place_bed(L, first("bed"), zone, items)
+    elif first("dining_table"): anchor = place_table(L, first("dining_table"), zone, items)
+    elif a_type == "bench" and first("bench"): anchor = place_bench(L, first("bench"), zone)
+    if anchor:
+        L.zones[zone] = dict(centre=[r3(v) for v in anchor["box"].pt(0, 0)], anchor=anchor["id"])
+        if taste.get("source") == "rules": taste["statement_piece"] = anchor["id"]
+
+    desk = first("desk")
+    if desk: place_desk_kind(L, desk, first("desk_chair"), zone)
+    # storage and seats against the walls, biggest first
+    for t in ("wardrobe", "dresser", "sideboard", "shelf", "bench"):
+        for it in [i for i in items if i["type"] == t and not L.get(i["id"])]:
+            if t == "bench": place_bench(L, it, zone); continue
+            place_against_wall(L, it, zone, lambda b, w, it=it: -(2 if w else 0) - balance_after(L, b, it) * 10)
+    for it in [i for i in items if i["type"] == "armchair"]:
+        o = place_seat_by_window(L, it, zone)
+        if o and not anchor:
+            anchor = o; L.zones[zone] = dict(centre=[r3(v) for v in o["box"].pt(0, 0)], anchor=o["id"])
+    for it in [i for i in items if i["type"] in ("side_table", "nightstand") and not L.get(i["id"])]:
+        seat = next((o for o in L.objs if o["type"] in ("armchair", "bed")), None)
+        if seat:
+            b = seat["box"]; s = it["size"]
+            for side in (1, -1):
+                sb = Box(*b.pt(side * (b.w / 2 + 0.06 + s["w"] / 2), -b.d / 2 + s["d"] / 2), s["w"], s["d"], b.rot)
+                if L.fits(sb, s["h"], zone): L.add(it, sb, zone, beside=seat["id"]); break
+            else: L.unplaced.append((it["id"], "no room beside a seat"))
+        else: place_against_wall(L, it, zone, lambda b, w: 0)
+    # lamps: on the nightstands, else on any free surface
+    hosts = [o for o in L.objs if o["type"] in ("nightstand", "dresser", "side_table", "sideboard", "desk")]
+    for it in [i for i in items if i["type"] == "table_lamp"]:
+        host = next((h for h in hosts if not any(q["meta"].get("on") == h["id"] for q in L.objs)), None)
+        if not host: L.unplaced.append((it["id"], "no surface for the lamp")); continue
+        hb = host["box"]; u = 0.0 if host["type"] == "nightstand" else hb.w / 2 - it["size"]["w"] / 2 - 0.06
+        put_on(L, it, host, u, -0.04)
+    fl = first("floor_lamp")
+    if fl:
+        base = walk_check(L)
+        place_filler(L, fl, zone, lambda b: -min([b.gap(o["box"]) for o in L.floor() if o["type"] in ("armchair", "bed", "desk")] or [1]), base)
+    cl = first("ceiling_light")
+    if cl:
+        c = anchor["box"].pt(0, 0) if anchor and anchor["type"] == "dining_table" else (room.W / 2, room.D / 2)
+        s3 = cl["size"]
+        L.add(cl, Box(*c, s3["w"], s3["d"]), zone, mount="ceiling", elev=min(cl.get("hang_height", 2.05), room.H - 0.3))
+    for it in [i for i in items if i["type"] == "rug"]:
+        place_rug_kind(L, it, zone, anchor)
+
+    assign_colours(L, taste["statement_piece"])
+    place_plants(L, items, taste, needs)
+    add_soft_and_props(L, taste)
+    dress_bed(L, taste)
+    dress_walls(L, items)
+    for it in items:  # anything the steps above had no place for
+        if not L.get(it["id"]) and it["type"] not in ("plant",) and not any(u[0] == it["id"] for u in L.unplaced) \
+                and not any(it["id"] in n for n in L.notes):
+            L.unplaced.append((it["id"], f"no spot for a {it['type'].replace('_', ' ')} in this {kind}"))
+    split, shell = assign_colours(L, taste["statement_piece"])
+    walk = walk_check(L); checks = run_checks(L, split, walk)
+    return L, L.focal, taste, split, shell, checks, walk
 
 
 # ---------------------------------------------------------------- solve
@@ -1493,7 +1735,7 @@ def dress_walls(L, items):
     closed = [w for w in WALLS if w not in room.open_walls]
     hung_over = {o["meta"].get("above") for o in L.objs if o["type"] in WALL_ITEMS}
     # 1. above low pieces that back onto a visible wall
-    for host in sorted([o for o in L.objs if o["type"] in ("sideboard", "desk", "shelf", "sofa") and o["h"] < 1.2], key=lambda o: -o["box"].w):
+    for host in sorted([o for o in L.objs if o["type"] in ("sideboard", "desk", "shelf", "sofa", "bed", "dresser", "bench") and o["h"] < 1.2], key=lambda o: -o["box"].w):
         wall = WALL_OF_ROT.get(round(host["box"].rot) % 360)
         if wall not in closed or host["id"] in hung_over: continue
         cs = host["box"].corners(); off = {"back": min(c[1] for c in cs), "front": room.D - max(c[1] for c in cs),
@@ -1501,7 +1743,7 @@ def dress_walls(L, items):
         if off > 0.35: continue  # floating piece: nothing to hang above it
         u = host["box"].cx if wall in ("back", "front") else host["box"].cy
         if not any(a <= u - 0.3 and u + 0.3 <= b for a, b in wall_free_spans(L, wall, margin=0.05)): continue  # e.g. a desk under a window
-        it = take("wall_shelf", "art") if host["type"] == "desk" else take("art", "mirror")
+        it = take("wall_shelf", "art") if host["type"] == "desk" else take("mirror", "art") if host["type"] in ("dresser", "bench") else take("art", "mirror")
         if not it: break
         if it["type"] == "art": art_over(L, it, host, wall)
         else: hang(L, it, wall, u, host["box"].w * 0.9, above=host)
@@ -1618,7 +1860,12 @@ def core(L, items, zones, focal, cand, needs):
 
 def solve(spec, taste_override=None, profile_override=None, V=None):
     """Lay the room out. Layout dials pick variant choices; if a dial pick breaks more rules than the
-    plain layout, the plain layout wins and the dial is noted as overruled."""
+    plain layout, the plain layout wins and the dial is noted as overruled.
+    Bedrooms, dining rooms, kitchens, bathrooms, halls, closets and balconies (or any room with no sofa) use the
+    per-kind designer below instead of the sofa-group search."""
+    kind = (spec.get("room") or {}).get("kind")
+    if kind not in LIVING_KINDS or not any(i["type"] == "sofa" for i in spec.get("furniture", [])):
+        return solve_kind(spec, taste_override, profile_override)
     try: out = _solve(spec, taste_override, profile_override, V, use_dials=True)
     except SystemExit: return _solve(spec, taste_override, profile_override, V, use_dials=False)  # the dial-picked group can't fit at all
     fails = lambda r: sum(c["status"] == "fail" for c in r[5])

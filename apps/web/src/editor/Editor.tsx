@@ -6,7 +6,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useParams, useSearchParams } from 'react-router-dom';
-import { useLatestLayout, useListings, useProject, useProjectRooms, useRoomStyle } from '../api/hooks';
+import { useHomeStyle, useLatestLayout, useListings, useProject, useProjectRooms, useRoomStyle } from '../api/hooks';
 import { useRoomEvents } from '../api/events';
 import { isApiError } from '../api/client';
 import type { RoomEvent } from '../api/types';
@@ -82,7 +82,11 @@ export function Editor() {
   const previews = useEditorStore((s) => (room ? s.moodPreviews[room.id] : undefined)) ?? NONE;
   const hasRender = useEditorStore((s) => !!(room && s.renderJobs[room.id]));
   const upload = useEditorStore((s) => s.planUploads[projectId]);
-  const palette = useMemo(() => roomPalette(style.data, projPal), [style.data, projPal]);
+  // a room with no moodboard of its own is searched and laid out in the home's (the API does the same)
+  const home = useHomeStyle(rooms, room?.id);
+  const ownBoard = (style.data?.imageCount ?? 0) > 0;
+  const shownStyle = ownBoard ? style.data : home?.style ?? style.data;
+  const palette = useMemo(() => roomPalette(shownStyle, projPal), [shownStyle, projPal]);
 
   const setSearch = useEditorStore((s) => s.setSearch);
   useRoomEvents(room?.id, (e: RoomEvent) => {
@@ -150,9 +154,9 @@ export function Editor() {
       case 'pal':
         return <PaletteFrame palette={palette} />;
       case 'room3d':
-        return room && <Room3DFrame room={room} layout={layout.data} palette={palette} />;
+        return room && <Room3DFrame room={room} layout={layout.data} palette={palette} homeRoomId={home?.room.id ?? null} />;
       case 'list':
-        return room && <ShoppingListFrame room={room} projectId={projectId} rooms={rooms} layout={layout.data} listings={listings.data} hasMoodboard={(style.data?.imageCount ?? 0) > 0} />;
+        return room && <ShoppingListFrame room={room} projectId={projectId} layout={layout.data} listings={listings.data} hasMoodboard={ownBoard} homeBoard={home?.room.name ?? null} />;
     }
   };
 

@@ -115,11 +115,22 @@ const tilt = (o: Out) => Math.max(...cushions(o).map((c) => Math.abs(((c.rotatio
 /** the dial must not break a rule the default layout keeps */
 const noNewFails = (o: Out, base: Out) => expect(fails(o).filter((f) => !fails(base).includes(f))).toEqual([]);
 
+/** Drops the colours that now come from the moodboard (curtain colour, art colour lists), keeping everything else. */
+function moodboardColoursOff(v: unknown): unknown {
+  return JSON.parse(JSON.stringify(v), function (key, val) {
+    if (key === 'colours') return undefined;
+    if (key === 'colour' && (this as { type?: string }).type === 'curtain') return undefined;
+    if (key === 'curtain' && typeof val === 'string') return undefined;
+    return val;
+  });
+}
+
 describe('layout and props dials', () => {
   it('defaults reproduce the layout from before the dials were wired', () => {
     for (const [name, key] of [['plan_a', 'base_plan'], ['two_b', 'base_two']] as const) {
       const was = (before as Record<string, Record<string, unknown>>)[name];
-      for (const k of Object.keys(was)) expect([name, k, out[key][k]]).toEqual([name, k, was[k]]);
+      // since the fixture was recorded, curtains and wall art take the moodboard's colours (spec-builder): placement is unchanged
+      for (const k of Object.keys(was)) expect([name, k, moodboardColoursOff(out[key][k])]).toEqual([name, k, moodboardColoursOff(was[k])]);
     }
   });
 

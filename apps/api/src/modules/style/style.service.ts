@@ -144,8 +144,12 @@ export class StyleService {
   }
 
   /** For other modules: the room's style, or null if no moodboard yet. Caller must own the room. */
+  /**
+   * The style to search, lay out and render this room in: its own moodboard's, else the home's (the newest moodboard
+   * of another room in the same project), so every room of a floor plan can be furnished before it has its own board.
+   */
   async getProfile(roomId: string): Promise<StyleProfile | null> {
-    const style = await this.repo.findByRoom(roomId);
+    const style = (await this.repo.findByRoom(roomId)) ?? (await this.repo.findForProjectOf(roomId));
     return style ? readProfile(style.profile) : null;
   }
 

@@ -98,6 +98,43 @@ export function useBulkCreateRooms(projectId: string) {
   });
 }
 
+/** PATCH /rooms/:id with any room fields (budgetCad, furnish…); the project's room list updates from the answer. */
+export function usePatchRoom(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ roomId, patch }: { roomId: string; patch: Partial<Pick<Room, 'budgetCad' | 'furnish' | 'name'>> }) =>
+      api<Room>(`/rooms/${roomId}`, { method: 'PATCH', body: patch }),
+    onSuccess: (room) => qc.setQueryData<Room[]>(qk.projectRooms(projectId), (rooms) => rooms?.map((r) => (r.id === room.id ? room : r))),
+  });
+}
+
+/**
+ * The home's moodboard for a room that has none of its own: the newest board of another room in the project.
+ * The API searches and lays out such a room in that style, so the studio shows it too.
+ */
+export function useHomeStyle(rooms: Room[], roomId: string | undefined): { room: Room; style: StyleResponse } | null {
+  const styles = useQueries({
+    queries: rooms.map((r) => ({
+      queryKey: qk.style(r.id),
+      queryFn: async () => {
+        try {
+          return await api<StyleResponse>(`/rooms/${r.id}/style`);
+        } catch (e) {
+          if (isApiError(e, 404)) return null;
+          throw e;
+        }
+      },
+    })),
+  });
+  let best: { room: Room; style: StyleResponse } | null = null;
+  rooms.forEach((r, i) => {
+    const s = styles[i]?.data;
+    if (r.id === roomId || !s || s.imageCount <= 0) return;
+    if (!best || s.updatedAt > best.style.updatedAt) best = { room: r, style: s };
+  });
+  return best;
+}
+
 /** PATCH /rooms/:id { planPosition }: where a room sits on its project's plan (null = not placed). */
 export const savePlanPosition = (roomId: string, planPosition: PlanPosition | null) =>
   api<Room>(`/rooms/${roomId}`, { method: 'PATCH', body: { planPosition } });
@@ -232,10 +269,11 @@ export type { MoodboardImage };
 export const moodSrc = (u: string, token: string | null) => (u.startsWith('/') ? apiUrl(u, authEnabled() && token ? { access_token: token } : undefined) : u);
 
 /** GET /rooms/:roomId/moodboard: the images stored on the room's moodboard (uploads and pins). */
-export function useMoodboardImages(roomId: string) {
+export function useMoodboardImages(roomId: string | undefined) {
   const token = useAccessToken(); // a refreshed token gives fresh image urls
   return useQuery({
-    queryKey: qk.moodboard(roomId),
+    queryKey: qk.moodboard(roomId ?? ''),
+    enabled: !!roomId,
     queryFn: async () => (await api<MoodboardImagesResponse>(`/rooms/${roomId}/moodboard`)).images,
     select: (images) => images.map((i) => ({ ...i, src: moodSrc(i.url, token) })),
   });

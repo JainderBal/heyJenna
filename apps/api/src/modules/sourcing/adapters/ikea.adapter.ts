@@ -5,7 +5,7 @@ import { classifyTitle } from '../matching/classify';
 import { RawListing, SourceAdapter, SourceQuery } from './source.adapter';
 
 /** Spare parts and covers that mention a furniture word but aren't the furniture. */
-const NOT_FURNITURE = /\b(cover|slipcover|legs?|feet|cushion cover|fittings?|parts?|frame for|insert|hardware|glass top)\b/i;
+const NOT_FURNITURE = /\b(cover|slipcover|legs?|feet|cushion cover|fittings?|parts?|frame for|insert|hardware|glass top|mattress|slatted|bed base|bedspread|duvet|pillow|sheet|table top|underframe|chair pad)\b/i;
 /** Ranges that don't belong in a grown-up living room. */
 const WRONG_RANGE = /child|kid|baby|junior|outdoor|garden|gaming|pet/i;
 

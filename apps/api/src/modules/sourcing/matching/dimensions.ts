@@ -11,10 +11,18 @@ export const TYPICAL: Record<FurnitureType, Size> = {
   table_lamp: { w: 0.25, d: 0.25, h: 0.45 }, ceiling_light: { w: 0.45, d: 0.45, h: 0.35 },
   plant: { w: 0.45, d: 0.45, h: 1.1 }, art: { w: 0.7, d: 0.03, h: 0.9 },
   mirror: { w: 0.6, d: 0.04, h: 0.8 }, wall_shelf: { w: 0.8, d: 0.2, h: 0.15 },
+  // w runs along the wall: a bed's headboard side, so w (1.6) < d (2.1)
+  bed: { w: 1.6, d: 2.1, h: 1.0 }, nightstand: { w: 0.45, d: 0.4, h: 0.55 },
+  dresser: { w: 0.8, d: 0.48, h: 0.8 }, wardrobe: { w: 1.0, d: 0.6, h: 2.0 },
+  dining_table: { w: 1.4, d: 0.85, h: 0.75 }, dining_chair: { w: 0.45, d: 0.52, h: 0.82 },
+  bench: { w: 1.0, d: 0.4, h: 0.48 },
 };
 
 /** Rough limits per type so a misread number ("2000 x 3 x 1") is thrown away. */
-const MAX_W: Partial<Record<FurnitureType, number>> = { rug: 5, sofa: 4, sideboard: 3, shelf: 3 };
+const MAX_W: Partial<Record<FurnitureType, number>> = { rug: 5, sofa: 4, sideboard: 3, shelf: 3, bed: 2.6, wardrobe: 3, dining_table: 3.2 };
+
+/** Types listed deeper than wide on purpose (a bed is longer than its headboard): never swap w and d. */
+const KEEP_DEPTH: FurnitureType[] = ['shelf', 'bed'];
 
 const NUM = '(\\d+(?:\\.\\d+)?)';
 const UNIT = '\\s*(cm|mm|m|in|inch|inches|"|”|\'\')?';
@@ -54,7 +62,9 @@ function parseSize(text: string, type: FurnitureType): Size | null {
     d = D ? toMetres(D.v, D.u ?? W.u, guess) : TYPICAL[type].d;
     h = H ? toMetres(H.v, H.u ?? W.u, guess) : TYPICAL[type].h;
   }
-  if (w && d && d > w && type !== 'shelf') [w, d] = [d, w];
+  if (w && d && d > w && !KEEP_DEPTH.includes(type)) [w, d] = [d, w];
+  // a bed listed as 210 x 160: the headboard is the short side
+  if (type === 'bed' && w && d && w > d) [w, d] = [d, w];
   const ok = (v: number | undefined) => v !== undefined && v > 0.05 && v <= (MAX_W[type] ?? 3);
   if (!ok(w) || !ok(d) || !ok(h)) return null;
   const r = (v: number) => Math.round(v * 1000) / 1000;

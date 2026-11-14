@@ -15,7 +15,8 @@ model Room {
   floorPlan Json      @map("floor_plan")         // contracts FloorPlan
   needs     String[]
   kind      String?                              // contracts RoomKind: bedroom, kitchen, closet…
-  furnish   Boolean   @default(true)             // false = on the plan only (closets, laundry): no products or layout
+  furnish   Boolean   @default(true)             // false = on the plan only: no products or layout
+  budgetCad Float?    @map("budget_cad")          // this room's furniture budget in CAD; null = not set yet (set before building)
   projectId String?   @map("project_id") @db.Uuid  // optional: rooms can live outside a project
   planX     Float?    @map("plan_x")              // where it sits on the project's plan, metres from the top-left
   planY     Float?    @map("plan_y")              // (null = not placed yet)

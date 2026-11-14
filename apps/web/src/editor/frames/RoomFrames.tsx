@@ -1,13 +1,13 @@
 /** Room page frames: Moodboard, Palette, 3D room (live or the render's room), Shopping list. */
-import { useEffect, useState } from 'react';
-import { useAddMoodboardPins, useDeleteMoodboardImage, useMoodboardImages, useCreateLayout, useCreateRender, useProject, useRenderImage, useRenderJob, useRenders, useSearchListingsAsync, useUploadMoodboard } from '../../api/hooks';
+import { useEffect, useMemo, useState } from 'react';
+import { useAddMoodboardPins, useDeleteMoodboardImage, useMoodboardImages, useCreateLayout, useCreateRender, useRenderImage, useRenderJob, useRenders, useSearchListingsAsync, useUploadMoodboard } from '../../api/hooks';
 import { errorText } from '../../api/client';
 import type { Layout, Listing, PinRef, RenderJob, Room, StyleResponse } from '../../api/types';
 import { openPinterestWindow } from '../../app/openPinterest';
 import { toast, useEditorStore } from '../../app/useEditorStore';
 import { RoomViewer, type RenderModelState } from '../../viewer/RoomViewer';
 import { shade } from '../colour';
-import { BudgetSlider, roomShare } from '../BudgetSlider';
+import { RoomBudget } from '../BudgetSlider';
 import { listRows, money, shortTitle } from '../model';
 import { SwapPicker } from '../SwapPicker';
 
@@ -175,7 +175,11 @@ export function PaletteFrame({ palette }: { palette: string[] }) {
   );
 }
 
-export function Room3DFrame({ room, layout, palette }: { room: Room; layout: Layout | null | undefined; palette: string[] }) {
+export function Room3DFrame({ room, layout, palette, homeRoomId }: { room: Room; layout: Layout | null | undefined; palette: string[]; homeRoomId?: string | null }) {
+  // the wall art shows the moodboard's images: the room's own board, else the home's
+  const own = useMoodboardImages(room.id);
+  const home = useMoodboardImages(own.data?.length ? undefined : homeRoomId ?? undefined);
+  const art = useMemo(() => (own.data?.length ? own.data : home.data ?? []).map((i) => i.src), [own.data, home.data]);
   const jobId = useEditorStore((s) => s.renderJobs[room.id]);
   const setJob = useEditorStore((s) => s.setRenderJob);
   const create = useCreateRender(room.id);
@@ -213,6 +217,7 @@ export function Room3DFrame({ room, layout, palette }: { room: Room; layout: Lay
         roomId={room.id}
         layout={layout ?? null}
         room={room}
+        art={art}
         palette={palette}
         render={shown?.modelUrl ? { jobId: shown.id, path: shown.modelUrl } : null}
         mode={mode}
@@ -242,12 +247,17 @@ export function Room3DFrame({ room, layout, palette }: { room: Room; layout: Lay
 }
 
 /** What the room still needs before it has a shopping list, as a checklist with the next step as the button. */
-function NextSteps({ hasMoodboard, found, running, onFind, onLayOut, laying }: {
-  hasMoodboard: boolean; found: number; running: boolean; onFind(): void; onLayOut(): void; laying: boolean;
+function NextSteps({ budgetSet, hasMoodboard, homeBoard, found, running, onFind, onLayOut, laying }: {
+  budgetSet: boolean; hasMoodboard: boolean; homeBoard: string | null; found: number; running: boolean; onFind(): void; onLayOut(): void; laying: boolean;
 }) {
   const select = useEditorStore((s) => s.select);
   const steps = [
-    { label: 'Add images to the moodboard', done: hasMoodboard, hint: 'jenna reads their colours and style' },
+    { label: 'Set this room’s budget', done: budgetSet, hint: budgetSet ? 'picks stay inside it' : 'below: jenna won’t build the room without one' },
+    {
+      label: 'Add images to the moodboard',
+      done: hasMoodboard || !!homeBoard,
+      hint: hasMoodboard ? 'jenna reads their colours and style' : homeBoard ? `using ${homeBoard}’s moodboard until this room has its own` : 'jenna reads their colours and style',
+    },
     { label: 'Find products', done: found > 0, hint: running ? 'searching…' : found ? `${found} found` : 'in your moodboard’s style' },
     { label: 'Lay out the room', done: false, hint: 'jenna places the best match for each spot' },
   ];
@@ -266,10 +276,12 @@ function NextSteps({ hasMoodboard, found, running, onFind, onLayOut, laying }: {
         ))}
       </ol>
       {next === 0 ? (
+        <p className="steps-note">Set the budget below to unlock the next steps.</p>
+      ) : next === 1 ? (
         <button className="pbtn dark pvbtn" type="button" onClick={() => select('mood', true)}>
           Go to the moodboard
         </button>
-      ) : next === 1 ? (
+      ) : next === 2 ? (
         <button className="pbtn dark pvbtn" type="button" disabled={running} onClick={onFind}>
           {running ? 'Finding products…' : 'Find products and lay out'}
         </button>
@@ -294,13 +306,13 @@ function SearchProgress({ done, total }: { done: number; total: number | null })
   );
 }
 
-export function ShoppingListFrame({ room, projectId, rooms, layout, listings, hasMoodboard }: {
-  room: Room; projectId: string; rooms: Room[]; layout: Layout | null | undefined; listings: Listing[] | undefined; hasMoodboard: boolean;
+export function ShoppingListFrame({ room, projectId, layout, listings, hasMoodboard, homeBoard }: {
+  room: Room; projectId: string; layout: Layout | null | undefined; listings: Listing[] | undefined; hasMoodboard: boolean; homeBoard: string | null;
 }) {
   const search = useSearchListingsAsync(room.id);
   const lay = useCreateLayout(room.id);
-  const budgetCad = useProject(projectId).data?.budgetCad ?? null;
-  const share = budgetCad != null ? Math.round(roomShare(budgetCad, room.id, rooms)) : null;
+  const share = room.budgetCad;
+  const budgetSet = share != null;
   const spOpen = useEditorStore((s) => s.spOpen);
   const running = useEditorStore((s) => s.searches[room.id]?.state === 'running');
   const progress = useEditorStore((s) => s.searches[room.id]);
@@ -345,7 +357,7 @@ export function ShoppingListFrame({ room, projectId, rooms, layout, listings, ha
       <h4>Shopping list</h4>
       {running && <SearchProgress done={progress?.done ?? 0} total={progress?.total ?? null} />}
       {!rows.length && !layout && (
-        <NextSteps hasMoodboard={hasMoodboard} found={found} running={running} onFind={() => find(true)} onLayOut={layOut} laying={lay.isPending} />
+        <NextSteps budgetSet={budgetSet} hasMoodboard={hasMoodboard} homeBoard={homeBoard} found={found} running={running} onFind={() => find(true)} onLayOut={layOut} laying={lay.isPending} />
       )}
       {rows.map((r) => (
         <div key={r.id}>
@@ -389,13 +401,13 @@ export function ShoppingListFrame({ room, projectId, rooms, layout, listings, ha
           Pin to side panel
         </button>
       )}
-      <BudgetSlider projectId={projectId} rooms={rooms} roomId={room.id} />
+      <RoomBudget room={room} projectId={projectId} spent={layout ? layout.shoppingList.total : null} />
       {(rows.length > 0 || layout) && (
         <div className="list-acts">
-          <button className="pbtn sm" type="button" disabled={search.isPending || running} onClick={() => find(false)}>
+          <button className="pbtn sm" type="button" disabled={!budgetSet || search.isPending || running} title={budgetSet ? undefined : 'Set the room’s budget first'} onClick={() => find(false)}>
             {search.isPending || running ? 'Searching…' : 'Find products'}
           </button>
-          <button className="pbtn sm" type="button" disabled={lay.isPending} onClick={layOut}>
+          <button className="pbtn sm" type="button" disabled={!budgetSet || lay.isPending} title={budgetSet ? undefined : 'Set the room’s budget first'} onClick={layOut}>
             {lay.isPending ? 'Laying out…' : layout ? 'Lay out again' : 'Lay out the room'}
           </button>
         </div>

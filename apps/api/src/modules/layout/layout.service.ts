@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
-import { FloorPlan, ListingSource, Size, openWalls as planOpenWalls } from '@hey-jenna/contracts';
+import { FloorPlan, ListingSource, RoomKind, Size, openWalls as planOpenWalls } from '@hey-jenna/contracts';
 import { Layout, Listing } from '@prisma/client';
 import { RoomEventsService } from '../../common/events/events.service';
 import { RoomsService } from '../rooms/rooms.service';
@@ -42,7 +42,7 @@ export class LayoutService {
     const plan = room.floorPlan as unknown as FloorPlan;
     const style = await this.style.getProfile(roomId);
     const chosen = await this.sourcing.chooseForRoom(room);
-    let { spec, index } = buildEngineSpec(room.name, plan, room.needs, style, chosen);
+    let { spec, index } = buildEngineSpec(room.name, plan, room.needs, style, chosen, room.kind as RoomKind | null);
 
     let solved;
     let openPlan: { removed: string[] } | undefined;
@@ -52,7 +52,7 @@ export class LayoutService {
       if (!(e instanceof EngineFailedError)) throw e;
       if (!planOpenWalls(plan).length) throw new UnprocessableEntityException(`Couldn't lay out this room: ${e.message}`);
       // a small open-plan room: lay it out as if the open sides were walls, then take down what would hang on them
-      ({ spec, index } = buildEngineSpec(room.name, asIfClosed(plan), room.needs, style, chosen));
+      ({ spec, index } = buildEngineSpec(room.name, asIfClosed(plan), room.needs, style, chosen, room.kind as RoomKind | null));
       try {
         solved = await solveBestVariant(this.engine, spec);
       } catch (e2) {

@@ -5,13 +5,16 @@
  *    read a plan photo (POST /projects/:id/floor-plan) → preview → "Create these rooms"; on 422 (no
  *    ANTHROPIC_API_KEY on the API, or no rooms found) → "Draw rooms" by hand, or the sample plan.
  *  - plan3d: the whole plan as an isometric clay model (the prototype's planShot).
- *  - found: one row per room → its page, and "+ Add rooms".
- * Plan-only rooms (closets, laundry, balcony: furnish = false) are drawn on the plan but get no page.
+ *  - found: one row per room → its page, with that room's budget; "Furnish every room" finds products and lays
+ *    out each room that has a budget; "+ Add rooms".
+ * Every room (bedrooms, bathrooms, halls, closets, balconies…) gets a page; a room turned off (furnish = false)
+ * stays on the plan only.
  */
 import { useMemo, useRef, useState } from 'react';
 import type { BulkRoomInput, FloorPlan, PlanPosition } from '@hey-jenna/contracts';
-import { useBulkCreateRooms, usePlanPositionSaver, useReadFloorPlan } from '../../api/hooks';
-import { errorText, isApiError } from '../../api/client';
+import { useQueryClient } from '@tanstack/react-query';
+import { qk, useBulkCreateRooms, usePlanPositionSaver, useProjectSpend, useReadFloorPlan } from '../../api/hooks';
+import { api, errorText, isApiError } from '../../api/client';
 import type { DetectedRoom, Room } from '../../api/types';
 import { PlanReview } from './PlanReview';
 import { toast, useEditorStore } from '../../app/useEditorStore';
@@ -20,7 +23,7 @@ import { PLANS, floorPlanOf, placeRooms, sampleRooms, snapPlan, type PlacedRoom 
 import { useMoveLegacyPlanSpots } from '../useLegacyPlanSpots';
 import { shade } from '../colour';
 import { planShot, planShotMap, shotKind } from '../../viewer/three-kit';
-import { BudgetSlider } from '../BudgetSlider';
+import { RoomBudget } from '../BudgetSlider';
 import { shortName } from './PlanReview';
 
 /** Walls that open onto the next room (open-plan). */
@@ -250,7 +253,6 @@ export function PlanFrame({ projectId, rooms, palette, upload }: { projectId: st
   );
   return (
     <div className="plan-frame">
-      <BudgetSlider projectId={projectId} rooms={rooms} />
       <div className="plan-body">{body}</div>
     </div>
   );
@@ -421,7 +423,7 @@ const labelFor = (name: string, size: number, width: number) =>
 function useOpenRoom() {
   const goPage = useEditorStore((s) => s.goPage);
   return (room: Room) =>
-    room.furnish ? goPage(room.id) : toast(`${room.name} stays on the plan only: jenna doesn't furnish ${room.kind ?? 'this kind of'} rooms yet`);
+    room.furnish ? goPage(room.id) : toast(`${room.name} is on the plan only (furnishing turned off)`);
 }
 
 const SHOT_W = 1040;
@@ -498,12 +500,54 @@ export function Plan3DFrame({ projectId, rooms, palette }: { projectId: string; 
   );
 }
 
-/** "N rooms found": one row per room → its page; "+ Add rooms" opens the intake in the Plan frame. */
+/**
+ * Furnish every room that has a budget and no layout yet: find products (in the room's moodboard style, or the
+ * home's), then lay it out. Two rooms at a time; the shop search is rate-limited on the API anyway.
+ */
+function useFurnishAll() {
+  const qc = useQueryClient();
+  const [state, setState] = useState<{ done: number; total: number; current: string[]; failed: string[] } | null>(null);
+  const run = async (todo: Room[]) => {
+    const failed: string[] = [];
+    let done = 0;
+    const current = new Set<string>();
+    setState({ done, total: todo.length, current: [], failed });
+    const queue = [...todo];
+    const worker = async () => {
+      for (let r = queue.shift(); r; r = queue.shift()) {
+        current.add(r.name);
+        setState({ done, total: todo.length, current: [...current], failed: [...failed] });
+        try {
+          await api(`/rooms/${r.id}/listings/search`, { method: 'POST', body: {} });
+          await api(`/rooms/${r.id}/layouts`, { method: 'POST' });
+        } catch (e) {
+          failed.push(`${r.name}: ${errorText(e)}`);
+        }
+        qc.invalidateQueries({ queryKey: qk.listings(r.id) });
+        qc.invalidateQueries({ queryKey: qk.layouts(r.id) });
+        current.delete(r.name);
+        done++;
+        setState({ done, total: todo.length, current: [...current], failed: [...failed] });
+      }
+    };
+    await Promise.all([worker(), worker()]);
+    toast(failed.length ? `${todo.length - failed.length} of ${todo.length} rooms furnished; ${failed[0]}` : `${todo.length} rooms furnished`);
+  };
+  return { state, running: !!state && state.done < state.total, run };
+}
+
+/** "N rooms found": one row per room → its page, with its budget; "Furnish every room"; "+ Add rooms". */
 export function FoundFrame({ projectId, rooms, palette }: { projectId: string; rooms: Room[]; palette: string[] }) {
   const goPage = useEditorStore((s) => s.goPage);
   const setAdding = useEditorStore((s) => s.setAddingRooms);
+  const ids = useMemo(() => rooms.map((r) => r.id), [rooms]);
+  const spent = useProjectSpend(ids);
+  const furnish = useFurnishAll();
+  const active = rooms.filter((r) => r.furnish);
+  const noBudget = active.filter((r) => r.budgetCad == null);
+  const ready = active.filter((r) => r.budgetCad != null && spent[r.id] == null);
   return (
-    <div className="found">
+    <div className="found" data-own-wheel>
       <div className="found-h">
         <h4>{rooms.length} rooms found</h4>
         <button
@@ -517,16 +561,24 @@ export function FoundFrame({ projectId, rooms, palette }: { projectId: string; r
           + Add rooms
         </button>
       </div>
+      <p className="found-note">
+        Set each room’s budget, then furnish them. {noBudget.length ? `${noBudget.length} still need a budget.` : 'Every room has a budget.'}
+      </p>
       {rooms.map((r, i) =>
         r.furnish ? (
-          <button key={r.id} className="frow" type="button" onClick={() => goPage(r.id)}>
-            <span className="sw" style={{ background: palette[i % palette.length] }} />
-            <span>{r.name}</span>
-            <small>{r.areaM2.toFixed(1)} m²</small>
-            <span className="muted">→</span>
-          </button>
+          <div key={r.id} className="frow-b">
+            <button className="frow" type="button" onClick={() => goPage(r.id)}>
+              <span className="sw" style={{ background: palette[i % palette.length] }} />
+              <span>{r.name}</span>
+              <small>
+                {r.areaM2.toFixed(1)} m²{spent[r.id] != null ? ' · furnished' : ''}
+              </small>
+              <span className="muted">→</span>
+            </button>
+            <RoomBudget room={r} projectId={projectId} spent={spent[r.id] ?? null} compact />
+          </div>
         ) : (
-          <div key={r.id} className="frow planonly" title="On the plan only: not furnished">
+          <div key={r.id} className="frow planonly" title="On the plan only: furnishing turned off">
             <span className="sw" />
             <span>{r.name}</span>
             <small>{r.areaM2.toFixed(1)} m² · plan only</small>
@@ -534,6 +586,24 @@ export function FoundFrame({ projectId, rooms, palette }: { projectId: string; r
           </div>
         ),
       )}
+      <button
+        className="pbtn dark pvbtn"
+        type="button"
+        disabled={furnish.running || !ready.length}
+        title={ready.length ? undefined : noBudget.length ? 'Set the rooms’ budgets first' : 'Every room with a budget is furnished'}
+        onClick={() => furnish.run(ready)}
+      >
+        {furnish.running
+          ? `Furnishing ${furnish.state!.done + 1} of ${furnish.state!.total}: ${furnish.state!.current.join(', ')}…`
+          : ready.length
+            ? `Furnish ${ready.length} room${ready.length === 1 ? '' : 's'}`
+            : 'Furnish every room'}
+      </button>
+      {furnish.state?.failed.map((f) => (
+        <p key={f} className="found-note err">
+          {f}
+        </p>
+      ))}
     </div>
   );
 }

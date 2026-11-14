@@ -439,10 +439,60 @@ def z_zone(o):  # invisible helper box
     x, _, z = at(o); e = grp(x, 0.5, z, 0, o["name"]); e.empty_display_type = "CUBE"
     e.scale = (o["size"]["w"] / 2, o["size"]["d"] / 2, 0.5); e.hide_render = True
 
+
+# ---------------------------------------------------------------- bedroom, dining and hall pieces (stand-ins when there's no product model)
+def _sz(o): return o["size"]["w"], o["size"]["d"], o["size"]["h"]
+
+def _legs(g, w, d, h, m, inset=0.05, t=0.04):
+    for sx in (-w / 2 + inset, w / 2 - inset):
+        for sz in (-d / 2 + inset, d / 2 - inset): box(t, h, t, m, (sx, h / 2, sz), r=0.004, parent=g)
+
+def b_bed(o):
+    g = place(o); w, d, h = _sz(o); c = mat(col(o, "#8A7B6A"), 0.85)
+    box(w, 0.26, d, c, (0, 0.2, 0), r=0.03, parent=g)                                   # frame
+    box(w - 0.06, 0.2, d - 0.12, mat("#F4EFE6", 0.9), (0, 0.42, 0.03), r=0.05, parent=g)  # mattress
+    box(w, max(0.5, h), 0.08, c, (0, max(0.5, h) / 2, -d / 2 + 0.04), r=0.03, parent=g)   # headboard
+    _legs(g, w, d, 0.08, mat("#2A2522", 0.4), inset=0.06)
+
+def b_nightstand(o):
+    g = place(o); w, d, h = _sz(o); m = mat(col(o, MAT.get("wood_light", "#D3A06A")), 0.6)
+    box(w, h - 0.08, d, m, (0, 0.08 + (h - 0.08) / 2, 0), r=0.015, parent=g)
+    box(w - 0.06, 0.12, 0.01, woodL, (0, h - 0.12, d / 2 + 0.003), r=0.003, parent=g)
+    _legs(g, w, d, 0.08, mat("#2A2522", 0.4))
+
+def b_dresser(o):
+    g = place(o); w, d, h = _sz(o); m = mat(col(o, MAT.get("wood", "#B9733A")), 0.6)
+    box(w, h - 0.08, d, m, (0, 0.08 + (h - 0.08) / 2, 0), r=0.02, parent=g)
+    rows = max(2, round((h - 0.12) / 0.22)); rh = (h - 0.14) / rows
+    for i in range(rows): box(w - 0.06, rh - 0.025, 0.01, woodL, (0, 0.1 + rh / 2 + i * rh, d / 2 + 0.003), r=0.003, parent=g)
+    _legs(g, w, d, 0.08, mat("#2A2522", 0.4))
+
+def b_wardrobe(o):
+    g = place(o); w, d, h = _sz(o); m = mat(col(o, "#F1E7DA"), 0.7)
+    box(w, h, d, m, (0, h / 2, 0), r=0.015, parent=g)
+    for sx in (-w / 4, w / 4): box(w / 2 - 0.03, h - 0.06, 0.01, mat(shade(col(o, "#F1E7DA"), 0.95), 0.6), (sx, h / 2, d / 2 + 0.003), r=0.003, parent=g)
+
+def b_dining_table(o):
+    g = place(o); w, d, h = _sz(o)
+    box(w, 0.04, d, mat(col(o, MAT.get("wood", "#B9733A")), 0.5), (0, h - 0.02, 0), r=0.01, parent=g)
+    _legs(g, w, d, h - 0.04, wood, inset=0.08, t=0.05)
+
+def b_dining_chair(o):
+    g = place(o); w, d, h = _sz(o); c = mat(col(o, "#8A7B6A"), 0.7)
+    box(w, 0.04, d - 0.04, c, (0, 0.46, 0.02), r=0.01, parent=g)
+    box(w, h - 0.48, 0.03, c, (0, 0.48 + (h - 0.48) / 2, -d / 2 + 0.03), r=0.01, parent=g)
+    _legs(g, w, d, 0.44, wood, inset=0.04, t=0.03)
+
+def b_bench(o):
+    g = place(o); w, d, h = _sz(o)
+    box(w, 0.05, d, mat(col(o, MAT.get("wood", "#B9733A")), 0.55), (0, h - 0.025, 0), r=0.01, parent=g)
+    box(w - 0.1, 0.02, d - 0.06, woodL, (0, 0.12, 0), parent=g)
+    _legs(g, w, d, h - 0.05, mat("#2A2522", 0.4), inset=0.04, t=0.035)
+
 # ---------------------------------------------------------------- real product models (e.g. IKEA's own 3D files)
 FLOOR_TOP = 0.008  # top of the floor slab (0.006) plus a hair, so nothing sinks into it
 MODEL_TYPES = ("sofa", "armchair", "coffee_table", "side_table", "shelf", "desk", "desk_chair", "sideboard", "pouf", "cat_tree", "rug", "plant",
-               "art", "mirror", "wall_shelf")
+               "art", "mirror", "wall_shelf", "bed", "nightstand", "dresser", "wardrobe", "dining_table", "dining_chair", "bench")
 WALL_TYPES = ("art", "mirror", "wall_shelf")
 MODEL_IDS = {o["id"] for o in LAY["objects"] if o.get("model_path") and o["type"] in MODEL_TYPES}
 
@@ -506,6 +556,8 @@ BUILD = dict(floor=a_floor, wall=a_wall, window=a_window, door=a_door,
              pouf=b_pouf, cat_tree=b_cattree, rug=s_rug, curtain=s_curtain, throw=s_throw, cushion=s_cushion,
              ceiling_light=l_pendant, floor_lamp=l_floor, table_lamp=l_table, plant=p_plant, art=a_art, zone=z_zone,
              mirror=w_mirror, wall_shelf=w_shelf,
+             bed=b_bed, nightstand=b_nightstand, dresser=b_dresser, wardrobe=b_wardrobe, dining_table=b_dining_table,
+             dining_chair=b_dining_chair, bench=b_bench,
              armchair=lambda o: (b_tube if o.get("style") == "tube" else b_lounge)(o),
              side_table=lambda o: (b_stool if o.get("style") == "stool" else b_drum)(o))
 for o in LAY["objects"]:

@@ -48,9 +48,11 @@ describe('RoomsService.getFurnishableRoom', () => {
     await expect(service.getFurnishableRoom('closet', 'u1')).rejects.toBeInstanceOf(ConflictException);
   });
 
-  it('refuses rooms whose kind the engine cannot furnish yet', async () => {
-    const svc = new RoomsService({ findOwned: jest.fn(async () => room({ name: 'Chambre', kind: 'bedroom', furnish: true })) } as unknown as RoomsRepository);
-    await expect(svc.getFurnishableRoom('r1', 'u1')).rejects.toThrow(/can't furnish bedroom rooms yet/);
+  it('furnishes every kind of room: bedrooms, closets, halls…', async () => {
+    for (const kind of ['bedroom', 'bathroom', 'closet', 'hallway', 'balcony'] as const) {
+      const svc = new RoomsService({ findOwned: jest.fn(async () => room({ name: kind, kind, furnish: true })) } as unknown as RoomsRepository);
+      expect((await svc.getFurnishableRoom('r1', 'u1')).kind).toBe(kind);
+    }
   });
 
   it('defaults furnish from the kind on create', () => {
@@ -69,14 +71,17 @@ describe('RoomsService furnish rules', () => {
   const plan = { width: 3, depth: 3 };
   beforeEach(() => jest.clearAllMocks());
 
-  it('will not switch furnishing on for a bedroom', async () => {
-    await expect(service.create('u1', CreateRoomSchema.parse({ name: 'Chambre', kind: 'bedroom', furnish: true, floorPlan: plan }))).rejects.toBeInstanceOf(BadRequestException);
-    await expect(service.createMany('u1', 'p1', [CreateRoomSchema.parse({ name: 'Chambre', kind: 'bedroom', furnish: true, floorPlan: plan })])).rejects.toBeInstanceOf(BadRequestException);
-    await expect(service.update('r1', 'u1', { kind: 'bedroom', furnish: true })).rejects.toBeInstanceOf(BadRequestException);
+  it('lets a bedroom be furnished', async () => {
+    await service.create('u1', CreateRoomSchema.parse({ name: 'Chambre', kind: 'bedroom', furnish: true, floorPlan: plan }));
+    await service.createMany('u1', 'p1', [CreateRoomSchema.parse({ name: 'Chambre', kind: 'bedroom', furnish: true, floorPlan: plan })]);
+    await service.update('r1', 'u1', { kind: 'bedroom', furnish: true });
+    expect(repo.update).toHaveBeenCalledWith('r1', { kind: 'bedroom', furnish: true });
   });
 
-  it('stops furnishing a room turned into a bedroom', async () => {
+  it('keeps furnishing on when a room becomes a bedroom, and saves its budget', async () => {
     await service.update('r1', 'u1', { kind: 'bedroom' });
-    expect(repo.update).toHaveBeenCalledWith('r1', { kind: 'bedroom', furnish: false });
+    expect(repo.update).toHaveBeenCalledWith('r1', { kind: 'bedroom' });
+    await service.update('r1', 'u1', { budgetCad: 2500 });
+    expect(repo.update).toHaveBeenCalledWith('r1', { budgetCad: 2500 });
   });
 });

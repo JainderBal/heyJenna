@@ -7,11 +7,15 @@ export interface Dropped {
 }
 
 /** Never dropped: without these there is no room. */
-const KEEP = new Set(['sofa', 'coffee_table', 'rug', 'desk', 'desk_chair', 'ceiling_light', 'floor_lamp']);
+const KEEP = new Set(['sofa', 'coffee_table', 'rug', 'desk', 'desk_chair', 'ceiling_light', 'floor_lamp', 'bed', 'dining_table']);
 
 /** When a room is over-full, these go first (nice-to-haves before anything the person asked for). */
 const DROP_ORDER: ((f: EngineItem) => boolean)[] = [
   (f) => f.type === 'pouf',
+  (f) => f.type === 'dining_chair' && !/_[12]$/.test(f.id),
+  (f) => f.type === 'wardrobe',
+  (f) => f.type === 'dresser',
+  (f) => f.type === 'bench',
   (f) => f.type === 'sideboard',
   (f) => f.type === 'plant' && !f.id.endsWith('_1'),
   (f) => f.type === 'armchair' && !f.id.endsWith('_1'),
@@ -19,7 +23,7 @@ const DROP_ORDER: ((f: EngineItem) => boolean)[] = [
 ];
 
 /** Pieces the person asked for (or the room can't work without): leaving one out counts as a problem to fix. */
-const NEEDED = new Set(['sofa', 'coffee_table', 'desk', 'desk_chair', 'cat_tree']);
+const NEEDED = new Set(['sofa', 'coffee_table', 'desk', 'desk_chair', 'cat_tree', 'bed', 'dining_table']);
 
 /** Needed pieces the engine couldn't place ("placed desk_1: no wall with room…" warnings). */
 function missingNeeded(result: EngineResult, spec: EngineSpec): { id: string; why: string }[] {
@@ -31,7 +35,7 @@ function missingNeeded(result: EngineResult, spec: EngineSpec): { id: string; wh
 }
 
 /** Among pieces a failing rule names, drop the least important first; need-driven ones (cat tree…) last. */
-const NAMED_ORDER = ['pouf', 'sideboard', 'plant', 'side_table', 'armchair', 'art', 'shelf', 'table_lamp', 'cat_tree'];
+const NAMED_ORDER = ['pouf', 'dining_chair', 'wardrobe', 'dresser', 'bench', 'sideboard', 'plant', 'side_table', 'armchair', 'art', 'shelf', 'nightstand', 'table_lamp', 'cat_tree'];
 const rank = (f: EngineItem) => {
   const i = NAMED_ORDER.indexOf(f.type);
   return i < 0 ? NAMED_ORDER.length : i;

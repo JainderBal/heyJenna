@@ -32,6 +32,8 @@ export interface RoomViewerProps {
   room?: Room;
   /** Colours to paint with (moodboard palette, else the project's). */
   palette?: string[];
+  /** Moodboard image urls shown in the room's wall art. */
+  art?: string[];
   /** A finished render's room model to have ready (null: none). */
   render?: RenderModel | null;
   /** Which room to show; 'render' falls back to live until the render's model is ready. */
@@ -57,7 +59,7 @@ function planOf(room: Room | undefined, layout: Layout | null): ViewerScene['pla
   return { width: w, depth: d };
 }
 
-export function RoomViewer({ roomId, layout, room, palette, render = null, mode = 'live', onRenderState, editable = false }: RoomViewerProps) {
+export function RoomViewer({ roomId, layout, room, palette, art, render = null, mode = 'live', onRenderState, editable = false }: RoomViewerProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewer = useRef<Viewer | null>(null);
   const [auto, setAuto] = useState(true);
@@ -65,6 +67,7 @@ export function RoomViewer({ roomId, layout, room, palette, render = null, mode 
   const planJson = JSON.stringify(planOf(room, layout));
   const plan = useMemo<ViewerScene['plan']>(() => JSON.parse(planJson), [planJson]);
   const palKey = (palette ?? []).join(',');
+  const artKey = (art ?? []).join('|');
   const [renderState, setRenderState] = useState<RenderModelState>('none');
   const stateCb = useRef(onRenderState);
   stateCb.current = onRenderState;
@@ -156,9 +159,9 @@ export function RoomViewer({ roomId, layout, room, palette, render = null, mode 
   }, []);
 
   useEffect(() => {
-    viewer.current?.build({ roomId, plan, layout, palette: palette ?? [] });
-    // palette by value: a new array with the same colours is not a rebuild
-  }, [roomId, plan, layout, palKey, rebuild]); // eslint-disable-line react-hooks/exhaustive-deps
+    viewer.current?.build({ roomId, plan, layout, palette: palette ?? [], art: art ?? [] });
+    // palette and art by value: a new array with the same colours or images is not a rebuild
+  }, [roomId, plan, layout, palKey, artKey, rebuild]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const v = viewer.current;

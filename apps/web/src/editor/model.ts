@@ -145,7 +145,7 @@ export function planFrames(rooms: Room[], uploaded: boolean): Frame[] {
         { id: 'plan3d/labels', name: 'Room labels', icon: 'text' },
       ],
     },
-    { id: 'found', name: 'Rooms found', type: 'found', x: 1120, y: 0, w: 300, h: 420, children: rooms.map((r) => ({ id: `found/${r.id}`, name: r.name, icon: 'text' })) },
+    { id: 'found', name: 'Rooms found', type: 'found', x: 1120, y: 0, w: 340, h: Math.max(420, 170 + rooms.length * 82), children: rooms.map((r) => ({ id: `found/${r.id}`, name: r.name, icon: 'text' })) },
   ];
 }
 

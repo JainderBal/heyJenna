@@ -1,4 +1,4 @@
-import { StyleDialValues } from '@hey-jenna/contracts';
+import { RoomKind, StyleDialValues, isLivingKind } from '@hey-jenna/contracts';
 import { EngineResult, EngineSpec, LayoutEngine } from './layout-engine';
 import { Dropped, solveWithRepairs } from './repair';
 
@@ -74,7 +74,10 @@ function badness(r: EngineResult, dropped: Dropped[]): number {
 /** Lays the room out every way in VARIANTS that the dials allow (in parallel, each auto-repaired) and keeps the best. */
 export async function solveBestVariant(engine: LayoutEngine, spec: EngineSpec): Promise<Solved> {
   const dials = (spec.style_profile as { dials?: Partial<StyleDialValues> }).dials;
-  const runs = await Promise.allSettled(variantsFor(dials).map(async (variant) => ({ variant, ...(await solveWithRepairs(engine, { ...spec, variant })) })));
+  // the variants rearrange a sofa group; a bedroom, dining room or hall has one way to be laid out
+  const kind = (spec.room as { kind?: RoomKind | null }).kind;
+  const variants = isLivingKind(kind) ? variantsFor(dials) : [{}];
+  const runs = await Promise.allSettled(variants.map(async (variant) => ({ variant, ...(await solveWithRepairs(engine, { ...spec, variant })) })));
   const ok = runs.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
   if (!ok.length) throw (runs[0] as PromiseRejectedResult).reason; // every variant failed: report the first error
   ok.sort((a, b) => badness(a.result, a.dropped) - badness(b.result, b.dropped));

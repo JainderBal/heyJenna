@@ -7,6 +7,8 @@ export const FLOOR_LAYER: Record<string, string> = {
   sofa: 'furniture', armchair: 'furniture', coffee_table: 'furniture', side_table: 'furniture', shelf: 'furniture',
   desk: 'furniture', desk_chair: 'furniture', sideboard: 'furniture', cat_tree: 'furniture', pouf: 'furniture',
   floor_lamp: 'lighting', plant: 'plants', rug: 'soft_furnishings',
+  bed: 'furniture', nightstand: 'furniture', dresser: 'furniture', wardrobe: 'furniture', dining_table: 'furniture',
+  dining_chair: 'furniture', bench: 'furniture',
 };
 export const isFloorType = (t: string) => t in FLOOR_LAYER;
 
@@ -17,7 +19,7 @@ const USE_DEPTH = 0.45; // room to sit down / open a door in front of a seat or 
 const ROT: Record<Wall, number> = { back: 0, left: 90, right: 270, front: 180 };
 const SEATS = ['sofa', 'armchair'];
 const FRONT_USE = ['sofa', 'armchair', 'shelf', 'sideboard', 'desk'];
-const AGAINST_WALL = ['shelf', 'sideboard', 'desk', 'cat_tree', 'sofa'];
+const AGAINST_WALL = ['shelf', 'sideboard', 'desk', 'cat_tree', 'sofa', 'bed', 'dresser', 'wardrobe', 'bench', 'nightstand'];
 
 export interface FloorPiece { type: string; size: Size }
 export interface FloorPose { x: number; y: number; rotationDeg: number }

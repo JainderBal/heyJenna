@@ -29,6 +29,13 @@ export class StyleRepository {
     return this.db.style.findUnique({ where: { roomId } });
   }
 
+  /** The home's style for a room with no moodboard of its own: the newest moodboard of another room in its project. */
+  async findForProjectOf(roomId: string): Promise<Style | null> {
+    const room = await this.db.room.findUnique({ where: { id: roomId }, select: { projectId: true } });
+    if (!room?.projectId) return null;
+    return this.db.style.findFirst({ where: { room: { projectId: room.projectId }, NOT: { roomId } }, orderBy: { updatedAt: 'desc' } });
+  }
+
   updateProfile(roomId: string, profile: StyleProfile): Promise<Style> {
     return this.db.style.update({ where: { roomId }, data: { profile: profile as unknown as Prisma.InputJsonValue } });
   }

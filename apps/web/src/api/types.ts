@@ -39,8 +39,10 @@ export interface Room {
   needs: string[];
   /** contracts RoomKind (bedroom, kitchen, closet…); null for rooms made before kinds or drawn by hand. */
   kind: RoomKind | null;
-  /** false = on the plan only (closets, laundry…): no page, no products, no layout. */
+  /** false = on the plan only: no page, no products, no layout. Every room is furnished unless turned off. */
   furnish: boolean;
+  /** This room's furniture budget in CAD; null until the person sets it (it's set before the room is built). */
+  budgetCad: number | null;
   projectId: string | null;
   /** Where the room sits on its project's plan, metres from the top-left (y = down the page); null = not placed. */
   planPosition: PlanPosition | null;
@@ -218,6 +220,5 @@ export interface RoomEvent<D = Record<string, unknown>> {
   data: D;
 }
 
-/** Mirror of contracts FURNISHABLE_KINDS: the room kinds the layout engine can furnish today. */
-export const FURNISHABLE_KINDS: readonly RoomKind[] = ['living', 'office', 'other'];
-export const canFurnish = (kind: RoomKind | null | undefined) => !kind || FURNISHABLE_KINDS.includes(kind);
+/** Mirror of contracts canFurnish: the layout engine furnishes every kind of room. */
+export const canFurnish = (_kind?: RoomKind | null) => true;

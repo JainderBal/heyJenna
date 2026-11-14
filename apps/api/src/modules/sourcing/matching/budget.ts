@@ -27,6 +27,13 @@ const SLOT_WEIGHT: Record<FurnitureType, number> = {
   pouf: 2,
   cat_tree: 3,
   wall_shelf: 2,
+  bed: 30,
+  nightstand: 5,
+  dresser: 12,
+  wardrobe: 15,
+  dining_table: 22,
+  dining_chair: 6,
+  bench: 8,
 };
 
 export const slotWeight = (type: string): number => SLOT_WEIGHT[type as FurnitureType] ?? 1;
@@ -40,6 +47,8 @@ export interface RoomMoney {
 }
 
 export interface BudgetContext {
+  /** room = the room's own budget; home = an older home-wide budget split by floor area. */
+  scope?: 'room' | 'home';
   budgetCad: number;
   roomShare: number;
   cap: number;
@@ -96,7 +105,14 @@ export function budgetForRoom(budgetCad: number | null | undefined, roomId: stri
   const roomShare = cents(shareOf(budgetCad, roomId, rooms));
   const spentElsewhere = cents(rooms.filter((r) => r.id !== roomId).reduce((s, r) => s + Math.max(0, r.spent), 0));
   const cap = cents(Math.min(roomShare, Math.max(0, budgetCad - spentElsewhere)));
-  return { budgetCad, roomShare, cap, spentElsewhere, targets: slotTargets(cap, slots) };
+  return { scope: 'home', budgetCad, roomShare, cap, spentElsewhere, targets: slotTargets(cap, slots) };
+}
+
+/** The room's own budget: all of it is this room's to spend. Null when the person hasn't set one. */
+export function ownRoomBudget(budgetCad: number | null | undefined, slots: Slot[]): RoomBudget | null {
+  if (budgetCad == null || !(budgetCad > 0)) return null;
+  const cap = cents(budgetCad);
+  return { scope: 'room', budgetCad: cap, roomShare: cap, cap, spentElsewhere: 0, targets: slotTargets(cap, slots) };
 }
 
 /** Known price above the slot's headroom. Missing prices stay in the search. */
@@ -109,5 +125,6 @@ export function overSlotCeiling(price: number | null | undefined, target: number
 export function budgetPrompt(b: BudgetContext | null): string {
   if (!b) return '';
   const n = (v: number) => Math.round(v).toLocaleString('en-CA');
+  if (b.scope === 'room') return `This room's furniture budget is ${n(b.cap)} CAD. Keep the whole room inside it.`;
   return `The home budget is ${n(b.budgetCad)} CAD. This room's share is ${n(b.roomShare)} CAD, by floor area. Other rooms already total ${n(b.spentElsewhere)} CAD. Stay inside this room's share. Do not pass the home budget as maxPrice.`;
 }

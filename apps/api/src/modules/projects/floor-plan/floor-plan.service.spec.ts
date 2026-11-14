@@ -79,11 +79,11 @@ describe('normalisePlan', () => {
     expect(off.warnings.join()).toMatch(/printed 10' x 13'4"/);
   });
 
-  it('keeps small closets at their real size and does not furnish them', () => {
+  it('keeps small closets at their real size and furnishes them too', () => {
     const out = one({ name: 'Rangement', kind: 'storage', printedSize: `4'10" x 4'9"`, width: 1.47, depth: 1.45 });
-    expect(out.rooms[0]).toMatchObject({ kind: 'storage', furnish: false, floorPlan: { width: 1.47, depth: 1.45 } });
+    expect(out.rooms[0]).toMatchObject({ kind: 'storage', furnish: true, floorPlan: { width: 1.47, depth: 1.45 } });
     expect(out.warnings).toEqual([]);
-    expect(toBulkRooms(out.rooms)[0]).toMatchObject({ name: 'Rangement', kind: 'storage', furnish: false });
+    expect(toBulkRooms(out.rooms)[0]).toMatchObject({ name: 'Rangement', kind: 'storage', furnish: true });
   });
 
   it('marks open walls and drops openings on them', () => {
@@ -92,7 +92,7 @@ describe('normalisePlan', () => {
     expect(plan.walls).toEqual({ back: { finish: 'paint', open: true }, front: { finish: 'paint', open: true } });
     expect(plan.doors).toEqual([]);
     expect(plan.windows).toHaveLength(1);
-    expect(out.rooms[0].furnish).toBe(false); // the engine doesn't do dining rooms yet
+    expect(out.rooms[0].furnish).toBe(true); // dining rooms get a table and chairs
   });
 
   it('fits a door as wide as an odd-centimetre wall without poking past it', () => {
@@ -134,9 +134,9 @@ describe('normalisePlan on a real plan (2-bedroom condo, French labels, feet and
     expect(byName('Rangement').floorPlan).toMatchObject({ width: ft(4, 10), depth: ft(4, 9) });
   });
 
-  it('furnishes only what the engine can furnish today (the living room)', () => {
-    expect(out.rooms.filter((r) => r.furnish).map((r) => r.name)).toEqual(['Salon']);
-    expect(byName('Chambre 1')).toMatchObject({ kind: 'bedroom', furnish: false });
+  it('furnishes every room it finds, bedrooms included', () => {
+    expect(out.rooms.every((r) => r.furnish)).toBe(true);
+    expect(byName('Chambre 1')).toMatchObject({ kind: 'bedroom', furnish: true });
   });
 
   it('opens the walls between kitchen, dining and living', () => {
@@ -167,7 +167,7 @@ describe('normalisePlan on a real plan (2-bedroom apartment drawn sideways, bili
   it('keeps the 68" patio door as a slider, and the living room open to the dining room', () => {
     expect(find('Salon').floorPlan.doors).toEqual([expect.objectContaining({ width: 1.72, swing: 'none' })]);
     expect(find('Salon').floorPlan.walls).toMatchObject({ left: { open: true } });
-    expect(out.rooms.filter((r) => r.furnish).map((r) => r.kind)).toEqual(['living']);
+    expect(out.rooms.every((r) => r.furnish)).toBe(true);
   });
 
   it('gives every room a plan the bulk create accepts', () => {

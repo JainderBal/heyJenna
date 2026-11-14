@@ -64,18 +64,19 @@ export type PlanPosition = z.infer<typeof PlanPosition>;
 export const openWalls = (plan: Pick<FloorPlan, 'walls'>): Wall[] =>
   (Object.entries(plan.walls ?? {}) as [Wall, { open?: boolean }][]).filter(([, f]) => f?.open).map(([w]) => w);
 
-/** What a room is for. Closets, laundry, halls and balconies are kept on the plan but not furnished by default. */
+/** What a room is for. Every kind gets its own page and furniture that suits it (beds in bedrooms, a table in the dining room…). */
 export const RoomKind = z.enum([
   'living', 'kitchen', 'dining', 'bedroom', 'bathroom', 'office',
   'laundry', 'closet', 'storage', 'hallway', 'entry', 'balcony', 'other',
 ]);
 export type RoomKind = z.infer<typeof RoomKind>;
 
-/**
- * Kinds the layout engine can furnish today. It designs living spaces (sofa group, desk, shelves…); bedrooms, dining
- * rooms, kitchens and bathrooms need furniture it doesn't know yet (beds, dining tables…), so they stay on the plan only.
- * Rooms with no kind (drawn by hand, or made before kinds) are treated as living spaces.
- */
-export const FURNISHABLE_KINDS: readonly RoomKind[] = ['living', 'office', 'other'];
-export const canFurnish = (kind: RoomKind | null | undefined): boolean => !kind || FURNISHABLE_KINDS.includes(kind);
+/** Kinds the layout engine can furnish: all of them. Rooms with no kind (drawn by hand, or made before kinds) are living spaces. */
+export const FURNISHABLE_KINDS: readonly RoomKind[] = RoomKind.options;
+export const canFurnish = (_kind?: RoomKind | null): boolean => true;
+/** Every room is furnished by default; the person can still turn a room off (it then stays on the plan only). */
 export const furnishedByDefault = canFurnish;
+
+/** Kinds the engine lays out around a sofa group (the living-room designer). The rest use the per-kind designer. */
+export const LIVING_KINDS: readonly RoomKind[] = ['living', 'office', 'other'];
+export const isLivingKind = (kind: RoomKind | null | undefined): boolean => !kind || LIVING_KINDS.includes(kind);

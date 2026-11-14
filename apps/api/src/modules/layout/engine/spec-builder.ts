@@ -1,4 +1,4 @@
-import { FloorPlan, FurnitureType, Size, StyleProfile, Wall, openWalls } from '@hey-jenna/contracts';
+import { FloorPlan, FurnitureType, RoomKind, Size, StyleProfile, Wall, isLivingKind, openWalls } from '@hey-jenna/contracts';
 import { Listing } from '@prisma/client';
 import { TYPICAL } from '../../sourcing/matching/dimensions';
 import { ChosenSlot } from '../../sourcing/sourcing.service';
@@ -15,8 +15,17 @@ const NEUTRAL_STYLE: Pick<StyleProfile, 'palette' | 'shapeFamily' | 'materials'>
 /** Which object came from which product: engine object id → listing. */
 export type ListingIndex = Map<string, Listing>;
 
+/**
+ * The colours wall art is painted in: the moodboard's accents first (art is where the 10 % pops live), then its
+ * secondary and main colours, so the frames on the wall carry the board's palette (the Blender render and the live
+ * room both read style_profile.art.colours).
+ */
+export function artColours(palette: StyleProfile['palette']): string[] {
+  return [...new Set([...palette.accent, ...palette.secondary, ...palette.dominant].map((h) => h.toUpperCase()))];
+}
+
 /** Room + style + chosen products → the engine's input, and an index to map results back to products. */
-export function buildEngineSpec(name: string, plan: FloorPlan, needs: string[], style: StyleProfile | null, chosen: ChosenSlot[]) {
+export function buildEngineSpec(name: string, plan: FloorPlan, needs: string[], style: StyleProfile | null, chosen: ChosenSlot[], kind?: RoomKind | null) {
   const furniture: EngineItem[] = [];
   const index: ListingIndex = new Map();
   const counter: Partial<Record<FurnitureType, number>> = {};
@@ -34,7 +43,7 @@ export function buildEngineSpec(name: string, plan: FloorPlan, needs: string[], 
         name: listing?.title ?? `suggested ${slot.type.replace('_', ' ')}`,
         size,
         colour: 'auto',
-        ...extrasFor(slot.type, k, size, listing?.title ?? '', hasDesk),
+        ...extrasFor(slot.type, k, size, listing?.title ?? '', hasDesk && isLivingKind(kind)),
       };
       if (!listing) item.suggested = true; // nothing found or picked yet: a placeholder
       furniture.push(item);
@@ -47,6 +56,8 @@ export function buildEngineSpec(name: string, plan: FloorPlan, needs: string[], 
   const spec: EngineSpec = {
     room: {
       name,
+      // bedroom, dining, kitchen…: the engine designs the room around that kind's anchor piece (bed, table…)
+      kind: kind ?? null,
       width: plan.width,
       depth: plan.depth,
       wall_height: plan.wallHeight,
@@ -66,6 +77,8 @@ export function buildEngineSpec(name: string, plan: FloorPlan, needs: string[], 
       shape_family: s.shapeFamily,
       materials: {
         wood: s.materials.wood ?? '#B9733A', metal: s.materials.metal ?? 'chrome', fabric: s.materials.fabric ?? 'wool',
+        // curtains in the moodboard's own light colour, not a stock one
+        ...(style ? { curtain: style.palette.dominant[1] ?? style.palette.dominant[0] } : {}),
         ...(fromDials?.wood ?? {}), // wood colours from the wood_tone dial when the board named none
       },
       ...(style?.stylingDensity ? { styling_density: style.stylingDensity } : {}),
@@ -73,6 +86,11 @@ export function buildEngineSpec(name: string, plan: FloorPlan, needs: string[], 
     },
     furniture,
   };
+  if (style) {
+    // the art on the walls is painted in the moodboard's colours (not a stock palette)
+    const art = (spec.style_profile.art as Record<string, unknown> | undefined) ?? {};
+    spec.style_profile.art = { ...art, colours: artColours(style.palette) };
+  }
   return { spec, index };
 }
 

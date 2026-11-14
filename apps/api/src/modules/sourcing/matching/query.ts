@@ -7,10 +7,12 @@ const TYPE_WORDS: Record<FurnitureType, string> = {
   desk: 'desk', desk_chair: 'desk chair', sideboard: 'sideboard', pouf: 'pouf', cat_tree: 'cat tree', rug: 'rug',
   floor_lamp: 'floor lamp', table_lamp: 'table lamp', ceiling_light: 'pendant light', plant: 'plant', art: 'picture',
   mirror: 'mirror', wall_shelf: 'wall shelf',
+  bed: 'bed frame', nightstand: 'nightstand', dresser: 'chest of drawers', wardrobe: 'wardrobe',
+  dining_table: 'dining table', dining_chair: 'dining chair', bench: 'bench',
 };
 
 /** Pieces big enough that their colour defines the room: add a palette colour word to the search. */
-const COLOUR_LED: FurnitureType[] = ['sofa', 'armchair', 'rug', 'pouf'];
+const COLOUR_LED: FurnitureType[] = ['sofa', 'armchair', 'rug', 'pouf', 'bed', 'dining_chair'];
 
 /** Shop-friendly colour words: "navy" finds little, "blue" finds a lot. */
 const SIMPLE_COLOUR: Record<string, string> = {

@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Room } from '@prisma/client';
-import { FloorPlan, RoomKind, canFurnish } from '@hey-jenna/contracts';
+import { FloorPlan } from '@hey-jenna/contracts';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { RoomResponseDto } from './dto/room-response.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
@@ -15,16 +15,13 @@ export class RoomsService {
 
   async create(ownerId: string, dto: CreateRoomDto): Promise<RoomResponseDto> {
     this.assertValidPlan(dto.floorPlan);
-    assertCanFurnish(dto.name, dto.kind, dto.furnish);
     if (dto.projectId) await this.assertOwnedProject(dto.projectId, ownerId);
     return toRoomResponse(await this.repo.create(ownerId, dto));
   }
 
   /** Creates several rooms in a project at once. Every floor plan is checked first; one bad plan creates nothing. */
   async createMany(ownerId: string, projectId: string, rooms: CreateRoomDto[]): Promise<RoomResponseDto[]> {
-    const problems = rooms.flatMap((r, i) =>
-      [...floorPlanProblems(r.floorPlan), ...furnishProblems(r.kind, r.furnish)].map((p) => `rooms[${i}] (${r.name}): ${p}`),
-    );
+    const problems = rooms.flatMap((r, i) => floorPlanProblems(r.floorPlan).map((p) => `rooms[${i}] (${r.name}): ${p}`));
     if (problems.length) throw new BadRequestException({ message: 'Floor plan has problems', problems });
     return (await this.repo.createMany(ownerId, projectId, rooms)).map(toRoomResponse);
   }
@@ -42,12 +39,8 @@ export class RoomsService {
   }
 
   async update(id: string, ownerId: string, dto: UpdateRoomDto): Promise<RoomResponseDto> {
-    const room = await this.getOwnedRoom(id, ownerId);
+    await this.getOwnedRoom(id, ownerId);
     if (dto.floorPlan) this.assertValidPlan(dto.floorPlan);
-    const kind = dto.kind ?? (room.kind as RoomKind | null);
-    assertCanFurnish(room.name, kind, dto.furnish);
-    // turning a room into a bedroom, closet…: it stops being furnished unless the person says otherwise
-    if (dto.kind && dto.furnish === undefined && !canFurnish(dto.kind)) dto = { ...dto, furnish: false };
     if (dto.projectId) await this.assertOwnedProject(dto.projectId, ownerId);
     return toRoomResponse(await this.repo.update(id, dto));
   }
@@ -64,10 +57,9 @@ export class RoomsService {
     return room;
   }
 
-  /** Like getOwnedRoom, for finding and laying out furniture: 409 for rooms kept on the plan only (closets, laundry…). */
+  /** Like getOwnedRoom, for finding and laying out furniture: 409 for a room the person turned off (plan only). */
   async getFurnishableRoom(id: string, ownerId: string): Promise<Room> {
     const room = await this.getOwnedRoom(id, ownerId);
-    if (!canFurnish(room.kind as RoomKind | null)) throw new ConflictException(`jenna can't furnish ${room.kind} rooms yet; ${room.name} stays on the plan only`);
     if (!room.furnish) throw new ConflictException(`${room.name} is on the plan only and isn't furnished; turn on "furnish" for this room first`);
     return room;
   }
@@ -80,14 +72,4 @@ export class RoomsService {
     const problems = floorPlanProblems(plan);
     if (problems.length) throw new BadRequestException({ message: 'Floor plan has problems', problems });
   }
-}
-
-/** Rooms the layout engine can't furnish yet (bedrooms, dining rooms…) can't be switched to furnished. */
-function furnishProblems(kind: RoomKind | null | undefined, furnish: boolean | undefined): string[] {
-  return furnish === true && !canFurnish(kind) ? [`jenna can't furnish ${kind} rooms yet: leave "furnish" off`] : [];
-}
-
-function assertCanFurnish(name: string, kind: RoomKind | null | undefined, furnish: boolean | undefined) {
-  const problems = furnishProblems(kind, furnish);
-  if (problems.length) throw new BadRequestException(`${name}: ${problems[0]}`);
 }

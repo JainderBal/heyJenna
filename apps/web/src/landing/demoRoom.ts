@@ -20,6 +20,7 @@ export const DEMO_ROOM: Room = {
   needs: [],
   kind: 'living',
   furnish: true,
+  budgetCad: null,
   planPosition: null,
   projectId: null,
   areaM2: 4.4 * 3.8,

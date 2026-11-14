@@ -1,7 +1,7 @@
 import { FloorPlan, FurnitureType, Size, StyleProfile } from '@hey-jenna/contracts';
 import { hexToRgb, labDistance, rgbToLab } from '../../style/analysis/colour';
 import { COLOUR_WORDS, colourWordLab } from '../../style/analysis/colour-names';
-import { dialWords, ORNATE } from './dial-words';
+import { dialWords, ORNATE, shapeWords } from './dial-words';
 
 export interface ScoreDetail {
   style: number;  // style words found in the listing
@@ -36,7 +36,11 @@ export function scoreListing(
   // dial words (fabric, rug type, wood tone, fixture…) count half a style word each
   const dialMatched = dialWords(input.type, style.dials).filter((w) => !phrases.includes(w) && text.includes(w));
   matchedWords.push(...dialMatched);
-  let styleScore = (matchedWords.length - dialMatched.length + dialMatched.length * 0.5) / 2;
+  // shape dials (curvature, legs, arms, mass, modularity) are only a tiebreaker: 0.05 each, capped at 0.15
+  const shapeMatched = shapeWords(input.type, style.dials).filter((w) => !phrases.includes(w) && !dialMatched.includes(w) && text.includes(w));
+  matchedWords.push(...shapeMatched);
+  let styleScore = (matchedWords.length - dialMatched.length - shapeMatched.length + dialMatched.length * 0.5) / 2
+    + Math.min(0.15, shapeMatched.length * 0.05);
   // ornament dial: plain boards push carved/tufted/fringed pieces down, ornate boards pull them up
   if (style.dials && ORNATE.test(text)) styleScore += style.dials.ornament < 0.3 ? -0.25 : style.dials.ornament > 0.6 ? 0.25 : 0;
   styleScore = Math.max(0, Math.min(1, styleScore));

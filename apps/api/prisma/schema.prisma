@@ -75,3 +75,23 @@ model Layout {
   @@index([roomId])
   @@map("layouts")
 }
+
+/// Render queue: the API adds jobs, render workers claim them (FOR UPDATE SKIP LOCKED) and report back.
+model RenderJob {
+  id         String    @id @default(uuid()) @db.Uuid
+  roomId     String    @map("room_id") @db.Uuid
+  layoutId   String    @map("layout_id") @db.Uuid
+  status     String    @default("queued")   // queued | running | done | failed
+  attempts   Int       @default(0)
+  workerId   String?   @map("worker_id")
+  imageKey   String?   @map("image_key")    // rendered PNG in storage
+  modelKey   String?   @map("model_key")    // .glb for the 3D viewer
+  error      String?
+  createdAt  DateTime  @default(now()) @map("created_at")
+  startedAt  DateTime? @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+
+  @@index([status, createdAt])
+  @@index([layoutId])
+  @@map("render_jobs")
+}

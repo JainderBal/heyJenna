@@ -135,7 +135,7 @@ export class LayoutService {
 }
 
 function productOf(l: Listing): PlacedProduct {
-  return { listingId: l.id, title: l.title, url: l.url, source: l.source as ListingSource, price: l.price, currency: l.currency, imageUrl: l.imageUrl };
+  return { listingId: l.id, title: l.title, url: l.url, source: l.source as ListingSource, price: l.price, currency: l.currency, imageUrl: l.imageUrl, modelUrl: l.modelUrl || null };
 }
 
 function attach(o: PlacedObject, index: ListingIndex, suggestedIds: Set<string>, specIds: Set<string>): PlacedObject {

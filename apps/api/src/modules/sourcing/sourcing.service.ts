@@ -20,6 +20,10 @@ import { buildQuery, queryParts } from './matching/query';
 import { plausibleSize } from './matching/dimensions';
 import { FurnitureType as FType } from '@hey-jenna/contracts';
 import { shoppingList, Slot } from './matching/shopping-list';
+import { chooseSet } from './matching/companions';
+
+/** Pieces whose size has to suit the others: look at more candidates. */
+const KEY_PIECES = ['sofa', 'coffee_table', 'rug', 'armchair', 'side_table'];
 
 export interface ChosenSlot {
   slot: Slot;
@@ -126,15 +130,29 @@ export class SourcingService {
 
   /** For the layout module: per slot, the listings to use (picked first, then best score). */
   async chooseForRoom(room: Room): Promise<ChosenSlot[]> {
+    const plan = room.floorPlan as unknown as FloorPlan;
+    const slots = shoppingList(plan, room.needs);
     const all = await this.repo.listByRoom(room.id);
-    const chosen = shoppingList(room.floorPlan as unknown as FloorPlan, room.needs).map((slot) => ({
-      slot,
-      listings: all.filter((l) => l.type === slot.type).slice(0, slot.count),
+    // Real sizes + 3D model links for the leading candidates (not just the winner), so pieces can be
+    // matched to each other. Key pieces look at their top 4, the rest at their top 2. Each page is read once.
+    const byType = new Map<string, Listing[]>();
+    for (const slot of slots) {
+      const ofType = all.filter((l) => l.type === slot.type).sort((a, b) => Number(b.picked) - Number(a.picked) || b.score - a.score);
+      const depth = KEY_PIECES.includes(slot.type) ? 4 : 2;
+      const head = await this.mapLimited(ofType.slice(0, depth * slot.count), 4, (l) => (l.source === 'ikea' && l.modelUrl === null ? this.ikeaDetails(l) : Promise.resolve(l)));
+      byType.set(slot.type, [...head, ...ofType.slice(depth * slot.count)]);
+    }
+    return chooseSet(slots, byType, plan);
+  }
+
+  /** Runs fn over items, at most `limit` at a time (polite to the shop's servers). */
+  private async mapLimited<T, R>(items: T[], limit: number, fn: (t: T) => Promise<R>): Promise<R[]> {
+    const out: R[] = new Array(items.length);
+    let next = 0;
+    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (next < items.length) { const i = next++; out[i] = await fn(items[i]); }
     }));
-    // IKEA search results have no sizes or 3D models: read them for just the pieces going into the room
-    for (const c of chosen)
-      c.listings = await Promise.all(c.listings.map((l) => (l.source === 'ikea' && l.modelUrl === null ? this.ikeaDetails(l) : l)));
-    return chosen;
+    return out;
   }
 
   /**

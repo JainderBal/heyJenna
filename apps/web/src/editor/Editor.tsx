@@ -1,8 +1,10 @@
 /**
  * The studio editor for one project: icon rail | left panel (pages, layers) | canvas | side panel.
- * URL: /p/:projectId?page=plan|<roomId>&sel=<frameId>[/<layer>] (kept in sync with the store).
+ * URL: /p/:projectId?page=plan|<roomId>&sel=<frameId>[/<layer>] (kept in sync with the store);
+ * ?view=share|assets|sellers|styles shows a left-rail page (rail/) in the canvas's place.
+ * Phones and tablets: the rail and the left panel slide in as a drawer (the ☰ button), see styles/responsive.css.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { useLatestLayout, useListings, useProject, useProjectRooms, useRoomStyle } from '../api/hooks';
 import { useRoomEvents } from '../api/events';
@@ -19,6 +21,7 @@ import { useMoodboardPaste } from './useMoodboardPaste';
 import { Toast } from './Toast';
 import { FoundFrame, Plan3DFrame, PlanFrame } from './frames/FloorPlanFrames';
 import { MoodboardFrame, PaletteFrame, Room3DFrame, ShoppingListFrame } from './frames/RoomFrames';
+import { RailPage, asRailView, type RailView } from '../rail/RailPage';
 import { pagesOf, planFrames, projectPalette, roomFrames, roomPalette, type Frame } from './model';
 
 export function Editor() {
@@ -26,6 +29,7 @@ export function Editor() {
   const [params, setParams] = useSearchParams();
   const urlPage: PageId = params.get('page') || 'plan';
   const urlSel = params.get('sel');
+  const view = asRailView(params.get('view'));
 
   const project = useProject(projectId);
   const roomsQ = useProjectRooms(projectId);
@@ -55,6 +59,7 @@ export function Editor() {
     const p = cur.get('page') || 'plan';
     if (p === s.page && cur.get('sel') === s.sel) return;
     const next = new URLSearchParams();
+    // a page or selection change from the canvas side also leaves a rail page
     if (s.page !== 'plan') next.set('page', s.page);
     if (s.sel) next.set('sel', s.sel);
     setParams(next, { replace: p === s.page });
@@ -95,7 +100,34 @@ export function Editor() {
   /* ---- jenna ---- */
   const [bubble, setBubble] = useState(true);
 
-  if (isApiError(project.error, 404) || isApiError(project.error, 400)) return <Navigate to="/" replace />;
+  /* ---- rail pages, the drawer on small screens, the collapsed left panel on desktop ---- */
+  const [nav, setNav] = useState(false);
+  const [lpOff, setLpOff] = useState(false);
+  const setView = useCallback(
+    (v: RailView | null, replace = false) => {
+      const next = new URLSearchParams(window.location.search);
+      if (v) next.set('view', v);
+      else next.delete('view');
+      setParams(next, { replace });
+      setNav(false);
+    },
+    [setParams],
+  );
+  const openRoom = useCallback(
+    (roomId: string, sel?: string) => {
+      setView(null, true);
+      useEditorStore.getState().goPage(roomId, sel ?? null);
+    },
+    [setView],
+  );
+  const collapse = () => (small() ? setNav(false) : setLpOff(true));
+  const onFile = () => {
+    if (view) return setView(null);
+    if (small()) setNav((n) => !n);
+    else setLpOff((o) => !o);
+  };
+
+  if (isApiError(project.error, 404) || isApiError(project.error, 400)) return <Navigate to="/projects" replace />;
 
   const body = (f: Frame) => {
     switch (f.type) {
@@ -117,42 +149,78 @@ export function Editor() {
   };
 
   return (
-    <div className={`app${spTabs.length ? ' sp-on' : ''}`}>
-      <Rail />
-      <LeftPanel project={project.data} pages={pages} frames={frames} onFrameOpen={(f) => f.type === 'list' && useEditorStore.getState().spOpen('shop')} />
-      <Canvas frames={roomsQ.isLoading ? [] : frames} body={body} onFrameClick={(f) => f.type === 'list' && useEditorStore.getState().spOpen('shop')}>
-        {bubble && !spTabs.includes('chat') && (
-          <div className="bubble" data-overlay>
-            hey! tap me to plan a room
-          </div>
-        )}
-        <button
-          className="jenna"
-          type="button"
-          aria-label="Open hey jenna"
-          data-overlay
-          onClick={() => {
-            setBubble(false);
-            useEditorStore.getState().spOpen('chat');
-          }}
-        >
-          <JennaCube size={150} />
-        </button>
-        <div className="chip-r" data-overlay>
-          <div className="avatar">J</div>
-          <button className="share" type="button" onClick={() => toast('Sharing is coming soon')}>
-            Share
+    <div className={`app${spTabs.length ? ' sp-on' : ''}${nav ? ' nav-on' : ''}${lpOff ? ' lp-off' : ''}${view ? ' rp-on' : ''}`}>
+      {/* on phones the rail sits in the drawer: picking jenna, Pinterest… closes it (File toggles it itself) */}
+      <div style={{ display: 'contents' }} onClickCapture={(e) => (e.target as HTMLElement).closest('.item:not([data-file])') && setNav(false)}>
+        <Rail view={view} onView={(v) => (v === view ? setView(null) : setView(v))} onFile={onFile} />
+      </div>
+      {/* a page or layer click leaves a rail page (and closes the drawer on small screens) */}
+      <div
+        style={{ display: 'contents' }}
+        onClickCapture={(e) => {
+          if (!(e.target as HTMLElement).closest('.page, .layer, .back')) return;
+          if (view) setView(null, true);
+          setNav(false);
+        }}
+      >
+        <LeftPanel
+          project={project.data}
+          pages={pages}
+          frames={frames}
+          onCollapse={collapse}
+          onFrameOpen={(f) => f.type === 'list' && useEditorStore.getState().spOpen('shop')}
+        />
+      </div>
+      <button className="mnav" type="button" aria-label={nav ? 'Close menu' : 'Pages and layers'} aria-expanded={nav} onClick={() => setNav((n) => !n)}>
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5">
+          {nav ? <path d="M4 4l10 10M14 4 4 14" /> : <path d="M3 5h12M3 9h12M3 13h12" />}
+        </svg>
+      </button>
+      {nav && <div className="nav-scrim" onClick={() => setNav(false)} />}
+      {view ? (
+        <RailPage view={view} project={project.data} rooms={rooms} projectPalette={projPal} openRoom={openRoom} />
+      ) : (
+        <Canvas frames={roomsQ.isLoading ? [] : frames} body={body} onFrameClick={(f) => f.type === 'list' && useEditorStore.getState().spOpen('shop')}>
+          {bubble && !spTabs.includes('chat') && (
+            <div className="bubble" data-overlay>
+              hey! tap me to plan a room
+            </div>
+          )}
+          <button
+            className="jenna"
+            type="button"
+            aria-label="Open hey jenna"
+            data-overlay
+            onClick={() => {
+              setBubble(false);
+              useEditorStore.getState().spOpen('chat');
+            }}
+          >
+            <JennaCube size={150} />
           </button>
+          <div className="chip-r" data-overlay>
+            <div className="avatar">J</div>
+            <button className="share" type="button" onClick={() => setView('share')}>
+              Share
+            </button>
+          </div>
+          <Dock />
+          <Toast />
+        </Canvas>
+      )}
+      {view && (
+        <div className="rp-toast">
+          <Toast />
         </div>
-        <Dock />
-        <Toast />
-      </Canvas>
+      )}
       <SidePanel projectId={projectId} roomId={room?.id} />
     </div>
   );
 }
 
 const NONE: string[] = [];
+/** The phone / tablet layout (styles/responsive.css): the left panel is a drawer there. */
+const small = () => typeof matchMedia === 'function' && matchMedia('(max-width: 900px)').matches;
 
 const EVENT_TOASTS: Partial<Record<RoomEvent['type'], string | ((e: RoomEvent) => string)>> = {
   'listings.search.finished': (e) => (typeof e.data.listingCount === 'number' ? `found ${e.data.listingCount} products` : 'search finished: products are in'),

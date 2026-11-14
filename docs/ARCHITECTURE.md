@@ -73,7 +73,7 @@ Swappable parts are Nest providers chosen in the module file: `LAYOUT_ENGINE` (l
 
 ## apps/web
 
-Entry: `index.html` → `src/main.tsx` → `src/app/App.tsx` (react-query client, router: `/` Home,
+Entry: `index.html` → `src/main.tsx` → `src/app/App.tsx` (react-query client, router: `/` Landing, `/projects` Home,
 `/p/:projectId?page=…&sel=…` Editor). `vite.config.ts` proxies `/api/*` to `:3000` with the prefix
 stripped. More in [`apps/web/README.md`](../apps/web/README.md).
 
@@ -84,6 +84,8 @@ stripped. More in [`apps/web/README.md`](../apps/web/README.md).
 | `home/` | `Home.tsx`, `HomeCarousel.tsx` + `carousel3d.ts` (WebGL curved carousel), `plusCard.ts` (animated "+" card texture) | plain three.js driven from React refs |
 | `jenna/` | `JennaCube.tsx` + `jenna3d.ts` | the 3D terrazzo jenna |
 | `editor/` | `Editor.tsx` (shell), `Canvas.tsx` (pan/zoom/focus), `LeftPanel`, `Rail`, `Dock`, `Toast`, `icons.tsx`, `model.ts` (pages → frames → layers from API data), `plans.ts` (sample plan, placement), `colour.ts`, `useMoodboardPaste.ts`, `SwapPicker.tsx` (swap a shopping-list piece's product), `frames/FloorPlanFrames.tsx`, `frames/RoomFrames.tsx` | Frames are pure views over hooks |
+| `rail/` | `RailPage.tsx` (the editor's `?view=` pages) → `SharePage`, `AssetsPage`, `SellersPage`, `StylesPage`; `railData.ts` (project items, seller groups, totals, CSV) | Read every room through `useProjectRoomData` |
+| `landing/` | `Landing.tsx` (the `/` page), `demoRoom.ts` (a hand-placed layout for the live 3D viewer) | No API calls |
 | `viewer/` | `RoomViewer.tsx` + `viewer3d.ts` (live 360° room / rendered `room.glb`), `models.ts` (GLB cache via `/api`), `pieces.ts` (clay stand-ins), `three-kit.ts` (shared terrazzo, environment, furnish set, plan shots) | |
 | `sidepanel/` | `SidePanel.tsx` (tabs), `ChatPanel.tsx`, `ShopPreview.tsx`, `StylePanel.tsx` (style dials), `PinterestPanel.tsx` (desktop only), `types.ts` | |
 | `styles/` | `studio.css`: one global sheet ported from the prototype; `style-editor.css` for the Style tab | class names, no CSS modules |

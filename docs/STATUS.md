@@ -21,6 +21,9 @@ A moodboard plus a floor plan → every room laid out in 3D with real, buyable f
 - Room positions on the plan are saved in the API (`planPosition`); drag a room on the Plan frame to move it. Positions an older studio kept in localStorage move to the API once.
 - Login with Supabase when `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are set: sign-in screen (email magic link, Google), Bearer token on every API call, sign out from the home avatar. Unset (local dev), nothing changes: no login, `x-dev-user`. Not tried against a real Supabase project yet.
 - Production API URL: `VITE_API_URL` (default `/api`, the dev proxy). See `apps/web/.env.example`.
+- Left rail project pages (`?view=` on the editor URL): **Share** (read-only summary of rooms, palettes and shopping lists; copy link, shopping list CSV, print / save as PDF; no public share links yet), **Assets** (every moodboard image, filter by room, open, remove), **Sellers** (chosen products grouped by IKEA / eBay / Etsy / Kijiji-Marketplace / links, with totals and outbound links), **Styles** (each room's palette, style name and key dials side by side).
+- Phone (≤600px) and tablet (≤900px) layouts: rail and pages/layers as a drawer, side panel as a bottom sheet on phones, one-finger pan and pinch zoom on the canvas, bigger touch targets. On desktop the left panel's collapse button now works (File on the rail brings it back).
+- Landing page at `/` (hero, how it works, the live 3D room, "Start a project"); the project carousel moved to `/projects` (`/home` and `/projects/:id` redirect). The desktop app opens on `/projects`.
 
 **Desktop app (`apps/desktop`)**: Electron shell for Mac: the studio, with pinterest.com as a side panel tab (persistent login, "+ Add to moodboard" on pins), unsigned `.dmg` via `npm run dist -w @hey-jenna/desktop`.
 
@@ -32,7 +35,6 @@ Style dials: shape dials steer sourcing, materials/lighting/palette dials steer 
 
 1. **Layout and props style dials** (symmetry, furniture float, rug shape, curtains, art and textile amounts…): unfinished work on branch `feat/dials-layout` (all tests pass, not reviewed).
 2. **Login in the desktop app:** the magic link and Google return to a web URL, not the app's `hj://studio/` page.
-3. Share, Assets, Sellers and Styles on the left rail ("coming soon"); phone and tablet layouts; the landing page as part of the app.
 
 Not checked with real keys yet: Claude chat and floor-plan reading, Etsy, eBay, Brave, Supabase login.
 

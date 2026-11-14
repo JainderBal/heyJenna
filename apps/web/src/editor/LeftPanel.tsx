@@ -13,9 +13,11 @@ interface Props {
   pages: Page[];
   frames: Frame[];
   onFrameOpen?: (f: Frame) => void;
+  /** Hide the panel (a drawer on phones and tablets). */
+  onCollapse?: () => void;
 }
 
-export function LeftPanel({ project, pages, frames, onFrameOpen }: Props) {
+export function LeftPanel({ project, pages, frames, onFrameOpen, onCollapse }: Props) {
   const navigate = useNavigate();
   const page = useEditorStore((s) => s.page);
   const goPage = useEditorStore((s) => s.goPage);
@@ -25,11 +27,11 @@ export function LeftPanel({ project, pages, frames, onFrameOpen }: Props) {
     <aside className="left" aria-label="File">
       <div className="file">
         <FileName project={project} />
-        <button className="ibtn" type="button" aria-label="Collapse panel">
+        <button className="ibtn" type="button" aria-label="Collapse panel" onClick={onCollapse}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2"><rect x="2" y="3" width="12" height="10" rx="1.5" /><path d="M6 3v10" /></svg>
         </button>
         <div className="meta">
-          <button className="back" type="button" onClick={() => navigate('/')}>
+          <button className="back" type="button" onClick={() => navigate('/projects')}>
             ← All projects
           </button>
         </div>

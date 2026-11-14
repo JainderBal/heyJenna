@@ -1,6 +1,6 @@
 /**
  * The infinite canvas: pan (drag empty space, space+drag, middle button, two-finger scroll),
- * zoom (ctrl/⌘ + wheel, pinch), drag frames, and animated focus/fit like the prototype's
+ * zoom (ctrl/⌘ + wheel, pinch; two fingers on a touch screen), drag frames (one finger pans instead), and animated focus/fit like the prototype's
  * focusOn()/fit(). The view lives in a ref and is written straight to the DOM so panning doesn't
  * re-render the frames.
  */
@@ -66,7 +66,8 @@ export function Canvas({ frames, body, children, onFrameClick }: CanvasProps) {
       if (!el) return;
       const r = el.getBoundingClientRect();
       if (!r.width || !r.height) return;
-      const z = Math.min((r.width - 140) / b.w, (r.height - 220) / b.h, 1);
+      const narrow = r.width < 600; // phones: less margin, the frames are small enough already
+      const z = Math.min((r.width - (narrow ? 32 : 140)) / b.w, (r.height - 220) / b.h, 1);
       const to: View = { z, x: (r.width - b.w * z) / 2 - b.x * z, y: Math.max(110, Math.min((r.height - b.h * z) / 2 + 30, 150)) - b.y * z };
       cancelAnimationFrame(anim.current);
       if (instant || reduceMotion()) {
@@ -166,12 +167,46 @@ export function Canvas({ frames, body, children, onFrameClick }: CanvasProps) {
 
   const drag = useRef<null | { type: 'pan'; sx: number; sy: number; vx: number; vy: number } | { type: 'move'; sx: number; sy: number; fx: number; fy: number; id: string; el: HTMLElement; moved: boolean }>(null);
 
+  /** Touch points down on the stage, for two-finger pinch zoom. */
+  const touches = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef<null | { d: number; z: number; mx: number; my: number; vx: number; vy: number }>(null);
+
+  function startPinch() {
+    const [a, b] = [...touches.current.values()];
+    const r = stage.current!.getBoundingClientRect();
+    const v = view.current;
+    drag.current = null;
+    pinch.current = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, z: v.z, mx: (a.x + b.x) / 2 - r.left, my: (a.y + b.y) / 2 - r.top, vx: v.x, vy: v.y };
+  }
+
   function onPointerDown(e: React.PointerEvent<HTMLElement>) {
     const t = e.target as HTMLElement;
     if (t.closest('[data-overlay]')) return; // dock, jenna, toast…
+    const touch = e.pointerType === 'touch';
+    if (touch && !t.closest('.viewer')) {
+      touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.current.size === 2) {
+        cancelAnimationFrame(anim.current);
+        startPinch();
+        stage.current?.setPointerCapture(e.pointerId);
+        return;
+      }
+    }
     const fr = t.closest<HTMLElement>('.frame');
-    const panning = space.current || e.button === 1 || !fr;
+    // on a touch screen one finger pans everywhere (a frame is selected, not dragged)
+    const panning = space.current || e.button === 1 || !fr || (touch && !t.closest(OWN_POINTER));
+    if (fr && panning && touch) {
+      const f = placedRef.current.find((x) => x.id === fr.dataset.id);
+      if (f && useEditorStore.getState().sel !== f.id) select(f.id);
+      if (f) onFrameClick?.(f);
+    }
     if (panning) {
+      if (fr && touch) {
+        cancelAnimationFrame(anim.current);
+        drag.current = { type: 'pan', sx: e.clientX, sy: e.clientY, vx: view.current.x, vy: view.current.y };
+        stage.current?.setPointerCapture(e.pointerId);
+        return;
+      }
       if (!fr && !space.current && e.button === 0 && useEditorStore.getState().sel) select(null);
       cancelAnimationFrame(anim.current);
       drag.current = { type: 'pan', sx: e.clientX, sy: e.clientY, vx: view.current.x, vy: view.current.y };
@@ -189,6 +224,19 @@ export function Canvas({ frames, body, children, onFrameClick }: CanvasProps) {
   }
 
   function onPointerMove(e: React.PointerEvent) {
+    if (touches.current.has(e.pointerId)) touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const p = pinch.current;
+    if (p && touches.current.size >= 2) {
+      const [a, b] = [...touches.current.values()];
+      const r = stage.current!.getBoundingClientRect();
+      const nz = Math.min(4, Math.max(0.1, (p.z * Math.hypot(a.x - b.x, a.y - b.y)) / p.d));
+      const mx = (a.x + b.x) / 2 - r.left;
+      const my = (a.y + b.y) / 2 - r.top;
+      // keep the world point under the pinch centre under the fingers
+      view.current = { z: nz, x: mx - ((p.mx - p.vx) * nz) / p.z, y: my - ((p.my - p.vy) * nz) / p.z };
+      apply();
+      return;
+    }
     const d = drag.current;
     if (!d) return;
     const dx = e.clientX - d.sx;
@@ -204,6 +252,11 @@ export function Canvas({ frames, body, children, onFrameClick }: CanvasProps) {
   }
 
   function onPointerUp(e: React.PointerEvent) {
+    touches.current.delete(e.pointerId);
+    if (pinch.current) {
+      if (touches.current.size < 2) pinch.current = null;
+      return;
+    }
     const d = drag.current;
     drag.current = null;
     stage.current?.classList.remove('panning');

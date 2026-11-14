@@ -108,7 +108,8 @@ function createWindow() {
   });
 
   // ── studio
-  const studioUrl = isDev ? DEV_WEB_URL : `${SCHEME}://${STUDIO_HOST}/`;
+  // the studio opens on the project carousel (/projects), not the web's landing page at /
+  const studioUrl = new URL('/projects', isDev ? DEV_WEB_URL : `${SCHEME}://${STUDIO_HOST}/`).toString();
   const studioOrigin = new URL(studioUrl).origin;
   studio.webContents.setWindowOpenHandler(({ url }) => {
     if (!isPinterestHost(hostOf(url))) {

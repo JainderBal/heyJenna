@@ -3,7 +3,7 @@
  * stream (events.ts) and mutations invalidate the same things.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
 import type { BulkRoomInput, ChatTurn, PlanPosition, FurnitureType, ProjectInput, StyleDialsPatch, Wall } from '@hey-jenna/contracts';
 import { api, apiBlob, apiUrl, isApiError } from './client';
 import { authEnabled } from './auth';
@@ -422,6 +422,60 @@ export function useChat(roomId: string) {
         if (a.type === 'listings_searched') qc.invalidateQueries({ queryKey: qk.listings(roomId) });
         if (a.type === 'layout_generated') qc.invalidateQueries({ queryKey: qk.layouts(roomId) });
       }
+    },
+  });
+}
+
+/* ---------------- whole project (left rail pages: Share, Assets, Sellers, Styles) ---------------- */
+
+/** Every room's style, newest layout, listings and moodboard images, fetched with the same keys as the room hooks. */
+export function useProjectRoomData(roomIds: string[]) {
+  const token = useAccessToken();
+  const styles = useQueries({
+    queries: roomIds.map((id) => ({
+      queryKey: qk.style(id),
+      queryFn: async () => {
+        try {
+          return await api<StyleResponse>(`/rooms/${id}/style`);
+        } catch (e) {
+          if (isApiError(e, 404)) return null;
+          throw e;
+        }
+      },
+    })),
+  });
+  const layouts = useQueries({ queries: roomIds.map((id) => ({ queryKey: qk.layouts(id), queryFn: () => api<Layout[]>(`/rooms/${id}/layouts`) })) });
+  const listings = useQueries({ queries: roomIds.map((id) => ({ queryKey: qk.listings(id), queryFn: () => api<Listing[]>(`/rooms/${id}/listings`) })) });
+  const boards = useQueries({
+    queries: roomIds.map((id) => ({
+      queryKey: qk.moodboard(id),
+      // same cache entry as useMoodboardImages: store the raw list, add src on read
+      queryFn: async () => (await api<MoodboardImagesResponse>(`/rooms/${id}/moodboard`)).images,
+      select: (images: MoodboardImage[]) => images.map((i) => ({ ...i, src: moodSrc(i.url, token) })),
+    })),
+  });
+  const all = [...styles, ...layouts, ...listings, ...boards];
+  return {
+    isLoading: all.some((q) => q.isLoading),
+    error: all.find((q) => q.error)?.error ?? null,
+    rooms: roomIds.map((id, i) => ({
+      roomId: id,
+      style: styles[i]?.data,
+      layout: layouts[i]?.data ? (layouts[i].data![0] ?? null) : undefined,
+      listings: listings[i]?.data,
+      images: boards[i]?.data ?? [],
+    })),
+  };
+}
+
+/** DELETE a moodboard image of any room (the Assets page removes across rooms). */
+export function useDeleteRoomImage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ roomId, imageId }: { roomId: string; imageId: string }) => api(`/rooms/${roomId}/moodboard/images/${imageId}`, { method: 'DELETE' }),
+    onSuccess: (_v, { roomId }) => {
+      qc.invalidateQueries({ queryKey: qk.moodboard(roomId) });
+      qc.invalidateQueries({ queryKey: qk.style(roomId) });
     },
   });
 }

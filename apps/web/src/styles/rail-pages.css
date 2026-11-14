@@ -1,0 +1,131 @@
+/* Left rail pages (rail/*): Share, Assets, Sellers, Styles. They take the canvas's grid cell. */
+.rp{position:relative;min-width:0;overflow:auto;background:var(--canvas);font-size:12.5px}
+.rp-in{max-width:1180px;margin:0 auto;padding:28px 32px 64px;display:grid;gap:16px;align-content:start}
+.rp-h{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.rp-ht{flex:1;min-width:220px}
+.rp-h h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.01em}
+.rp-h p{margin:4px 0 0;color:var(--muted);font-size:13px}
+.rp-h p b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+.rp-acts{display:flex;gap:8px;flex-wrap:wrap}
+.rp-note{margin:-6px 0 0;color:var(--muted);font-size:12px}
+.rp-err{margin:16px 32px 0;padding:8px 12px;border-radius:8px;background:#FFF4E5;color:#9A6B00}
+.rp-card{background:#fff;border:1px solid var(--line);border-radius:12px}
+.rp-empty{display:grid;justify-items:start;gap:8px;padding:28px;background:#fff;border:1px dashed #C9C9C9;border-radius:12px}
+.rp-empty b{font-size:14px}
+.rp-empty p{margin:0;color:var(--muted)}
+.rp .link{background:none;border:0;padding:0;cursor:pointer}
+.rp .link:hover{color:var(--ink)}
+.rp a.pbtn{text-decoration:none;display:inline-flex;align-items:center}
+.sp-flex{flex:1}
+.rp-sw{display:flex;gap:4px}
+.rp-sw span{width:26px;height:26px;border-radius:5px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
+.rp-sw.sm span{width:16px;height:16px;border-radius:4px}
+.rp-toast .toast{position:fixed;bottom:24px}
+
+/* share */
+.share-rooms{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(340px,100%),1fr));gap:16px;align-items:start}
+.share-room{padding:16px;display:grid;gap:12px}
+.share-room header,.style-card header{display:flex;align-items:center;gap:8px}
+.share-room h2,.style-card h2,.seller-group h2{margin:0;font-size:14px;font-weight:600}
+.share-room header small{color:var(--muted);font-variant-numeric:tabular-nums}
+.share-room header .link{margin-left:auto}
+.share-style{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.share-style b{display:block;font-weight:600}
+.share-style small{color:var(--muted)}
+.share-thumbs{display:flex;gap:4px;margin-left:auto}
+.share-thumbs img{width:40px;height:40px;object-fit:cover;border-radius:6px;display:block}
+.rp-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.rp-table th{text-align:left;font-weight:500;color:var(--muted);font-size:11px;padding:0 0 6px;border-bottom:1px solid var(--line)}
+.rp-table td{padding:7px 8px 7px 0;border-bottom:1px solid var(--line-2);vertical-align:top}
+.rp-table td:first-child{max-width:0;width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rp-table td a{color:inherit;text-decoration:none}
+.rp-table td a:hover{text-decoration:underline}
+.rp-table .num{text-align:right;padding-right:0;white-space:nowrap}
+.rp-table tr.rp-sugg td{color:var(--muted)}
+.rp-table tfoot td{border:0;padding-top:10px;font-weight:700;font-size:13px}
+.share-total{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;font-size:13px}
+.share-total b{font-size:16px;font-variant-numeric:tabular-nums}
+.print-only{display:none}
+
+/* assets */
+.rp-chips{display:flex;gap:6px;flex-wrap:wrap}
+.rp-chips button{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;background:#fff;border:1px solid var(--line);font-weight:500}
+.rp-chips button:hover{border-color:var(--faint)}
+.rp-chips button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.rp-chips small{color:var(--faint);font-variant-numeric:tabular-nums}
+.rp-chips button.on small{color:rgba(255,255,255,.6)}
+.assets{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(180px,42vw),1fr));gap:12px}
+.asset{margin:0;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.asset-img{display:block;width:100%;aspect-ratio:4/5;background:var(--hover)}
+.asset-img img{width:100%;height:100%;object-fit:cover;display:block}
+.asset figcaption{display:flex;align-items:center;gap:6px;padding:8px 8px 8px 10px}
+.asset .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.asset small{color:var(--faint);font:500 10.5px var(--mono)}
+.asset-x{width:24px;height:24px;border-radius:6px;display:grid;place-items:center;color:var(--muted);font-size:16px;line-height:1}
+.asset-x:hover{background:var(--hover);color:#C0392B}
+.asset-x:disabled{opacity:.4}
+.lightbox{position:fixed;inset:0;z-index:40;background:rgba(20,20,20,.6);display:grid;place-items:center;padding:24px}
+.lb-card{background:#fff;border-radius:14px;overflow:hidden;max-width:min(900px,100%);max-height:100%;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.lb-card img{display:block;max-width:100%;max-height:calc(100vh - 140px);object-fit:contain;background:var(--hover);min-height:120px}
+.lb-bar{display:flex;align-items:center;gap:8px;padding:10px 12px;flex-wrap:wrap}
+.lb-bar small{color:var(--muted)}
+.lb-bar a.pbtn{color:inherit}
+.lb-x{font-size:18px}
+
+/* sellers */
+.seller-sum{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(170px,40vw),1fr));gap:10px}
+.seller-tile{display:grid;gap:2px;padding:12px 14px;text-align:left}
+.seller-tile:hover{border-color:var(--faint)}
+.seller-tile b{font-size:13px}
+.seller-tile span{color:var(--muted)}
+.seller-tile strong{font-size:16px;font-variant-numeric:tabular-nums;margin-top:4px}
+.seller-groups{display:grid;gap:16px}
+.seller-group{padding:14px 16px;scroll-margin-top:16px}
+.seller-group header{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.seller-group header small{color:var(--muted)}
+.seller-total{font-size:14px;font-variant-numeric:tabular-nums}
+.seller-items{list-style:none;margin:0;padding:0}
+.seller-items li{display:grid;grid-template-columns:44px minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-2)}
+.seller-items li:last-child{border-bottom:0}
+.seller-items img,.seller-items .ph{width:44px;height:44px;border-radius:6px;object-fit:cover;display:block;background:var(--hover)}
+.si-t{min-width:0}
+.si-t b{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.si-t small{color:var(--muted)}
+.si-t .link{font-size:inherit;color:var(--muted)}
+.seller-items .p{font-weight:600;font-variant-numeric:tabular-nums}
+.seller-items .plink{margin:0}
+
+/* styles */
+.styles{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr));gap:16px;align-items:start}
+.style-card{padding:16px;display:grid;gap:14px}
+.style-name b{display:block;font-size:16px;font-weight:600;text-transform:capitalize}
+.style-name small{color:var(--muted)}
+.style-pal{display:grid;gap:6px}
+.pal-row{display:flex;align-items:center;gap:10px}
+.pal-row small{color:var(--muted);font-size:11px}
+.style-tags{display:flex;gap:4px;flex-wrap:wrap}
+.style-tags span{background:var(--hover);border-radius:999px;padding:3px 9px;font-size:11.5px}
+.dials{margin:0;display:grid;gap:9px}
+.dial dt{display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);margin-bottom:4px}
+.dial dd{margin:0;position:relative;height:10px}
+.dial .track{position:absolute;left:0;right:0;top:4px;height:2px;border-radius:2px;background:var(--line)}
+.dial i{position:absolute;top:0;width:10px;height:10px;margin-left:-5px;border-radius:50%;background:var(--ink);box-shadow:0 0 0 2px #fff}
+.style-none{display:grid;gap:10px}
+.style-acts{display:flex;gap:6px}
+.style-acts .pbtn{flex:1}
+
+/* print / save as PDF: only the Share summary, no studio chrome */
+@media print{
+  html,body,#root{height:auto;overflow:visible;background:#fff}
+  .app.rp-on{display:block;height:auto}
+  .app.rp-on>:not(.rp){display:none!important}
+  .rp{overflow:visible;background:#fff}
+  .rp-in{padding:0;max-width:none}
+  .rp-acts,.no-print,.rp-toast{display:none!important}
+  .print-only{display:block}
+  .share-foot{color:var(--muted);font-size:11px;margin-top:8px}
+  .share-rooms{grid-template-columns:1fr 1fr}
+  .rp-card{break-inside:avoid;border-color:#ddd}
+  .rp-table td a{text-decoration:none}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}

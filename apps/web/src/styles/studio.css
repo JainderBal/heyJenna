@@ -140,6 +140,19 @@ svg{display:block}
 .logo-btn{display:block;margin-bottom:10px;border-radius:8px}
 .logo-btn .logo{margin:0}
 .shot{width:100%;height:100%;object-fit:cover;display:block}
+/* 3D floor plan: the rendered picture with clickable rooms and labels over it */
+.plan3d{position:relative;width:100%;height:100%;overflow:hidden}
+.plan3d-map{position:absolute;inset:0;width:100%;height:100%}
+.p3room polygon{fill:transparent;stroke:transparent;stroke-width:3;cursor:pointer}
+.p3room.hot polygon{fill:rgba(13,153,255,.12);stroke:var(--select)}
+.p3room:not(.on).hot polygon{fill:rgba(30,30,30,.05);stroke:#8A8A8A}
+.p3label{pointer-events:none}
+.p3label rect{fill:rgba(255,255,255,.94);stroke:#E6E6E6;stroke-width:1.5}
+.p3label text{fill:#7A7A7A;font-family:Inter,system-ui,sans-serif;font-weight:500}
+.p3room.on .p3label rect{fill:#fff;stroke:var(--select);stroke-width:2.5}
+.p3room.on .p3label text{fill:#1E1E1E;font-weight:600}
+.plan3d-turn{position:absolute;right:10px;bottom:10px;display:flex;gap:6px}
+.plan3d-turn .pbtn{min-width:30px;font-size:15px;line-height:1}
 .dropf{height:100%;display:grid;place-content:center;justify-items:center;text-align:center;gap:12px;border:2px dashed #C9C9C9;background:#FAFAFA;padding:30px}
 .dropf h3{margin:0;font-size:20px}
 .dropf p{margin:0;color:var(--muted);font-size:13px;max-width:34ch}

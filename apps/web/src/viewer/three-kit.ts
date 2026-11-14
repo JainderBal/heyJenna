@@ -316,9 +316,44 @@ export function roomKind(name: string): string {
  * a light tint of the palette, low white walls with a door gap, the room's furniture set), with a
  * label pill over each room. Cached by palette, rooms and size.
  */
-export function planShot(R: PlanShotRoom[], palette: string[], W: number, H: number): HTMLCanvasElement {
+/**
+ * The isometric camera over the whole plan. `turn` (0–3) walks it round the plan in quarter turns.
+ * Shared by planShot and planShotMap so the picture and its click map line up.
+ */
+function planCamera(R: PlanShotRoom[], W: number, H: number, turn: number) {
+  const minX = Math.min(...R.map((p) => p.x));
+  const minZ = Math.min(...R.map((p) => p.z));
+  const maxX = Math.max(...R.map((p) => p.x + p.w));
+  const maxZ = Math.max(...R.map((p) => p.z + p.d));
+  const cx = (minX + maxX) / 2;
+  const cz = (minZ + maxZ) / 2;
+  const span = Math.max(maxX - minX, maxZ - minZ);
+  const a = W / H;
+  const v = span * 0.6;
+  const cam = new THREE.OrthographicCamera(-v * a, v * a, v, -v, 0.1, 100);
+  const ang = Math.PI / 4 + (((turn % 4) + 4) % 4) * (Math.PI / 2);
+  const el = 0.8;
+  cam.position.set(Math.sin(ang) * Math.cos(el) * 30, Math.sin(el) * 30, Math.cos(ang) * Math.cos(el) * 30);
+  cam.lookAt(0, 0, 0);
+  cam.updateProjectionMatrix();
+  cam.updateMatrixWorld();
+  return { cam, cx, cz, span };
+}
+
+/** Where each room lands in a planShot picture (pixels): its floor outline and its centre, for clicks and labels. */
+export function planShotMap(R: PlanShotRoom[], W: number, H: number, turn = 0): { floor: [number, number][]; centre: [number, number] }[] {
+  if (!R.length) return [];
+  const { cam, cx, cz } = planCamera(R, W, H, turn);
+  const px = (x: number, z: number): [number, number] => {
+    const p = new THREE.Vector3(x - cx, 0.03, z - cz).project(cam);
+    return [((p.x + 1) / 2) * W, ((1 - p.y) / 2) * H];
+  };
+  return R.map(({ x, z, w, d }) => ({ floor: [px(x, z), px(x + w, z), px(x + w, z + d), px(x, z + d)], centre: px(x + w / 2, z + d / 2) }));
+}
+
+export function planShot(R: PlanShotRoom[], palette: string[], W: number, H: number, turn = 0, labels = true): HTMLCanvasElement {
   const P = pal6(palette);
-  const key = ['plan', P.join(''), R.map((r) => [r.name, r.x, r.z, r.w, r.d, r.kind, (r.open ?? []).join('+')].join(':')).join(','), W, H].join('|');
+  const key = ['plan', P.join(''), R.map((r) => [r.name, r.x, r.z, r.w, r.d, r.kind, (r.open ?? []).join('+')].join(':')).join(','), W, H, turn, labels].join('|');
   const hit = SHOTS.get(key);
   if (hit) return hit;
   const r = shotRenderer(W, H);
@@ -368,19 +403,13 @@ export function planShot(R: PlanShotRoom[], palette: string[], W: number, H: num
   const sh = Math.max(12, span);
   Object.assign(sun.shadow.camera, { left: -sh, right: sh, top: sh, bottom: -sh });
   scene.add(sun);
-  const a = W / H;
-  const v = span * 0.6;
-  const cam = new THREE.OrthographicCamera(-v * a, v * a, v, -v, 0.1, 100);
-  const ang = Math.PI / 4;
-  const el = 0.8;
-  cam.position.set(Math.sin(ang) * Math.cos(el) * 30, Math.sin(el) * 30, Math.cos(ang) * Math.cos(el) * 30);
-  cam.lookAt(0, 0, 0);
-  cam.updateProjectionMatrix();
+  const { cam } = planCamera(R, W, H, turn);
   r.render(scene, cam);
   const out = grabShot(r, W, H);
   // room labels: a white pill over each room's centre
   const c2 = out.getContext('2d')!;
   const sc = W / 520;
+  if (!labels) R = [];
   c2.font = `600 ${Math.round(12 * sc)}px Inter, system-ui, sans-serif`;
   c2.textAlign = 'center';
   c2.textBaseline = 'middle';

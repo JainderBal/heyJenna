@@ -359,6 +359,21 @@ export function useDeleteLayoutObject(roomId: string, layoutId: string) {
   });
 }
 
+/** POST …/objects: put one of the room's products into the layout (where given, else the best free spot). */
+export interface AddObjectBody {
+  listingId: string;
+  x?: number;
+  y?: number;
+  rotationDeg?: number;
+}
+export function useAddLayoutObject(roomId: string, layoutId: string) {
+  const store = useStoreEdit(roomId, layoutId);
+  return useMutation({
+    mutationFn: (body: AddObjectBody) => api<EditResult>(`/rooms/${roomId}/layouts/${layoutId}/objects`, { method: 'POST', body }),
+    onSuccess: store,
+  });
+}
+
 export const useShoppingList = (roomId: string | undefined, layoutId: string | undefined) =>
   useQuery({
     queryKey: qk.shoppingList(roomId ?? '', layoutId ?? ''),

@@ -17,7 +17,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { errorText } from '../api/client';
-import { useDeleteLayoutObject, usePatchLayoutObject, type ObjectEdit } from '../api/hooks';
+import { useAddLayoutObject, useDeleteLayoutObject, usePatchLayoutObject, type AddObjectBody, type ObjectEdit } from '../api/hooks';
 import type { EditResult, Layout, Room } from '../api/types';
 import { shortTitle } from '../editor/model';
 import { createViewer, draggable, type RenderModel, type Viewer, type ViewerScene, type ViewerHooks, type ViewKey, type ViewMode } from './viewer3d';
@@ -77,7 +77,10 @@ export function RoomViewer({ roomId, layout, room, palette, render = null, mode 
   const [rebuild, setRebuild] = useState(0);
   const patch = usePatchLayoutObject(roomId, layout?.id ?? '');
   const del = useDeleteLayoutObject(roomId, layout?.id ?? '');
-  const busy = patch.isPending || del.isPending;
+  const add = useAddLayoutObject(roomId, layout?.id ?? '');
+  const busy = patch.isPending || del.isPending || add.isPending;
+  // the last removed product, so "Undo" can put it back (pieces without a product can't come back this way)
+  const [undo, setUndo] = useState<{ name: string; body: AddObjectBody } | null>(null);
   const sel = layout?.objects.find((o) => o.id === selId) ?? null;
   const done = (r: EditResult) => setMsg(r.warnings.length ? { text: r.warnings.join(' · ').replace(/_/g, ' '), error: false } : null);
   const failed = (e: unknown) => {
@@ -97,9 +100,26 @@ export function RoomViewer({ roomId, layout, room, palette, render = null, mode 
   function remove() {
     if (!sel || busy) return;
     const id = sel.id;
+    const name = sel.product ? shortTitle(sel.product.title) : sel.type.replace(/_/g, ' ');
+    const back: AddObjectBody | null = sel.product
+      ? sel.mount === 'wall'
+        ? { listingId: sel.product.listingId } // a wall piece goes back on the best free wall spot
+        : { listingId: sel.product.listingId, x: sel.position.x, y: sel.position.y, rotationDeg: sel.rotation_deg ?? 0 }
+      : null;
     del.mutate(id, {
       onSuccess: (r) => {
         setSelId(null);
+        done(r);
+        setUndo(back ? { name, body: back } : null);
+      },
+      onError: failed,
+    });
+  }
+  function putBack() {
+    if (!undo || busy) return;
+    add.mutate(undo.body, {
+      onSuccess: (r) => {
+        setUndo(null);
         done(r);
       },
       onError: failed,
@@ -111,6 +131,7 @@ export function RoomViewer({ roomId, layout, room, palette, render = null, mode 
     onPick: (id) => {
       setSelId(id);
       setMsg(null);
+      setUndo(null);
     },
     onDrop: (id, x, y) => edit(id, { x, y }),
   };
@@ -227,10 +248,18 @@ export function RoomViewer({ roomId, layout, room, palette, render = null, mode 
           </button>
         </div>
       )}
-      {editable && layout && showing === 'render' && !msg && <span className="vmsg">To move furniture, press “Live · edit”</span>}
-      {canEdit && !sel && !msg && layout.objects.length > 0 && <span className="vmsg">Click a piece to move, turn or remove it</span>}
+      {editable && layout && showing === 'render' && !msg && !undo && <span className="vmsg">To move furniture, press “Live · edit”</span>}
+      {canEdit && !sel && !msg && !undo && layout.objects.length > 0 && <span className="vmsg">Click a piece to move, turn or remove it</span>}
       {canEdit && sel && !msg && draggable(sel) && <span className="vmsg">Drag to move · R turns · Delete removes</span>}
-      {canEdit && msg && (
+      {canEdit && undo && (
+        <span className="vmsg vundo" role="status" onPointerDown={stop}>
+          Removed {undo.name}
+          <button type="button" disabled={busy} onClick={putBack}>
+            Undo
+          </button>
+        </span>
+      )}
+      {canEdit && msg && !undo && (
         <span className={`vmsg${msg.error ? ' err' : ''}`} role={msg.error ? 'alert' : 'status'}>
           {msg.text}
         </span>

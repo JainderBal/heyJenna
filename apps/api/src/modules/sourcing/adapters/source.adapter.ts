@@ -19,6 +19,8 @@ export interface SourceQuery {
   /** e.g. "mid century teak coffee table" */
   text: string;
   limit: number;
+  /** The same query in parts, for sources that do better with short searches (IKEA). */
+  parts?: { colour: string; keyword: string; typeText: string };
 }
 
 /** Every product source (eBay, web search, mock…) plugs in through this shape. */

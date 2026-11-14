@@ -16,7 +16,7 @@ import { ListingsRepository, NewListing } from './listings.repository';
 import { toListingResponse } from './mappers/listing.mapper';
 import { classifyTitle } from './matching/classify';
 import { buildListing } from './matching/listing-builder';
-import { buildQuery } from './matching/query';
+import { buildQuery, queryParts } from './matching/query';
 import { shoppingList, Slot } from './matching/shopping-list';
 
 export interface ChosenSlot {
@@ -59,7 +59,7 @@ export class SourcingService {
         const perSlot = dto.perType * slot.count;
         const results = await Promise.all(
           active.map((a) =>
-            a.search({ type: slot.type, text: query, limit: perSlot * 2 }).catch((e: Error) => {
+            a.search({ type: slot.type, text: query, limit: perSlot * 2, parts: queryParts(slot.type, style) }).catch((e: Error) => {
               summary.errors.push(`${a.name} (${slot.type}): ${e.message}`);
               return [];
             }),

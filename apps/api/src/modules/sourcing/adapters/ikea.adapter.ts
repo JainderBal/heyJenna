@@ -34,20 +34,22 @@ export class IkeaAdapter implements SourceAdapter {
     return true;
   }
 
+  /** IKEA search does best with short queries: colour + type, style word + type, type alone; merged. */
   async search(q: SourceQuery): Promise<RawListing[]> {
-    const locale = this.config.get('IKEA_LOCALE'); // e.g. "ca/en"
-    const url = new URL(`https://sik.search.blue.cdtapps.com/${locale}/search-result-page`);
-    url.searchParams.set('q', q.text);
-    url.searchParams.set('size', String(Math.min(24, q.limit * 2)));
-    url.searchParams.set('types', 'PRODUCT');
-    const res = await fetch(url, { headers: { 'user-agent': USER_AGENT, accept: 'application/json' }, signal: AbortSignal.timeout(10_000) });
-    if (!res.ok) throw new Error(`IKEA search failed: HTTP ${res.status}`);
-    const body = (await res.json()) as { searchResultPage?: { products?: { main?: { items?: { product?: IkeaProduct }[] } } } };
-    const products = (body.searchResultPage?.products?.main?.items ?? []).map((i) => i.product).filter((p): p is IkeaProduct => !!p);
-
+    const texts = q.parts
+      ? [`${q.parts.colour} ${q.parts.typeText}`, `${q.parts.keyword} ${q.parts.typeText}`, q.parts.typeText]
+      : [q.text];
+    const seen = new Set<string>();
+    const products: IkeaProduct[] = [];
+    for (const text of [...new Set(texts.map((t) => t.trim()))]) {
+      for (const p of await this.query(text, q.limit))
+        if (!seen.has(p.itemNo) && !NOT_FURNITURE.test(p.typeName) && classifyTitle(p.typeName) === q.type) {
+          seen.add(p.itemNo);
+          products.push(p);
+        }
+    }
     return products
-      .filter((p) => !NOT_FURNITURE.test(p.typeName) && classifyTitle(p.typeName) === q.type)
-      .slice(0, q.limit)
+      .slice(0, q.limit * 2)
       .map((p) => {
         const colours = (p.colors ?? []).map((c) => c.name).join(' ');
         return {
@@ -64,6 +66,17 @@ export class IkeaAdapter implements SourceAdapter {
           location: null,
         } satisfies RawListing;
       });
+  }
+
+  private async query(text: string, limit: number): Promise<IkeaProduct[]> {
+    const url = new URL(`https://sik.search.blue.cdtapps.com/${this.config.get('IKEA_LOCALE')}/search-result-page`);
+    url.searchParams.set('q', text);
+    url.searchParams.set('size', String(Math.min(24, limit * 2)));
+    url.searchParams.set('types', 'PRODUCT');
+    const res = await fetch(url, { headers: { 'user-agent': USER_AGENT, accept: 'application/json' }, signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) throw new Error(`IKEA search failed: HTTP ${res.status}`);
+    const body = (await res.json()) as { searchResultPage?: { products?: { main?: { items?: { product?: IkeaProduct }[] } } } };
+    return (body.searchResultPage?.products?.main?.items ?? []).map((i) => i.product).filter((p): p is IkeaProduct => !!p);
   }
 }
 

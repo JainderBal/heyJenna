@@ -11,7 +11,9 @@ const Env = z.object({
   SUPABASE_BUCKET: z.string().default('moodboards'),
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL: z.string().default('claude-opus-5-5'),
-  SOURCES: z.string().default('mock,ebay,web'),
+  SOURCES: z.string().default('ikea,ebay,web'),
+  /** IKEA country/language, as in ikea.com/ca/en. */
+  IKEA_LOCALE: z.string().regex(/^[a-z]{2}\/[a-z]{2}$/).default('ca/en'),
   EBAY_CLIENT_ID: z.string().optional(),
   EBAY_CLIENT_SECRET: z.string().optional(),
   EBAY_MARKETPLACE: z.string().default('EBAY_CA'),

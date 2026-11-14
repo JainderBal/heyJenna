@@ -1,7 +1,7 @@
 /* Phone and tablet layouts, and the desktop's collapsed left panel. Loaded after studio.css; the desktop
    layout (wider than 900px) is unchanged apart from the left panel's collapse button now working.
-   Tablet (≤900px): rail stays, the left panel is a drawer (☰), the side panel slides over from the right.
-   Phone (≤600px): the rail joins the drawer, the side panel is a bottom sheet, the tool dock hides. */
+   Tablet (≤900px): rail and left panel stay docked (narrower), the side panel slides over from the right.
+   Phone (≤600px): the left panel and the rail are a drawer (☰), the side panel is a bottom sheet, the tool dock hides. */
 .mnav,.nav-scrim{display:none}
 
 /* desktop: "Collapse panel" in the left panel, File on the rail brings it back */
@@ -13,16 +13,12 @@
 .homev,.landing,.rp{overflow-x:hidden}
 
 @media (max-width:900px){
-  .app,.app.sp-on,.app.lp-off,.app.lp-off.sp-on{grid-template-columns:56px minmax(0,1fr)}
-  .rail{grid-column:1;grid-row:1;overflow-y:auto;overflow-x:hidden;padding:10px 0}
+  /* tablet: the left panel stays docked as on desktop, just narrower; the side panel slides over */
+  .app,.app.sp-on{grid-template-columns:56px 240px minmax(0,1fr) 0}
+  .app.lp-off,.app.lp-off.sp-on{grid-template-columns:56px 0 minmax(0,1fr) 0}
+  .left{display:flex}
+  .rail{overflow-y:auto;overflow-x:hidden;padding:10px 0}
   .rail .item{width:48px}
-  .stage,.rp{grid-column:2;grid-row:1}
-  .left,.app.lp-off .left{display:flex;overflow:hidden;position:fixed;top:0;bottom:0;left:56px;width:min(300px,calc(100vw - 56px));z-index:30;border-right:1px solid var(--line);
-    transform:translateX(calc(-100% - 56px));transition:transform .22s cubic-bezier(.2,.9,.3,1),visibility 0s .22s;visibility:hidden;box-shadow:10px 0 30px rgba(0,0,0,.12)}
-  .app.nav-on .left{transform:none;visibility:visible;transition:transform .22s cubic-bezier(.2,.9,.3,1)}
-  .left .layers{overscroll-behavior:contain}
-  .nav-scrim{display:block;position:fixed;inset:0;z-index:29;background:rgba(20,20,20,.28)}
-  .mnav{display:grid;place-items:center;position:fixed;top:12px;left:68px;z-index:15;width:40px;height:40px;border-radius:10px;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.1)}
   .rp-in{padding:64px 20px 48px}
   .sp{max-width:100vw}
 }
@@ -30,6 +26,14 @@
 
 @media (max-width:600px){
   .app,.app.sp-on,.app.lp-off,.app.lp-off.sp-on{grid-template-columns:minmax(0,1fr)}
+  .rail,.stage,.rp{grid-row:1}
+  /* phone: the left panel is a drawer (☰) */
+  .left,.app.lp-off .left{display:flex;overflow:hidden;position:fixed;top:0;bottom:0;left:56px;width:min(300px,calc(100vw - 56px));z-index:30;border-right:1px solid var(--line);
+    transform:translateX(calc(-100% - 56px));transition:transform .22s cubic-bezier(.2,.9,.3,1),visibility 0s .22s;visibility:hidden;box-shadow:10px 0 30px rgba(0,0,0,.12)}
+  .app.nav-on .left{transform:none;visibility:visible;transition:transform .22s cubic-bezier(.2,.9,.3,1)}
+  .left .layers{overscroll-behavior:contain}
+  .nav-scrim{display:block;position:fixed;inset:0;z-index:29;background:rgba(20,20,20,.28)}
+  .mnav{display:grid;place-items:center;position:fixed;top:12px;z-index:15;width:40px;height:40px;border-radius:10px;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.1)}
   .rail{position:fixed;top:0;bottom:0;left:0;width:56px;z-index:31;transform:translateX(-100%);visibility:hidden;transition:transform .22s cubic-bezier(.2,.9,.3,1),visibility 0s .22s;border-right:1px solid var(--line)}
   .app.nav-on .rail{transform:none;visibility:visible;transition:transform .22s cubic-bezier(.2,.9,.3,1)}
   .stage,.rp{grid-column:1}

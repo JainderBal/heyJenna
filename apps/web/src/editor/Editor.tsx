@@ -2,7 +2,7 @@
  * The studio editor for one project: icon rail | left panel (pages, layers) | canvas | side panel.
  * URL: /p/:projectId?page=plan|<roomId>&sel=<frameId>[/<layer>] (kept in sync with the store);
  * ?view=share|assets|sellers|styles shows a left-rail page (rail/) in the canvas's place.
- * Phones and tablets: the rail and the left panel slide in as a drawer (the ☰ button), see styles/responsive.css.
+ * Phones: the rail and the left panel slide in as a drawer (the ☰ button), see styles/responsive.css.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useParams, useSearchParams } from 'react-router-dom';
@@ -219,8 +219,8 @@ export function Editor() {
 }
 
 const NONE: string[] = [];
-/** The phone / tablet layout (styles/responsive.css): the left panel is a drawer there. */
-const small = () => typeof matchMedia === 'function' && matchMedia('(max-width: 900px)').matches;
+/** The phone layout (styles/responsive.css): the left panel is a drawer there. */
+const small = () => typeof matchMedia === 'function' && matchMedia('(max-width: 600px)').matches;
 
 const EVENT_TOASTS: Partial<Record<RoomEvent['type'], string | ((e: RoomEvent) => string)>> = {
   'listings.search.finished': (e) => (typeof e.data.listingCount === 'number' ? `found ${e.data.listingCount} products` : 'search finished: products are in'),

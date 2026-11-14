@@ -1,0 +1,76 @@
+// Supabase is Postgres, so this schema runs on Supabase as-is.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Room {
+  id        String    @id @default(uuid()) @db.Uuid
+  ownerId   String    @map("owner_id")           // Supabase auth user id
+  name      String
+  floorPlan Json      @map("floor_plan")         // contracts FloorPlan
+  needs     String[]
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  style     Style?
+  listings  Listing[]
+  layouts   Layout[]
+
+  @@index([ownerId])
+  @@map("rooms")
+}
+
+model Style {
+  id        String   @id @default(uuid()) @db.Uuid
+  roomId    String   @unique @map("room_id") @db.Uuid
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  imageKeys String[] @map("image_keys")          // where the moodboard images are stored
+  profile   Json                                  // contracts StyleProfile
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("styles")
+}
+
+model Listing {
+  id            String   @id @default(uuid()) @db.Uuid
+  roomId        String   @map("room_id") @db.Uuid
+  room          Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  source        String
+  externalId    String   @map("external_id")
+  url           String
+  title         String
+  type          String
+  price         Float?
+  currency      String
+  imageUrl      String?  @map("image_url")
+  condition     String
+  location      String?
+  size          Json?
+  sizeEstimated Boolean  @map("size_estimated")
+  colours       String[]
+  score         Float
+  scoreDetail   Json     @map("score_detail")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@unique([roomId, source, externalId])
+  @@index([roomId, type])
+  @@map("listings")
+}
+
+model Layout {
+  id        String   @id @default(uuid()) @db.Uuid
+  roomId    String   @map("room_id") @db.Uuid
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  data      Json                                  // engine output: objects, zones, checks
+  summary   Json                                  // { pass, warn, fail }
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([roomId])
+  @@map("layouts")
+}

@@ -23,7 +23,7 @@ export function shoppingList(plan: FloorPlan, needs: string[]): Slot[] {
     { type: 'art', count: 1, required: false, why: 'a focal point on a blank wall' },
     { type: 'ceiling_light', count: 1, required: false, why: 'general light' },
   ];
-  if (area >= 12) slots.push({ type: 'armchair', count: area > 22 ? 2 : 1, required: false, why: 'extra seat facing the sofa' });
+  if (area >= 12) slots.push({ type: 'armchair', count: area > 26 ? 2 : 1, required: false, why: 'extra seat facing the sofa' });
   if (has(needs, 'work', 'desk', 'study', 'office', 'wfh'))
     slots.push(
       { type: 'desk', count: 1, required: false, why: 'works from home' },

@@ -568,7 +568,23 @@ def place_rest(L, items, zones):
     if art and not L.get(art["id"]): L.unplaced.append((art["id"], "no blank closed wall above a low piece for the art"))
     sh = next((i for i in items if i["type"] == "shelf"), None)
     if sh and not L.get(sh["id"]): place_against_wall(L, sh, "storage", lambda b, w: -balance_after(L, b, sh) * 10)
+    fl = next((i for i in items if i["type"] == "floor_lamp"), None)
+    if fl and not L.get(fl["id"]): place_lamp_by_sofa(L, fl, sofa)
     place_surfaces(L, items)
+
+
+def place_lamp_by_sofa(L, lamp, sofa):
+    """No reading corner took the floor lamp: stand it at a free sofa end, else in the free corner nearest the sofa."""
+    sb, ls = sofa["box"], lamp["size"]
+    for side in (-1, 1):
+        for back in (0.15, 0.3):
+            b = Box(*sb.pt(side * (sb.w / 2 + 0.05 + ls["w"] / 2), -sb.d / 2 + back), ls["w"], ls["d"])
+            if L.fits(b, ls["h"], "conversation"): L.add(lamp, b, "conversation"); return
+    room = L.room; m = ls["w"] / 2 + 0.06
+    for cx, cy in sorted(((0, 0), (room.W, 0), (0, room.D), (room.W, room.D)), key=lambda c: dist(c, sb.pt(0, 0))):
+        b = Box(abs(cx - m), abs(cy - m), ls["w"], ls["d"])
+        if L.fits(b, ls["h"], "conversation"): L.add(lamp, b, "conversation"); return
+    L.unplaced.append((lamp["id"], "no free spot for the floor lamp"))
 
 
 def place_surfaces(L, items):

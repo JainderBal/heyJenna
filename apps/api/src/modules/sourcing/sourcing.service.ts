@@ -114,6 +114,11 @@ export class SourcingService {
     return toListingResponse(saved);
   }
 
+  /** For the layout module: one listing from this room (caller must own the room). */
+  async getListing(roomId: string, listingId: string): Promise<Listing | null> {
+    return this.repo.findInRoom(listingId, roomId);
+  }
+
   /** For the layout module: per slot, the listings to use (picked first, then best score). */
   async chooseForRoom(room: Room): Promise<ChosenSlot[]> {
     const all = await this.repo.listByRoom(room.id);

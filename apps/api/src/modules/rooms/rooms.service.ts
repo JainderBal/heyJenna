@@ -15,7 +15,19 @@ export class RoomsService {
 
   async create(ownerId: string, dto: CreateRoomDto): Promise<RoomResponseDto> {
     this.assertValidPlan(dto.floorPlan);
+    if (dto.projectId) await this.assertOwnedProject(dto.projectId, ownerId);
     return toRoomResponse(await this.repo.create(ownerId, dto));
+  }
+
+  /** Creates several rooms in a project at once. Every floor plan is checked first; one bad plan creates nothing. */
+  async createMany(ownerId: string, projectId: string, rooms: CreateRoomDto[]): Promise<RoomResponseDto[]> {
+    const problems = rooms.flatMap((r, i) => floorPlanProblems(r.floorPlan).map((p) => `rooms[${i}] (${r.name}): ${p}`));
+    if (problems.length) throw new BadRequestException({ message: 'Floor plan has problems', problems });
+    return (await this.repo.createMany(ownerId, projectId, rooms)).map(toRoomResponse);
+  }
+
+  async listByProject(projectId: string, ownerId: string): Promise<RoomResponseDto[]> {
+    return (await this.repo.listByProject(projectId, ownerId)).map(toRoomResponse);
   }
 
   async list(ownerId: string): Promise<RoomResponseDto[]> {
@@ -29,6 +41,7 @@ export class RoomsService {
   async update(id: string, ownerId: string, dto: UpdateRoomDto): Promise<RoomResponseDto> {
     await this.getOwnedRoom(id, ownerId);
     if (dto.floorPlan) this.assertValidPlan(dto.floorPlan);
+    if (dto.projectId) await this.assertOwnedProject(dto.projectId, ownerId);
     return toRoomResponse(await this.repo.update(id, dto));
   }
 
@@ -42,6 +55,10 @@ export class RoomsService {
     const room = await this.repo.findOwned(id, ownerId);
     if (!room) throw new NotFoundException('Room not found');
     return room;
+  }
+
+  private async assertOwnedProject(projectId: string, ownerId: string) {
+    if (!(await this.repo.projectOwned(projectId, ownerId))) throw new NotFoundException('Project not found');
   }
 
   private assertValidPlan(plan: FloorPlan) {

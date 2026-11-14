@@ -10,6 +10,8 @@ import type {
   ChatResponse,
   EditResult,
   FloorPlanReadResult,
+  ImportBoardRequest,
+  ImportBoardResponse,
   JobAccepted,
   Layout,
   Listing,
@@ -33,6 +35,7 @@ export const qk = {
   projectRooms: (id: string) => ['projects', id, 'rooms'] as const,
   room: (roomId: string) => ['rooms', roomId] as const,
   style: (roomId: string) => ['rooms', roomId, 'style'] as const,
+  moodboard: (roomId: string) => ['rooms', roomId, 'moodboard'] as const,
   listings: (roomId: string, type?: FurnitureType) => (type ? (['rooms', roomId, 'listings', type] as const) : (['rooms', roomId, 'listings'] as const)),
   layouts: (roomId: string) => ['rooms', roomId, 'layouts'] as const,
   layout: (roomId: string, layoutId: string) => ['rooms', roomId, 'layouts', layoutId] as const,
@@ -162,7 +165,10 @@ export function useUploadMoodboard(roomId: string) {
       if (imageUrls?.length) form.append('imageUrls', JSON.stringify(imageUrls));
       return api<StyleResponse>(`/rooms/${roomId}/moodboard`, { method: 'POST', body: form });
     },
-    onSuccess: (s) => qc.setQueryData(qk.style(roomId), s),
+    onSuccess: (s) => {
+      qc.setQueryData(qk.style(roomId), s);
+      qc.invalidateQueries({ queryKey: qk.moodboard(roomId) });
+    },
   });
 }
 
@@ -171,7 +177,36 @@ export function useAddMoodboardPins(roomId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (pins: PinRef[]) => api<StyleResponse>(`/rooms/${roomId}/moodboard/pins`, { method: 'POST', body: { pins } }),
-    onSuccess: (s) => qc.setQueryData(qk.style(roomId), s),
+    onSuccess: (s) => {
+      qc.setQueryData(qk.style(roomId), s);
+      qc.invalidateQueries({ queryKey: qk.moodboard(roomId) });
+    },
+  });
+}
+
+export type MoodboardImage = { id: string; url: string; source: 'upload' | 'pin'; link?: string };
+/** Upload urls are API paths ("/rooms/…"); in dev the default user can load them straight through the /api proxy. */
+const moodSrc = (u: string) => (u.startsWith('/') ? `/api${u}` : u);
+
+/** GET /rooms/:roomId/moodboard: the images stored on the room's moodboard (uploads and pins). */
+export const useMoodboardImages = (roomId: string) =>
+  useQuery({
+    queryKey: qk.moodboard(roomId),
+    queryFn: async () => {
+      const r = await api<{ images: MoodboardImage[] }>(`/rooms/${roomId}/moodboard`);
+      return r.images.map((i) => ({ ...i, src: moodSrc(i.url) }));
+    },
+  });
+
+/** DELETE /rooms/:roomId/moodboard/images/:imageId, then refresh the board and the re-derived style. */
+export function useDeleteMoodboardImage(roomId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (imageId: string) => api(`/rooms/${roomId}/moodboard/images/${imageId}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.moodboard(roomId) });
+      qc.invalidateQueries({ queryKey: qk.style(roomId) });
+    },
   });
 }
 
@@ -357,17 +392,18 @@ export const usePinterestPins = (boardId: string | undefined, bookmark?: string)
     retry: (n, e) => !isApiError(e, 501) && n < 2,
   });
 
-/**
- * POST /pinterest/boards/import. Being added on another branch: the body and answer are not
- * settled yet, so both are loose here. Until it lands this answers 404.
- */
-export function useImportPinterestBoard() {
+/** POST /pinterest/boards/import { boardUrl }: a public board's pins read from its RSS feed (no API key). */
+export const useImportPinterestBoard = () =>
+  useMutation({
+    mutationFn: (body: ImportBoardRequest) => api<ImportBoardResponse>('/pinterest/boards/import', { method: 'POST', body }),
+  });
+
+/** POST /rooms/:roomId/moodboard/pins for any room (the pin context menu's "Add to …"). */
+export function useAddPinsToRoom() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { boardId: string; roomId?: string; [k: string]: unknown }) =>
-      api<unknown>('/pinterest/boards/import', { method: 'POST', body }),
-    onSuccess: (_r, body) => {
-      if (body.roomId) qc.invalidateQueries({ queryKey: qk.style(body.roomId) });
-    },
+    mutationFn: ({ roomId, pins }: { roomId: string; pins: PinRef[] }) =>
+      api<StyleResponse>(`/rooms/${roomId}/moodboard/pins`, { method: 'POST', body: { pins } }),
+    onSuccess: (s, { roomId }) => qc.setQueryData(qk.style(roomId), s),
   });
 }

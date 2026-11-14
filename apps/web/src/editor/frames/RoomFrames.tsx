@@ -1,6 +1,6 @@
 /** Room page frames: Moodboard, Palette, 3D room (+ render), Shopping list. */
 import { useState } from 'react';
-import { useAddMoodboardPins, useCreateLayout, useCreateRender, useRenderImage, useRenderJob, useSearchListingsAsync, useUploadMoodboard } from '../../api/hooks';
+import { useAddMoodboardPins, useDeleteMoodboardImage, useMoodboardImages, useCreateLayout, useCreateRender, useRenderImage, useRenderJob, useSearchListingsAsync, useUploadMoodboard } from '../../api/hooks';
 import { errorText } from '../../api/client';
 import type { Layout, Listing, PinRef, Room, StyleResponse } from '../../api/types';
 import { toast, useEditorStore } from '../../app/useEditorStore';
@@ -22,8 +22,18 @@ const MAX_IMAGES = 8;
 /** Drag type for a Pinterest pin dropped on a moodboard: JSON PinRef `{id, imageUrl, link?}`. */
 export const PIN_DRAG_TYPE = 'application/x-hj-pin';
 
+/** First i.pinimg.com image address in dragged text or HTML, upgraded to the 736px size. */
+function pinimgFrom(text: string): string | null {
+  const m = text.match(/https:\/\/i\.pinimg\.com\/[^\s"'<>)]+\.(?:jpe?g|png|webp|gif)/i);
+  return m ? m[0].replace(/\/(?:\d+x|originals)\//, '/736x/') : null;
+}
+
 export function MoodboardFrame({ room, style, palette }: { room: Room; style: StyleResponse | null | undefined; palette: string[] }) {
-  const previews = useEditorStore((s) => s.moodPreviews[room.id]) ?? [];
+  const local = useEditorStore((s) => s.moodPreviews[room.id]) ?? [];
+  const stored = useMoodboardImages(room.id).data ?? [];
+  const removeImg = useDeleteMoodboardImage(room.id);
+  // what the API has stored wins; this session's object URLs only fill in while it loads
+  const previews = stored.length ? stored.map((i) => i.src) : local;
   const setPreviews = useEditorStore((s) => s.setMoodPreviews);
   const upload = useUploadMoodboard(room.id);
   const addPins = useAddMoodboardPins(room.id);
@@ -60,6 +70,13 @@ export function MoodboardFrame({ room, style, palette }: { room: Room; style: St
       }
       return;
     }
+    // an image dragged in from the real pinterest.com (the docked Pinterest window): take its i.pinimg.com address
+    const fromPinterest = pinimgFrom(e.dataTransfer.getData('text/uri-list') + ' ' + e.dataTransfer.getData('text/html'));
+    if (fromPinterest && !e.dataTransfer.files.length) {
+      const id = 'drop-' + (fromPinterest.split('/').pop() || Date.now()).toString().replace(/\.\w+$/, '');
+      addPins.mutate([{ id, imageUrl: fromPinterest }], { onSuccess: () => toast('Pin added to the moodboard'), onError: (er) => toast(errorText(er)) });
+      return;
+    }
     send([...e.dataTransfer.files]);
   }
 
@@ -77,7 +94,7 @@ export function MoodboardFrame({ room, style, palette }: { room: Room; style: St
       style={{ height: '100%', boxShadow: over ? 'inset 0 0 0 3px var(--select)' : undefined }}
       onDragOver={(e) => {
         const t = [...e.dataTransfer.types];
-        if (!t.includes('Files') && !t.includes(PIN_DRAG_TYPE)) return;
+        if (!t.includes('Files') && !t.includes(PIN_DRAG_TYPE) && !t.includes('text/uri-list')) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = 'copy';
         setOver(true);
@@ -99,6 +116,21 @@ export function MoodboardFrame({ room, style, palette }: { room: Room; style: St
             return (
               <div key={n} className={`tile ${size}`}>
                 <img className="shot" alt="" src={src} />
+                {stored[n] && (
+                  <button
+                    className="tile-x"
+                    type="button"
+                    aria-label="Remove image"
+                    title="Remove image"
+                    disabled={removeImg.isPending}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeImg.mutate(stored[n].id, { onError: (er) => toast(errorText(er)) });
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
               </div>
             );
           const c = palette[pi % palette.length];

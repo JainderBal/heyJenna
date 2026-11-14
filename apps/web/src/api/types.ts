@@ -7,6 +7,9 @@ import type {
   ChatResponse,
   FloorPlan,
   FurnitureType,
+  ImportBoardRequest,
+  ImportBoardResponse,
+  ImportedPin,
   ListingSource,
   PinterestBoard,
   PinterestPin,
@@ -15,7 +18,7 @@ import type {
   StyleProfile,
 } from '@hey-jenna/contracts';
 
-export type { ChatResponse, FloorPlan, FurnitureType, PinterestBoard, PinterestPin, PinRef, StyleProfile };
+export type { ChatResponse, FloorPlan, FurnitureType, ImportBoardRequest, ImportBoardResponse, ImportedPin, PinterestBoard, PinterestPin, PinRef, StyleProfile };
 
 /** GET /projects, /projects/:id */
 export interface Project {
@@ -196,7 +199,8 @@ export interface PinterestPage<T> {
 /** POST /rooms/:roomId/pins/similar */
 export interface SimilarPins {
   ranked: { pin: PinRef; distance: number }[];
-  unreadable: string[];
+  /** Pins whose image couldn't be read (apps/api style.service.ts rankPins). */
+  unreadable: { id: string; reason: string }[];
 }
 
 /** One server-sent event from GET /rooms/:roomId/events. */

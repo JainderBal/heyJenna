@@ -1,5 +1,5 @@
 import { Room } from '@prisma/client';
-import { FloorPlan } from '@hey-jenna/contracts';
+import { FloorPlan, RoomKind } from '@hey-jenna/contracts';
 import { RoomResponseDto } from '../dto/room-response.dto';
 
 /** Database row → response DTO. */
@@ -10,6 +10,8 @@ export function toRoomResponse(room: Room): RoomResponseDto {
     name: room.name,
     floorPlan,
     needs: room.needs,
+    kind: RoomKind.safeParse(room.kind).success ? (room.kind as RoomKind) : null,
+    furnish: room.furnish,
     projectId: room.projectId,
     planPosition: room.planX !== null && room.planY !== null ? { x: room.planX, y: room.planY } : null,
     areaM2: Math.round(floorPlan.width * floorPlan.depth * 100) / 100,

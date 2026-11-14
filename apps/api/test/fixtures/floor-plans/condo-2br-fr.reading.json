@@ -1,0 +1,357 @@
+{
+  "scaleSource": "printed",
+  "rooms": [
+    {
+      "name": "Salle de lavage",
+      "kind": "laundry",
+      "printedSize": "5'6\" x 7'0\"",
+      "width": 1.68,
+      "depth": 2.13,
+      "x": 0.39,
+      "y": 0.07,
+      "box": {
+        "left": 0.092,
+        "top": 0.083,
+        "right": 0.208,
+        "bottom": 0.25
+      },
+      "openWalls": [],
+      "windows": [
+        {
+          "wall": "left",
+          "position": 1,
+          "width": 1.2
+        }
+      ],
+      "doors": [
+        {
+          "wall": "front",
+          "position": 0.85,
+          "width": 1.5
+        }
+      ],
+      "confidence": 0.75
+    },
+    {
+      "name": "Salle de bain",
+      "kind": "bathroom",
+      "printedSize": "8'1\" x 10'6\"",
+      "width": 2.46,
+      "depth": 3.2,
+      "x": 2.11,
+      "y": 0.07,
+      "box": {
+        "left": 0.208,
+        "top": 0.083,
+        "right": 0.386,
+        "bottom": 0.328
+      },
+      "openWalls": [],
+      "windows": [],
+      "doors": [
+        {
+          "wall": "left",
+          "position": 2.6,
+          "width": 0.8
+        }
+      ],
+      "confidence": 0.75
+    },
+    {
+      "name": "Rangement",
+      "kind": "storage",
+      "printedSize": "4'10\" x 4'9\"",
+      "width": 1.47,
+      "depth": 1.45,
+      "x": 4.83,
+      "y": 0.07,
+      "box": {
+        "left": 0.389,
+        "top": 0.083,
+        "right": 0.49,
+        "bottom": 0.182
+      },
+      "openWalls": [],
+      "windows": [],
+      "doors": [
+        {
+          "wall": "right",
+          "position": 0.9,
+          "width": 0.7
+        }
+      ],
+      "confidence": 0.7
+    },
+    {
+      "name": "Walk-in (Chambre 2)",
+      "kind": "closet",
+      "printedSize": "4'10\" x 5'7\"",
+      "width": 1.47,
+      "depth": 1.7,
+      "x": 4.83,
+      "y": 1.47,
+      "box": {
+        "left": 0.389,
+        "top": 0.185,
+        "right": 0.495,
+        "bottom": 0.321
+      },
+      "openWalls": [],
+      "windows": [],
+      "doors": [
+        {
+          "wall": "right",
+          "position": 0.5,
+          "width": 0.7
+        }
+      ],
+      "confidence": 0.7
+    },
+    {
+      "name": "Walk-in (Chambre 1)",
+      "kind": "closet",
+      "printedSize": "5'4\" x 6'5\"",
+      "width": 1.63,
+      "depth": 1.96,
+      "x": 0.39,
+      "y": 2.43,
+      "box": {
+        "left": 0.092,
+        "top": 0.255,
+        "right": 0.208,
+        "bottom": 0.408
+      },
+      "openWalls": [],
+      "windows": [],
+      "doors": [
+        {
+          "wall": "right",
+          "position": 1.7,
+          "width": 0.6
+        }
+      ],
+      "confidence": 0.7
+    },
+    {
+      "name": "Cuisine",
+      "kind": "kitchen",
+      "printedSize": "10'3\" x 9'1\"",
+      "width": 3.12,
+      "depth": 2.77,
+      "x": 7.43,
+      "y": 0.07,
+      "box": {
+        "left": 0.562,
+        "top": 0.083,
+        "right": 0.776,
+        "bottom": 0.313
+      },
+      "openWalls": [
+        "front",
+        "left"
+      ],
+      "windows": [
+        {
+          "wall": "right",
+          "position": 1.4,
+          "width": 2
+        }
+      ],
+      "doors": [
+        {
+          "wall": "back",
+          "position": 0.1,
+          "width": 0.9
+        }
+      ],
+      "confidence": 0.7
+    },
+    {
+      "name": "Hall",
+      "kind": "hallway",
+      "printedSize": null,
+      "width": 4.9,
+      "depth": 1.1,
+      "x": 2.11,
+      "y": 3.33,
+      "box": {
+        "left": 0.208,
+        "top": 0.328,
+        "right": 0.533,
+        "bottom": 0.408
+      },
+      "openWalls": [
+        "right"
+      ],
+      "windows": [],
+      "doors": [
+        {
+          "wall": "front",
+          "position": 1.1,
+          "width": 0.7
+        },
+        {
+          "wall": "front",
+          "position": 2.2,
+          "width": 0.8
+        }
+      ],
+      "confidence": 0.5
+    },
+    {
+      "name": "Salle à manger",
+      "kind": "dining",
+      "printedSize": "12' x 9'4\"",
+      "width": 3.66,
+      "depth": 2.84,
+      "x": 7,
+      "y": 3.21,
+      "box": {
+        "left": 0.533,
+        "top": 0.313,
+        "right": 0.776,
+        "bottom": 0.51
+      },
+      "openWalls": [
+        "back",
+        "front",
+        "left"
+      ],
+      "windows": [
+        {
+          "wall": "right",
+          "position": 1.4,
+          "width": 2.4
+        }
+      ],
+      "doors": [],
+      "confidence": 0.7
+    },
+    {
+      "name": "Salon",
+      "kind": "living",
+      "printedSize": "12' x 9'6\"",
+      "width": 3.66,
+      "depth": 2.9,
+      "x": 7,
+      "y": 6,
+      "box": {
+        "left": 0.533,
+        "top": 0.51,
+        "right": 0.776,
+        "bottom": 0.708
+      },
+      "openWalls": [
+        "back"
+      ],
+      "windows": [
+        {
+          "wall": "right",
+          "position": 1.4,
+          "width": 2.4
+        }
+      ],
+      "doors": [
+        {
+          "wall": "front",
+          "position": 1.86,
+          "width": 2.7
+        }
+      ],
+      "confidence": 0.7
+    },
+    {
+      "name": "Chambre 1",
+      "kind": "bedroom",
+      "printedSize": "10'11\" x 13'4\"",
+      "width": 3.33,
+      "depth": 4.06,
+      "x": 0.43,
+      "y": 4.53,
+      "box": {
+        "left": 0.095,
+        "top": 0.408,
+        "right": 0.317,
+        "bottom": 0.708
+      },
+      "openWalls": [],
+      "windows": [
+        {
+          "wall": "front",
+          "position": 1.64,
+          "width": 1.57
+        }
+      ],
+      "doors": [
+        {
+          "wall": "back",
+          "position": 2.8,
+          "width": 0.75
+        }
+      ],
+      "confidence": 0.8
+    },
+    {
+      "name": "Chambre 2",
+      "kind": "bedroom",
+      "printedSize": "10' x 13'4\"",
+      "width": 3.05,
+      "depth": 4.06,
+      "x": 3.86,
+      "y": 4.53,
+      "box": {
+        "left": 0.324,
+        "top": 0.408,
+        "right": 0.531,
+        "bottom": 0.708
+      },
+      "openWalls": [],
+      "windows": [
+        {
+          "wall": "front",
+          "position": 1,
+          "width": 1
+        }
+      ],
+      "doors": [
+        {
+          "wall": "back",
+          "position": 0.46,
+          "width": 0.8
+        }
+      ],
+      "confidence": 0.8
+    },
+    {
+      "name": "Balcon",
+      "kind": "balcony",
+      "printedSize": "76 pieds carrés",
+      "width": 3.64,
+      "depth": 1.94,
+      "x": 7.07,
+      "y": 8.93,
+      "box": {
+        "left": 0.538,
+        "top": 0.729,
+        "right": 0.781,
+        "bottom": 0.873
+      },
+      "openWalls": [],
+      "windows": [],
+      "doors": [
+        {
+          "wall": "back",
+          "position": 1.8,
+          "width": 2.7
+        }
+      ],
+      "confidence": 0.65
+    }
+  ],
+  "notes": [
+    "Printed dimensions in feet/inches converted to metres; scale checked at ~70 px/m",
+    "Entry door assumed at top of kitchen area",
+    "Hall dimensions estimated from drawing (no printed size)",
+    "Balcony size derived from 76 sq ft area and drawn proportions"
+  ]
+}

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, Room } from '@prisma/client';
-import { PlanPosition } from '@hey-jenna/contracts';
+import { PlanPosition, furnishedByDefault } from '@hey-jenna/contracts';
 import { PrismaService } from '../../common/database/prisma.service';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
@@ -17,6 +17,8 @@ export class RoomsRepository {
         name: dto.name,
         floorPlan: dto.floorPlan as Prisma.InputJsonValue,
         needs: dto.needs,
+        kind: dto.kind ?? null,
+        furnish: dto.furnish ?? furnishedByDefault(dto.kind),
         projectId: dto.projectId ?? null,
         ...planColumns(dto.planPosition),
       },
@@ -28,7 +30,16 @@ export class RoomsRepository {
     return this.db.$transaction(
       rooms.map((r) =>
         this.db.room.create({
-          data: { ownerId, projectId, name: r.name, floorPlan: r.floorPlan as Prisma.InputJsonValue, needs: r.needs, ...planColumns(r.planPosition) },
+          data: {
+            ownerId,
+            projectId,
+            name: r.name,
+            floorPlan: r.floorPlan as Prisma.InputJsonValue,
+            needs: r.needs,
+            kind: r.kind ?? null,
+            furnish: r.furnish ?? furnishedByDefault(r.kind),
+            ...planColumns(r.planPosition),
+          },
         }),
       ),
     );
@@ -57,6 +68,8 @@ export class RoomsRepository {
       data: {
         name: dto.name,
         needs: dto.needs,
+        kind: dto.kind,
+        furnish: dto.furnish,
         projectId: dto.projectId,
         floorPlan: dto.floorPlan ? (dto.floorPlan as Prisma.InputJsonValue) : undefined,
         ...planColumns(dto.planPosition),

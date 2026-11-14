@@ -29,6 +29,18 @@ describe('buildEngineSpec + Python engine', () => {
     expect(ids).toEqual(expect.arrayContaining(['sofa_1', 'desk_1', 'cat_tree_1']));
   });
 
+  it('treats walls open to the next room as open, and still lays the room out', async () => {
+    // an open-plan room you walk into through the open wall: no door of its own
+    const open = { ...plan, walls: { left: { finish: 'paint', open: true } }, doors: [] };
+    const needs = ['has a cat', 'works from home', 'reads in the evening'];
+    const chosen = shoppingList(open, needs).map((slot) => ({ slot, listings: [] }));
+    const { spec } = buildEngineSpec('test', open, needs, null, chosen);
+    expect(spec.room.open_walls_in_render).toEqual(['front', 'right', 'left']);
+    expect(spec.room.doors).toEqual([expect.objectContaining({ id: 'open_left', wall: 'left', position: 2.2, width: 1, swing: 'none' })]);
+    const { result } = await solveWithRepairs({ run: async (s) => runPython(s) }, spec);
+    expect(result.summary.fail).toBe(0);
+  });
+
   it('drops a blocked optional piece and re-runs when the room is over-full', async () => {
     const needs = ['has a cat', 'works from home', 'reads in the evening', 'has friends over'];
     const chosen = shoppingList(plan, needs).map((slot) => ({ slot: slot.type === 'armchair' ? { ...slot, count: 3 } : slot, listings: [] }));

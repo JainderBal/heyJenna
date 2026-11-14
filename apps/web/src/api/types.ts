@@ -12,6 +12,7 @@ import type {
   MoodboardImagesResponse,
   PinRef,
   PlanPosition,
+  RoomKind,
   Size,
   StyleProfile,
 } from '@hey-jenna/contracts';
@@ -34,6 +35,10 @@ export interface Room {
   name: string;
   floorPlan: FloorPlan;
   needs: string[];
+  /** contracts RoomKind (bedroom, kitchen, closet…); null for rooms made before kinds or drawn by hand. */
+  kind: RoomKind | null;
+  /** false = on the plan only (closets, laundry…): no page, no products, no layout. */
+  furnish: boolean;
   projectId: string | null;
   /** Where the room sits on its project's plan, metres from the top-left (y = down the page); null = not placed. */
   planPosition: PlanPosition | null;
@@ -45,8 +50,13 @@ export interface Room {
 /** POST /projects/:id/floor-plan */
 export interface DetectedRoom {
   name: string;
-  kind: string;
+  kind: RoomKind;
+  furnish: boolean;
   confidence: number;
+  /** The size label as printed on the plan, e.g. 10'11" x 13'4". */
+  printedSize: string | null;
+  /** Where the room is on the uploaded image, as fractions of its width and height. */
+  box: { left: number; top: number; right: number; bottom: number } | null;
   /** Where the room sits on the plan, metres from the top-left. */
   position: { x: number; y: number };
   floorPlan: FloorPlan;
@@ -205,3 +215,7 @@ export interface RoomEvent<D = Record<string, unknown>> {
   at: string;
   data: D;
 }
+
+/** Mirror of contracts FURNISHABLE_KINDS: the room kinds the layout engine can furnish today. */
+export const FURNISHABLE_KINDS: readonly RoomKind[] = ['living', 'office', 'other'];
+export const canFurnish = (kind: RoomKind | null | undefined) => !kind || FURNISHABLE_KINDS.includes(kind);

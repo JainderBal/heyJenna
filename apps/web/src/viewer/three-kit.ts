@@ -288,6 +288,16 @@ export interface PlanShotRoom {
   w: number;
   d: number;
   kind: string;
+  /** Walls left out because the room opens onto its neighbour. */
+  open?: string[];
+}
+
+const SHOT_KINDS: Record<string, string> = { bedroom: 'bed', kitchen: 'kitchen', dining: 'dining', bathroom: 'bath', office: 'desk', living: 'sofa' };
+
+/** The furniture set for a room: none for plan-only rooms, else from its kind, else guessed from its name. */
+export function shotKind(room: { name: string; kind?: string | null; furnish?: boolean }): string {
+  if (room.furnish === false) return 'empty';
+  return (room.kind && SHOT_KINDS[room.kind]) || roomKind(room.name);
 }
 
 /** The furniture set for a room, from its name (the prototype's PLANS kinds). */
@@ -306,9 +316,44 @@ export function roomKind(name: string): string {
  * a light tint of the palette, low white walls with a door gap, the room's furniture set), with a
  * label pill over each room. Cached by palette, rooms and size.
  */
-export function planShot(R: PlanShotRoom[], palette: string[], W: number, H: number): HTMLCanvasElement {
+/**
+ * The isometric camera over the whole plan. `turn` (0–3) walks it round the plan in quarter turns.
+ * Shared by planShot and planShotMap so the picture and its click map line up.
+ */
+function planCamera(R: PlanShotRoom[], W: number, H: number, turn: number) {
+  const minX = Math.min(...R.map((p) => p.x));
+  const minZ = Math.min(...R.map((p) => p.z));
+  const maxX = Math.max(...R.map((p) => p.x + p.w));
+  const maxZ = Math.max(...R.map((p) => p.z + p.d));
+  const cx = (minX + maxX) / 2;
+  const cz = (minZ + maxZ) / 2;
+  const span = Math.max(maxX - minX, maxZ - minZ);
+  const a = W / H;
+  const v = span * 0.6;
+  const cam = new THREE.OrthographicCamera(-v * a, v * a, v, -v, 0.1, 100);
+  const ang = Math.PI / 4 + (((turn % 4) + 4) % 4) * (Math.PI / 2);
+  const el = 0.8;
+  cam.position.set(Math.sin(ang) * Math.cos(el) * 30, Math.sin(el) * 30, Math.cos(ang) * Math.cos(el) * 30);
+  cam.lookAt(0, 0, 0);
+  cam.updateProjectionMatrix();
+  cam.updateMatrixWorld();
+  return { cam, cx, cz, span };
+}
+
+/** Where each room lands in a planShot picture (pixels): its floor outline and its centre, for clicks and labels. */
+export function planShotMap(R: PlanShotRoom[], W: number, H: number, turn = 0): { floor: [number, number][]; centre: [number, number] }[] {
+  if (!R.length) return [];
+  const { cam, cx, cz } = planCamera(R, W, H, turn);
+  const px = (x: number, z: number): [number, number] => {
+    const p = new THREE.Vector3(x - cx, 0.03, z - cz).project(cam);
+    return [((p.x + 1) / 2) * W, ((1 - p.y) / 2) * H];
+  };
+  return R.map(({ x, z, w, d }) => ({ floor: [px(x, z), px(x + w, z), px(x + w, z + d), px(x, z + d)], centre: px(x + w / 2, z + d / 2) }));
+}
+
+export function planShot(R: PlanShotRoom[], palette: string[], W: number, H: number, turn = 0, labels = true): HTMLCanvasElement {
   const P = pal6(palette);
-  const key = ['plan', P.join(''), R.map((r) => [r.name, r.x, r.z, r.w, r.d].join(':')).join(','), W, H].join('|');
+  const key = ['plan', P.join(''), R.map((r) => [r.name, r.x, r.z, r.w, r.d, r.kind, (r.open ?? []).join('+')].join(':')).join(','), W, H, turn, labels].join('|');
   const hit = SHOTS.get(key);
   if (hit) return hit;
   const r = shotRenderer(W, H);
@@ -328,7 +373,7 @@ export function planShot(R: PlanShotRoom[], palette: string[], W: number, H: num
   const wallM = mat('#FBF8F3');
   const WH = 1.15;
   const TH = 0.1;
-  R.forEach(({ x, z, w, d, kind }, i) => {
+  R.forEach(({ x, z, w, d, kind, open = [] }, i) => {
     const fl = new THREE.Mesh(new THREE.BoxGeometry(w, 0.06, d), mat(lc(P[i % 6]).lerp(lc('#fff'), 0.35)));
     fl.position.set(x + w / 2, -0.03, z + d / 2);
     fl.receiveShadow = true;
@@ -340,12 +385,14 @@ export function planShot(R: PlanShotRoom[], palette: string[], W: number, H: num
       g.add(m);
     };
     const door = Math.min(0.9, w * 0.5);
-    add(x + w / 2, z, w, TH);
-    add(x, z + d / 2, TH, d);
-    add(x + w - (w - door) / 4, z + d, (w - door) / 2, TH);
-    add(x + (w - door) / 4, z + d, (w - door) / 2, TH);
-    add(x + w, z + d / 2, TH, d);
-    if (w >= 2.4 && d >= 2.4) furnish(g, kind, x, z, w, d, P, mat);
+    if (!open.includes('back')) add(x + w / 2, z, w, TH);
+    if (!open.includes('left')) add(x, z + d / 2, TH, d);
+    if (!open.includes('front')) {
+      add(x + w - (w - door) / 4, z + d, (w - door) / 2, TH);
+      add(x + (w - door) / 4, z + d, (w - door) / 2, TH);
+    }
+    if (!open.includes('right')) add(x + w, z + d / 2, TH, d);
+    if (kind !== 'empty' && w >= 2.4 && d >= 2.4) furnish(g, kind, x, z, w, d, P, mat);
   });
   scene.add(new THREE.HemisphereLight(lc(0xffffff), lc(0xbfb4a8), 0.75 * LI));
   const sun = new THREE.DirectionalLight(lc(0xfff0dc), 0.85 * LI);
@@ -356,19 +403,13 @@ export function planShot(R: PlanShotRoom[], palette: string[], W: number, H: num
   const sh = Math.max(12, span);
   Object.assign(sun.shadow.camera, { left: -sh, right: sh, top: sh, bottom: -sh });
   scene.add(sun);
-  const a = W / H;
-  const v = span * 0.6;
-  const cam = new THREE.OrthographicCamera(-v * a, v * a, v, -v, 0.1, 100);
-  const ang = Math.PI / 4;
-  const el = 0.8;
-  cam.position.set(Math.sin(ang) * Math.cos(el) * 30, Math.sin(el) * 30, Math.cos(ang) * Math.cos(el) * 30);
-  cam.lookAt(0, 0, 0);
-  cam.updateProjectionMatrix();
+  const { cam } = planCamera(R, W, H, turn);
   r.render(scene, cam);
   const out = grabShot(r, W, H);
   // room labels: a white pill over each room's centre
   const c2 = out.getContext('2d')!;
   const sc = W / 520;
+  if (!labels) R = [];
   c2.font = `600 ${Math.round(12 * sc)}px Inter, system-ui, sans-serif`;
   c2.textAlign = 'center';
   c2.textBaseline = 'middle';

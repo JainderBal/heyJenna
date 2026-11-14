@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { CreateRoomSchema } from './dto/create-room.dto';
 import { RoomsRepository } from './rooms.repository';
 import { RoomsService } from './rooms.service';
@@ -36,5 +36,47 @@ describe('RoomsService projects', () => {
     expect(repo.createMany).not.toHaveBeenCalled();
     expect(await service.createMany('u1', 'p1', [good])).toHaveLength(1);
     expect(repo.createMany).toHaveBeenCalledWith('u1', 'p1', [good]);
+  });
+});
+
+describe('RoomsService.getFurnishableRoom', () => {
+  const repo = { findOwned: jest.fn(async (id: string) => (id === 'closet' ? room({ name: 'Walk-in', furnish: false }) : room({ furnish: true }))) };
+  const service = new RoomsService(repo as unknown as RoomsRepository);
+
+  it('loads rooms that get furniture and refuses plan-only ones', async () => {
+    expect((await service.getFurnishableRoom('r1', 'u1')).name).toBe('Living');
+    await expect(service.getFurnishableRoom('closet', 'u1')).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('refuses rooms whose kind the engine cannot furnish yet', async () => {
+    const svc = new RoomsService({ findOwned: jest.fn(async () => room({ name: 'Chambre', kind: 'bedroom', furnish: true })) } as unknown as RoomsRepository);
+    await expect(svc.getFurnishableRoom('r1', 'u1')).rejects.toThrow(/can't furnish bedroom rooms yet/);
+  });
+
+  it('defaults furnish from the kind on create', () => {
+    expect(CreateRoomSchema.parse({ name: 'Walk-in', kind: 'closet', floorPlan: { width: 1.6, depth: 1.9 } })).toMatchObject({ kind: 'closet' });
+  });
+});
+
+describe('RoomsService furnish rules', () => {
+  const repo = {
+    create: jest.fn(async () => room()),
+    createMany: jest.fn(async () => [room()]),
+    findOwned: jest.fn(async () => room({ kind: 'living', furnish: true })),
+    update: jest.fn(async (_id: string, dto: object) => room(dto)),
+  };
+  const service = new RoomsService(repo as unknown as RoomsRepository);
+  const plan = { width: 3, depth: 3 };
+  beforeEach(() => jest.clearAllMocks());
+
+  it('will not switch furnishing on for a bedroom', async () => {
+    await expect(service.create('u1', CreateRoomSchema.parse({ name: 'Chambre', kind: 'bedroom', furnish: true, floorPlan: plan }))).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.createMany('u1', 'p1', [CreateRoomSchema.parse({ name: 'Chambre', kind: 'bedroom', furnish: true, floorPlan: plan })])).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.update('r1', 'u1', { kind: 'bedroom', furnish: true })).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('stops furnishing a room turned into a bedroom', async () => {
+    await service.update('r1', 'u1', { kind: 'bedroom' });
+    expect(repo.update).toHaveBeenCalledWith('r1', { kind: 'bedroom', furnish: false });
   });
 });

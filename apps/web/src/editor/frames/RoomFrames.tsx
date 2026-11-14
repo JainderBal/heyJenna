@@ -298,9 +298,11 @@ export function ShoppingListFrame({ room, layout, listings }: { room: Room; layo
           <span>{money(total, currency)}</span>
         </div>
       )}
-      <button className="pbtn dark pvbtn" type="button" onClick={() => spOpen('shop')}>
-        Open live preview
-      </button>
+      {rows.length > 0 && (
+        <button className="pbtn dark pvbtn" type="button" onClick={() => spOpen('shop')} title="Keep the shopping list open beside the canvas while you work">
+          Pin to side panel
+        </button>
+      )}
       <div className="list-acts">
         <button
           className="pbtn sm"

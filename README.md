@@ -75,7 +75,6 @@ mock products, rule-based moodboard reading, no login.
 | IKEA (+ 3D models) | nothing: uses IKEA's own search and model files, on by default (`IKEA_LOCALE`, default `ca/en`) |
 | A UI on another origin | `CORS_ORIGINS` (comma-separated; default `http://localhost:5173`) |
 | Background jobs off in this instance | `JOBS_RUNNER=off` (jobs then wait for an instance with it on) |
-| Pinterest import | `PINTEREST_ACCESS_TOKEN` (Pinterest API v5; one token per deployment, no OAuth flow yet; without it `/pinterest/*` answers 501) |
 | Etsy | `ETSY_API_KEY` (Open API v3); without it, `BRAVE_SEARCH_API_KEY` finds etsy.com listings instead |
 
 ## Try the flow
@@ -126,13 +125,10 @@ curl $B/rooms/$ROOM/renders/$JOB/model -o room.glb
 | POST | `/projects/:id/rooms/bulk` | create several rooms at once `{rooms: [{name, floorPlan, needs?}]}` (all or nothing) |
 | POST | `/projects/:id/floor-plan` | one floor-plan photo → every room found and measured (multipart `image`, or `imageUrl`). Returns a preview `{rooms[{name, kind, confidence, position, floorPlan}], scaleSource, warnings[], imageKey}`; `?create=1` also creates the rooms (all or nothing, adds `created`). Needs `ANTHROPIC_API_KEY` (422 without) |
 | POST | `/rooms/:roomId/moodboard` | upload moodboard (multipart `images`, optional `imageUrls` JSON) |
-| POST | `/rooms/:roomId/moodboard/pins` | add Pinterest pins to the moodboard `{pins: [{id, imageUrl (i.pinimg.com), link?}]}` (max 8 images in total); style and dials are re-derived |
+| POST | `/rooms/:roomId/moodboard/pins` | add image links (e.g. pins dragged from Pinterest) to the moodboard `{pins: [{id, imageUrl (i.pinimg.com), link?}]}` (max 8 images in total); style and dials are re-derived |
 | GET | `/rooms/:roomId/moodboard` | the stored moodboard images: `{images: [{id, url, source: 'upload' \| 'pin', link?}]}`. Pins keep their `i.pinimg.com` url and link; uploads point at the route below (a path on this API). `{images: []}` before any moodboard |
 | GET | `/rooms/:roomId/moodboard/images/:imageId` | streams one stored image with its content type (`Cache-Control: private`); 404 for an unknown image |
 | DELETE | `/rooms/:roomId/moodboard/images/:imageId` | removes one image, re-derives style and dials from the rest, returns `{images}` left. Removing the last one clears the style (`GET /style` is 404 again) |
-| POST | `/rooms/:roomId/pins/similar` | `{pins}` (max 30) → `{ranked: [{pin, distance}], unreadable}`, closest to the room palette first (CIELAB distance) |
-| GET | `/pinterest/boards` · `/pinterest/boards/:boardId/pins` | your boards / a board's pins `{id, title, imageUrl, size, link}`; `?bookmark=` pages. 501 without `PINTEREST_ACCESS_TOKEN` |
-| POST | `/pinterest/boards/import` | import a **public** board from its RSS feed, no API key: `{boardUrl}` (pinterest.com or a regional domain) → `{board: {title, url}, pins: [{id, title, imageUrl (736x), link}]}`; 400 for non-board URLs, 404 for a missing or private board. Pins can go straight into `/rooms/:roomId/moodboard/pins` and `pins/similar` |
 | GET / PATCH | `/rooms/:roomId/style` | style profile / tweak it |
 | POST | `/rooms/:roomId/listings/search` | search all sources. `?async=1` → `202 {jobId}` at once; progress + result over the events stream |
 | POST | `/rooms/:roomId/listings/link` | add a pasted product link (auto-picked) |

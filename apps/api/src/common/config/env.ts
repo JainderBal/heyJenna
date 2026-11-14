@@ -20,8 +20,6 @@ const Env = z.object({
   /** Etsy Open API v3 keystring. Unset = Etsy falls back to Brave site:etsy.com search. */
   ETSY_API_KEY: z.string().optional(),
   BRAVE_SEARCH_API_KEY: z.string().optional(),
-  /** Pinterest API v5 access token (one per deployment, no OAuth yet). Unset = /pinterest routes answer 501. */
-  PINTEREST_ACCESS_TOKEN: z.string().optional(),
   PYTHON_BIN: z.string().default('python3'),
   /** Shared secret render workers send in x-worker-token. Unset = worker routes are off. */
   WORKER_TOKEN: z.string().min(16).optional(),

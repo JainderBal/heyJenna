@@ -286,9 +286,12 @@ svg{display:block}
 /* room frames */
 .mood .tile .shot{position:absolute;inset:0}
 .budget{padding:0 0 10px}
-.budget-row{display:grid;grid-template-columns:1fr auto;align-items:center;column-gap:8px}
+.budget-row{display:grid;grid-template-columns:minmax(0,1fr) 76px auto;align-items:center;column-gap:8px}
 .budget-row input[type=range]{width:100%;margin:2px 0;accent-color:var(--ink)}
-.budget-row output{font:500 11px var(--mono);white-space:nowrap}
+.budget-row input[type=number]{width:100%;border:1px solid var(--line);border-radius:6px;padding:4px 6px;font:500 11px var(--mono);background:#fff;color:var(--ink)}
+.budget-row input[type=number]:disabled{opacity:.5}
+.budget-check{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);white-space:nowrap}
+.budget-check input{accent-color:var(--ink)}
 .budget p{margin:2px 0 0;color:var(--muted);font-size:11px;line-height:1.4}
 .plan-frame{height:100%;display:flex;flex-direction:column}
 .plan-frame .budget{padding:12px 14px 0}

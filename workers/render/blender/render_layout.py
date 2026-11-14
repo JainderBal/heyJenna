@@ -450,9 +450,6 @@ co.location = target + dv * 20; co.rotation_euler = dv.to_track_quat("Z", "Y").t
 
 print("collections:", {c.name: len(c.objects) for c in COLL.values()})
 if os.environ.get("SAVE_BLEND"): bpy.ops.wm.save_as_mainfile(filepath=OUT[:-4] + ".blend")
-if GLB:  # 3D model for the app's room viewer (meshes + base colours; lights and helpers left out)
-    bpy.ops.export_scene.gltf(filepath=GLB, export_format="GLB", use_renderable=True, export_lights=False, export_cameras=False, export_apply=True)
-    print("saved", GLB)
 
 # ---------------------------------------------------------------- render, then lay a flat peach behind it
 sc.render.engine = "CYCLES"; cy = sc.cycles
@@ -476,3 +473,8 @@ px = np.array(im.pixels[:]).reshape(h, w, 4); a = px[..., 3:4]
 o = bpy.data.images.new(TAG, w, h); o.pixels = np.dstack([px[..., :3] * a + np.array(PEACH) * (1 - a), np.ones((h, w, 1))]).ravel()
 o.filepath_raw = OUT; o.file_format = "PNG"; o.save()
 print("saved", OUT)
+
+# 3D model for the app's room viewer, exported AFTER the picture is saved so an exporter crash can't lose it
+if GLB:
+    bpy.ops.export_scene.gltf(filepath=GLB, export_format="GLB", use_renderable=True, export_lights=False, export_cameras=False, export_apply=True)
+    print("saved", GLB)

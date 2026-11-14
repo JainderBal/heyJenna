@@ -114,10 +114,12 @@ export function RoomViewer({ roomId, layout, room, palette, render = null, mode 
   if (noGL) return <p className="muted" style={{ padding: 16 }}>3D needs WebGL.</p>;
   return (
     <div ref={hostRef} className="vhost" aria-label={`${showing === 'render' ? 'Rendered' : 'Live'} 3D model${room ? ` of the ${room.name.toLowerCase()}` : ''}. Drag to turn, scroll to zoom.`}>
-      <span className="vhud">
-        <i />
-        {mode === 'render' && renderState === 'loading' ? 'loading the render…' : `${showing === 'render' ? 'render' : 'live'} · 360° · drag to turn · scroll to zoom`}
-      </span>
+      {mode === 'render' && renderState === 'loading' && (
+        <span className="vhud">
+          <i />
+          loading the render…
+        </span>
+      )}
       <div className="vbtns">
         <button type="button" className={auto ? 'on' : ''} title="Auto-rotate" onPointerDown={stop} onClick={() => press('auto')}>
           ⟳ Spin

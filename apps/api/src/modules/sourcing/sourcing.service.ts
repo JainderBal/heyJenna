@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { JobsService } from '../../common/jobs/jobs.service';
 import { FloorPlan, FurnitureType } from '@hey-jenna/contracts';
 import { Listing, Room } from '@prisma/client';
 import { RoomEventsService } from '../../common/events/events.service';
@@ -32,9 +33,15 @@ export interface ChosenSlot {
   listings: Listing[]; // best first; picked ones always first
 }
 
+const LISTING_SEARCH = 'listing_search';
+interface ListingSearchPayload {
+  ownerId: string;
+  dto: SearchListingsDto;
+}
+
 /** Finds real products that match the room's moodboard, and remembers which ones the person picked. */
 @Injectable()
-export class SourcingService {
+export class SourcingService implements OnModuleInit {
   private readonly log = new Logger(SourcingService.name);
 
   constructor(
@@ -45,7 +52,25 @@ export class SourcingService {
     private readonly config: AppConfig,
     @Inject(SOURCE_ADAPTERS) private readonly adapters: SourceAdapter[],
     private readonly events: RoomEventsService,
+    private readonly jobs: JobsService,
   ) {}
+
+  onModuleInit(): void {
+    this.jobs.register(LISTING_SEARCH, async (job) => {
+      const { ownerId, dto } = job.payload as unknown as ListingSearchPayload;
+      const summary = await this.search(job.roomId!, ownerId, dto, job.id);
+      // the listings themselves are fetched with GET /listings; keep the stored result small
+      return { listingCount: summary.listings.length, searched: summary.searched, sources: summary.sources, errors: summary.errors } as never;
+    });
+  }
+
+  /** Same search, run by the jobs runner; the result is announced on the room's live-update stream. */
+  async searchInBackground(roomId: string, ownerId: string, dto: SearchListingsDto): Promise<{ jobId: string; status: string }> {
+    await this.rooms.getOwnedRoom(roomId, ownerId);
+    const payload: ListingSearchPayload = { ownerId, dto };
+    const job = await this.jobs.enqueue({ kind: LISTING_SEARCH, roomId, payload: payload as never, maxAttempts: 2 });
+    return { jobId: job.id, status: job.status };
+  }
 
   /** Search and tell the room's live-update streams when it starts and ends (jobId set when run as a background job). */
   async search(roomId: string, ownerId: string, dto: SearchListingsDto, jobId?: string): Promise<SearchSummaryDto> {

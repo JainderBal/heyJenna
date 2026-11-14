@@ -8,6 +8,7 @@ import { useMemo } from 'react';
 import { useLatestLayout, useListings, useProjectRooms } from '../api/hooks';
 import type { Listing } from '../api/types';
 import { Bag, ExternalLink } from '../editor/icons';
+import { sellerOf, shortTitle } from '../editor/model';
 import type { SidePanelBodyProps } from './types';
 
 interface Card {
@@ -21,28 +22,6 @@ interface Card {
   note: string;
   has3d: boolean;
   suggested: boolean;
-}
-
-const SELLERS: Record<string, string> = {
-  ebay: 'eBay',
-  kijiji: 'Kijiji',
-  facebook: 'Facebook Marketplace',
-  ikea: 'IKEA',
-  etsy: 'Etsy',
-  mock: 'Example shop',
-};
-
-/** "eBay", "IKEA", or the link's host for web finds and pasted links. */
-function sellerOf(source: string | null | undefined, url: string | null | undefined): string {
-  if (source && SELLERS[source]) return SELLERS[source];
-  if (url) {
-    try {
-      return new URL(url).hostname.replace(/^www\./, '');
-    } catch {
-      /* fall through */
-    }
-  }
-  return source ? source[0].toUpperCase() + source.slice(1) : 'Seller';
 }
 
 const money = (n: number | null, currency: string) => {
@@ -157,7 +136,7 @@ export function ShopPreview({ roomId, projectId }: SidePanelBodyProps) {
           cards.map((c) => (
             <article className="pcard" key={c.key}>
               <div className="pimg">
-                {c.imageUrl ? <img alt={c.title} src={c.imageUrl} loading="lazy" referrerPolicy="no-referrer" /> : <div className="pv-noimg" aria-hidden="true"><Bag /></div>}
+                {c.imageUrl ? <img alt={shortTitle(c.title)} src={c.imageUrl} loading="lazy" referrerPolicy="no-referrer" /> : <div className="pv-noimg" aria-hidden="true"><Bag /></div>}
                 <span className="seller">{c.seller}</span>
                 {c.has3d && (
                   <span className="p3d" title="Has a 3D model">
@@ -167,7 +146,7 @@ export function ShopPreview({ roomId, projectId }: SidePanelBodyProps) {
               </div>
               <div className="pinfo">
                 <div className="pt">
-                  <b>{c.title}</b>
+                  <b title={c.title}>{shortTitle(c.title)}</b>
                   <span className="price">{money(c.price, c.currency)}</span>
                 </div>
                 <small>

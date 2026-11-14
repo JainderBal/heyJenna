@@ -34,6 +34,8 @@ interface EditorState {
   renderJobs: Record<string, string>;
   /** Object URL of the floor-plan photo uploaded in this session, per project. */
   planUploads: Record<string, string>;
+  /** The project whose Plan frame shows "Add rooms" (upload / draw / sample) instead of the plan. */
+  addingRooms: string | null;
 
   enterProject(id: string, page: PageId, sel: string | null): void;
   /** Go to a page (and optionally select a frame on it); the canvas fits or focuses. */
@@ -51,6 +53,8 @@ interface EditorState {
   setMoodPreviews(roomId: string, urls: string[]): void;
   setRenderJob(roomId: string, jobId: string): void;
   setPlanUpload(projectId: string, url: string): void;
+  /** Show (or hide) "Add rooms" in the Plan frame of this project, and focus the frame. */
+  setAddingRooms(projectId: string | null): void;
 }
 
 let focusN = 0;
@@ -69,6 +73,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   moodPreviews: {},
   renderJobs: {},
   planUploads: {},
+  addingRooms: null,
 
   enterProject(id, page, sel) {
     if (get().projectId === id) return;
@@ -122,6 +127,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
   setRenderJob(roomId, jobId) {
     set({ renderJobs: { ...get().renderJobs, [roomId]: jobId } });
+  },
+  setAddingRooms(projectId) {
+    set({ addingRooms: projectId });
   },
   setPlanUpload(projectId, url) {
     const old = get().planUploads[projectId];

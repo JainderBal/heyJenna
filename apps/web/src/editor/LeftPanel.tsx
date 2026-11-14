@@ -48,7 +48,8 @@ export function LeftPanel({ project, pages, frames, onFrameOpen }: Props) {
             type="button"
             aria-label="Add room"
             onClick={() => {
-              goPage('plan', pages.length > 1 ? 'add' : 'drop');
+              if (project) useEditorStore.getState().setAddingRooms(project.id);
+              goPage('plan', 'plan');
               toast('Rooms come from your floor plan: read a photo or draw one');
             }}
           >

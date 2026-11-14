@@ -7,7 +7,7 @@ import { openPinterestWindow } from '../../app/openPinterest';
 import { toast, useEditorStore } from '../../app/useEditorStore';
 import { RoomViewer, type RenderModelState } from '../../viewer/RoomViewer';
 import { shade } from '../colour';
-import { listRows } from '../model';
+import { listRows, shortTitle } from '../model';
 
 /** The prototype's tile layout: [size, palette index, label]. */
 const MOOD: [string, number, string][] = [
@@ -252,11 +252,11 @@ export function ShoppingListFrame({ room, layout, listings }: { room: Room; layo
           {r.imageUrl ? <img alt="" src={r.imageUrl} loading="lazy" referrerPolicy="no-referrer" /> : <span className="ph" />}
           <div>
             {r.url ? (
-              <a href={r.url} target="_blank" rel="noopener noreferrer">
-                <b>{r.title}</b>
+              <a href={r.url} target="_blank" rel="noopener noreferrer" title={r.title}>
+                <b>{shortTitle(r.title)}</b>
               </a>
             ) : (
-              <b>{r.title}</b>
+              <b title={r.title}>{shortTitle(r.title)}</b>
             )}
             <small>{r.sub}</small>
           </div>
@@ -269,9 +269,12 @@ export function ShoppingListFrame({ room, layout, listings }: { room: Room; layo
           <span>{money(total, currency)}</span>
         </div>
       )}
+      <button className="pbtn dark pvbtn" type="button" onClick={() => spOpen('shop')}>
+        Open live preview
+      </button>
       <div className="list-acts">
         <button
-          className="pbtn"
+          className="pbtn sm"
           type="button"
           disabled={search.isPending}
           onClick={() =>
@@ -281,7 +284,7 @@ export function ShoppingListFrame({ room, layout, listings }: { room: Room; layo
           {search.isPending ? 'Starting…' : 'Find products'}
         </button>
         <button
-          className="pbtn"
+          className="pbtn sm"
           type="button"
           disabled={lay.isPending}
           onClick={() =>
@@ -294,9 +297,6 @@ export function ShoppingListFrame({ room, layout, listings }: { room: Room; layo
           {lay.isPending ? 'Laying out…' : layout ? 'Lay out again' : 'Lay out the room'}
         </button>
       </div>
-      <button className="pbtn dark pvbtn" type="button" onClick={() => spOpen('shop')}>
-        Open live preview
-      </button>
     </div>
   );
 }

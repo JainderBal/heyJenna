@@ -48,10 +48,10 @@ export class IkeaAdapter implements SourceAdapter {
     return true;
   }
 
-  /** IKEA search does best with short queries: colour + type, style word + type, type alone; merged. */
+  /** IKEA search does best with short queries: colour + type, style word + type, dial material + type, type alone; merged. */
   async search(q: SourceQuery): Promise<RawListing[]> {
     const texts = q.parts
-      ? [`${q.parts.colour} ${q.parts.typeText}`, `${q.parts.keyword} ${q.parts.typeText}`, q.parts.typeText]
+      ? [`${q.parts.colour} ${q.parts.typeText}`, `${q.parts.keyword} ${q.parts.typeText}`, ...(q.parts.material ? [`${q.parts.material} ${q.parts.typeText}`] : []), q.parts.typeText]
       : [q.text];
     const seen = new Set<string>();
     const products: IkeaProduct[] = [];

@@ -1,6 +1,7 @@
 import { FloorPlan, FurnitureType, Size, StyleProfile } from '@hey-jenna/contracts';
 import { hexToRgb, labDistance, rgbToLab } from '../../style/analysis/colour';
 import { COLOUR_WORDS, colourWordLab } from '../../style/analysis/colour-names';
+import { dialWords, ORNATE } from './dial-words';
 
 export interface ScoreDetail {
   style: number;  // style words found in the listing
@@ -32,7 +33,13 @@ export function scoreListing(
   // style: count keyword/vibe phrases that appear (each word of a phrase must appear)
   const phrases = [...new Set([...style.keywords, ...style.vibe].map((p) => p.toLowerCase()))];
   const matchedWords = phrases.filter((p) => p.split(/\s+/).every((w) => text.includes(w)));
-  const styleScore = Math.min(1, matchedWords.length / 2);
+  // dial words (fabric, rug type, wood tone, fixture…) count half a style word each
+  const dialMatched = dialWords(input.type, style.dials).filter((w) => !phrases.includes(w) && text.includes(w));
+  matchedWords.push(...dialMatched);
+  let styleScore = (matchedWords.length - dialMatched.length + dialMatched.length * 0.5) / 2;
+  // ornament dial: plain boards push carved/tufted/fringed pieces down, ornate boards pull them up
+  if (style.dials && ORNATE.test(text)) styleScore += style.dials.ornament < 0.3 ? -0.25 : style.dials.ornament > 0.6 ? 0.25 : 0;
+  styleScore = Math.max(0, Math.min(1, styleScore));
 
   // colour: how close the product's colour is to the board colours its ROLE should wear
   // (big pieces → main colours, small pieces → accents; 60/30/10). Exact colours when the shop gives them.

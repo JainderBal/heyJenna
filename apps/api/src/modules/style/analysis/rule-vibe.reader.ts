@@ -12,7 +12,7 @@ export class RuleVibeReader implements VibeReader {
 
     if (greenShare > 0.25)
       return this.vibe('garden', ['botanical', 'natural', 'calm'], ['rattan', 'cane', 'linen', 'natural wood'], 'garden', 'wicker', 'linen', 'layered', names);
-    if (p.warmth > 0.25 && p.saturation > 0.35)
+    if (p.warmth > 0.25 && p.saturation > 0.28)
       return this.vibe('retro', ['70s', 'warm', 'playful'], ['mid century', 'retro', 'teak', 'velvet'], 'retro', 'chrome', 'boucle', 'balanced', names);
     if (p.saturation < 0.2 && p.lightness > 0.6)
       return this.vibe('minimal', ['calm', 'airy', 'minimal'], ['scandinavian', 'minimalist', 'light oak', 'linen'], 'modern', 'black steel', 'linen', 'sparse', names);

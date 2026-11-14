@@ -17,6 +17,8 @@ A moodboard plus a floor plan → every room laid out in 3D with real, buyable f
 - Find products → Lay out the room → live 360° 3D room with real IKEA models → Render (Blender; shown as a thumbnail, the live 3D keeps spinning).
 - Side panel tabs: jenna chat, live shopping list (photos, prices, seller links, 3D badge, "not for sale" built-ins and props).
 
+**Desktop app (`apps/desktop`)**: Electron shell for Mac: the studio, with pinterest.com as a side panel tab (persistent login, "+ Add to moodboard" on pins), unsigned `.dmg` via `npm run dist -w @hey-jenna/desktop`.
+
 **API (`apps/api`)**: projects and rooms, floor plan from a photo, moodboard (uploads and pins) → style + 55 style dials, sourcing (IKEA, eBay, Etsy, Brave web search for Kijiji / FB Marketplace, pasted links), layout engine (Python) with edits, shopping list, render jobs + Blender worker, jenna chat (Claude tool use, rules without a key), live room events (SSE), background jobs, IKEA 3D model proxy with cache, CORS.
 
 Style dials: shape dials steer sourcing, materials/lighting/palette dials steer renders. See `docs/style-dials.md`.

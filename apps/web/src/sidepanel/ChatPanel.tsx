@@ -8,6 +8,7 @@ import type { ChatTurn } from '@hey-jenna/contracts';
 import { errorText } from '../api/client';
 import { useChat, useProjectRooms } from '../api/hooks';
 import { useEditorStore } from '../app/useEditorStore';
+import { desktop } from '../app/desktopBridge';
 import { openPinterestWindow } from '../app/openPinterest';
 import type { SidePanelBodyProps } from './types';
 
@@ -103,7 +104,8 @@ function RoomChat({ roomId, roomName }: { roomId: string; roomName?: string }) {
     if (a.act === 'similar') {
       say({ who: 'u', text: a.message, local: true });
       say({ who: 'j', local: true, text: 'opened Pinterest beside the studio. drag the pins you like onto the moodboard and i\'ll read them into the room\'s style.' });
-      openPinterestWindow();
+      if (desktop) st.spOpen('pinterest');
+      else openPinterestWindow();
       return;
     }
     if (a.act === 'palette') st.select('pal', true);

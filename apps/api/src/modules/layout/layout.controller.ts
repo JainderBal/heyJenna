@@ -30,7 +30,7 @@ export class LayoutController {
     return this.layouts.shoppingList(roomId, user.id, layoutId);
   }
 
-  /** Hang one of the room's products on a wall ({listingId}, optionally {wall, position, height}). */
+  /** Add one of the room's products ({listingId}): a wall piece optionally at {wall, position, height}, a floor piece optionally at {x, y, rotationDeg}. */
   @Post(':layoutId/objects')
   add(
     @CurrentUser() user: AuthUser,

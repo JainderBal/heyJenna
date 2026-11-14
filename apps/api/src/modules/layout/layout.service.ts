@@ -8,6 +8,7 @@ import { EditObjectDto } from './dto/move-object.dto';
 import { EditResultDto, LayoutResponseDto, ShoppingListDto } from './dto/layout-response.dto';
 import { EditError, moveObject, overlapWarnings, removeObject } from './editing/edits';
 import { insideRoom } from './editing/geometry';
+import { defaultRotation, findFloorSpot, FLOOR_LAYER, floorClashes, floorWarnings, isFloorType } from './editing/floor';
 import { defaultHeight, findWallSpot, hiddenBehind, isWallType, wallClashes, wallLength, wallPose } from './editing/walls';
 import { AddObjectDto } from './dto/add-object.dto';
 import { Wall } from '@hey-jenna/contracts';
@@ -113,7 +114,10 @@ export class LayoutService {
     return { layout: toLayoutResponse(await this.repo.save(layout.id, data)), warnings: removed.length > 1 ? [`also removed ${removed.slice(1).join(', ')}`] : [] };
   }
 
-  /** Hang one of the room's products on a wall: where the person says, or the best free spot on a visible wall. */
+  /**
+   * Add one of the room's products to the layout: where the person says, or the best free spot.
+   * Wall pieces hang on a visible wall; floor pieces stand clear of doors, windows and other furniture, next to their natural partner.
+   */
   async addObject(roomId: string, ownerId: string, layoutId: string, dto: AddObjectDto): Promise<EditResultDto> {
     const room = await this.rooms.getOwnedRoom(roomId, ownerId);
     const plan = room.floorPlan as unknown as FloorPlan;
@@ -122,7 +126,23 @@ export class LayoutService {
     const found = await this.sourcing.getListing(roomId, dto.listingId);
     if (!found) throw new NotFoundException('Listing not found in this room');
     const listing = await this.sourcing.ensureDetails(found); // real size from its 3D model before choosing a spot
-    if (!isWallType(listing.type)) throw new BadRequestException(`Only wall pieces (pictures, mirrors, wall shelves) can be added for now; this is a ${listing.type}`);
+    let added: { o: PlacedObject; warnings: string[] };
+    if (isWallType(listing.type)) {
+      if (dto.x !== undefined || dto.rotationDeg !== undefined) throw new BadRequestException(`A ${listing.type} hangs on a wall: give wall/position/height, not x/y`);
+      added = this.addToWall(data, plan, listing, dto);
+    } else if (isFloorType(listing.type)) {
+      if (dto.wall !== undefined || dto.position !== undefined || dto.height !== undefined)
+        throw new BadRequestException(`A ${listing.type} stands on the floor: give x/y/rotationDeg, not wall/position/height`);
+      added = this.addToFloor(data, plan, listing, dto);
+    } else throw new BadRequestException(`A ${listing.type} can't be added by hand (it goes on a surface or the ceiling)`);
+    data.objects.push(added.o);
+    data.edits++;
+    await this.sourcing.setPicked(roomId, ownerId, listing.id, true);
+    return { layout: toLayoutResponse(await this.repo.save(layout.id, data)), warnings: added.warnings };
+  }
+
+  /** Hang a wall piece where the person says, or on the best free stretch of a visible wall. */
+  private addToWall(data: LayoutData, plan: FloorPlan, listing: Listing, dto: AddObjectDto): { o: PlacedObject; warnings: string[] } {
     const size = listing.size as unknown as Size;
     const openWalls = ((data.room as { open_walls_in_render?: Wall[] } | undefined)?.open_walls_in_render ?? ['front', 'right']) as Wall[];
     const visible = (['back', 'left', 'right', 'front'] as Wall[]).filter((w) => !openWalls.includes(w));
@@ -137,19 +157,43 @@ export class LayoutService {
     const problems = wallClashes(plan, data, wall, u, z, size);
     if (problems.length) throw new BadRequestException({ message: `Can't hang it there`, problems });
 
-    const n = 1 + Math.max(0, ...data.objects.filter((o) => o.type === listing.type).map((o) => Number(o.id.split('_').pop()) || 0));
     const pose = wallPose(plan, wall, u, size.d);
     const o: PlacedObject = {
-      id: `${listing.type}_${n}`, type: listing.type, name: listing.title, layer: 'art', zone: wall, mount: 'wall',
+      id: nextId(data, listing.type), type: listing.type, name: listing.title, layer: 'art', zone: wall, mount: 'wall',
       position: { x: pose.x, y: pose.y, z }, rotation_deg: pose.rotation, size: { ...size },
       wall, arrangement: 'single', colour_role: 'accent', product: productOf(listing), added_by: 'person',
     };
-    data.objects.push(o);
-    data.edits++;
-    await this.sourcing.setPicked(roomId, ownerId, listing.id, true);
     const warnings = hiddenBehind(data, plan, wall, u, z, size).map((id) => `partly hidden behind ${id}`);
     if (openWalls.includes(wall)) warnings.push(`the ${wall} wall is cut away in the picture, so it won't show in renders`);
-    return { layout: toLayoutResponse(await this.repo.save(layout.id, data)), warnings };
+    return { o, warnings };
+  }
+
+  /**
+   * Stand a floor piece where the person says (refused if it sticks out, blocks a door or a window with a tall piece;
+   * warnings if it overlaps furniture), or on the best free spot next to its natural partner.
+   */
+  private addToFloor(data: LayoutData, plan: FloorPlan, listing: Listing, dto: AddObjectDto): { o: PlacedObject; warnings: string[] } {
+    const piece = { type: listing.type, size: listing.size as unknown as Size };
+    let pose: { x: number; y: number; rotationDeg: number }, near: string | undefined;
+    if (dto.x !== undefined && dto.y !== undefined) {
+      pose = { x: dto.x, y: dto.y, rotationDeg: dto.rotationDeg ?? defaultRotation(plan, dto.x, dto.y) };
+    } else {
+      const spot = findFloorSpot(plan, data, piece);
+      if (!spot) throw new ConflictException(`No free floor space for "${listing.title}" (${piece.size.w} x ${piece.size.d} m) clear of doors, windows and furniture`);
+      pose = { x: spot.x, y: spot.y, rotationDeg: dto.rotationDeg ?? spot.rotationDeg };
+      near = spot.near;
+    }
+    pose.rotationDeg = ((pose.rotationDeg % 360) + 360) % 360;
+    const problems = floorClashes(plan, data, piece, pose);
+    if (problems.length) throw new BadRequestException({ message: `Can't put it there`, problems });
+    const id = nextId(data, listing.type);
+    const o: PlacedObject = {
+      id, type: listing.type, name: listing.title, layer: FLOOR_LAYER[listing.type],
+      zone: (near && data.objects.find((x) => x.id === near)?.zone) || 'open', mount: 'floor',
+      position: { x: pose.x, y: pose.y, z: 0 }, rotation_deg: pose.rotationDeg, size: { ...piece.size },
+      ...(near ? { near } : {}), product: productOf(listing), added_by: 'person',
+    };
+    return { o, warnings: floorWarnings(data, piece, pose, id) };
   }
 
   /** Slide, raise/lower or re-hang a wall piece; refuses spots over windows, doors or other pieces. */
@@ -196,6 +240,11 @@ export class LayoutService {
     if (!layout) throw new NotFoundException('Layout not found');
     return layout;
   }
+}
+
+/** Next free id for a type: armchair_1, armchair_2… */
+function nextId(data: LayoutData, type: string): string {
+  return `${type}_${1 + Math.max(0, ...data.objects.filter((o) => o.type === type).map((o) => Number(o.id.split('_').pop()) || 0))}`;
 }
 
 function productOf(l: Listing): PlacedProduct {

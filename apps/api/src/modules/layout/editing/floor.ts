@@ -95,6 +95,9 @@ function gap(a: Footprint, b: Footprint) {
 const nearestWall = (plan: FloorPlan, x: number, y: number): Wall =>
   ([['back', y], ['front', plan.depth - y], ['left', x], ['right', plan.width - x]] as [Wall, number][]).sort((a, b) => a[1] - b[1])[0][0];
 
+/** A piece put down by hand without a direction turns its back to the nearest wall. */
+export const defaultRotation = (plan: FloorPlan, x: number, y: number) => ROT[nearestWall(plan, x, y)];
+
 /** Turn to face (tx, ty), snapped to a quarter turn. */
 const facing = (x: number, y: number, tx: number, ty: number) => ((Math.round((Math.atan2(tx - x, ty - y) * 180) / Math.PI / 90) * 90) % 360 + 360) % 360;
 

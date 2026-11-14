@@ -1615,7 +1615,8 @@ def main():
     spec = json.load(open(a.input)); spec["_source"] = os.path.basename(a.input) + (f" + {os.path.basename(a.profile)}" if a.profile else "")
     prof = json.load(open(a.profile)) if a.profile else None
     taste = json.load(open(a.taste)) if a.taste else None
-    L, focal, t, split, shell, checks, walk = solve(spec, taste, prof)
+    # optional design variant in the input (orient / lounge / mount / lateral …), see conv_candidates
+    L, focal, t, split, shell, checks, walk = solve(spec, taste, prof, spec.get("variant"))
     out = export(spec, L, focal, t, split, shell, checks, walk)
     json.dump(out, open(a.out, "w"), indent=2)
     if a.report: open(a.report, "w").write(report_md(out, spec))

@@ -159,8 +159,13 @@ def a_floor(o):
     box(W + TH, S, D + TH, edge, (-TH / 2, -S / 2 - 0.006, -TH / 2))
     box(W, 0.012, D, concrete() if not MAT.get("floor") else mat(MAT["floor"], 0.55), (0, 0, 0))
 
+STUB = 0.32  # cut-away walls are drawn knee-high, so pieces standing against them read as against a wall
+
 def a_wall(o):
-    if not o.get("render", True): return
+    if not o.get("render", True):
+        if o["zone"] == "front": box(W + TH, STUB, TH, mat(o.get("colour") or "#F1E7DA", 0.92), (-TH / 2, STUB / 2, D / 2 + TH / 2))
+        elif o["zone"] == "right": box(TH, STUB, D + TH, mat(o.get("colour") or "#F1E7DA", 0.92), (W / 2 + TH / 2, STUB / 2, -TH / 2))
+        return
     if o["zone"] == "left":
         box(TH, H, D + TH, mat(o.get("colour") or "#F1E7DA", 0.92), (-W / 2 - TH / 2, H / 2, -TH / 2))
         box(TH + 0.004, 0.025, D + TH + 0.004, edge, (-W / 2 - TH / 2, H + 0.012, -TH / 2))
@@ -412,6 +417,7 @@ def z_zone(o):  # invisible helper box
     e.scale = (o["size"]["w"] / 2, o["size"]["d"] / 2, 0.5); e.hide_render = True
 
 # ---------------------------------------------------------------- real product models (e.g. IKEA's own 3D files)
+FLOOR_TOP = 0.008  # top of the floor slab (0.006) plus a hair, so nothing sinks into it
 MODEL_TYPES = ("sofa", "armchair", "coffee_table", "side_table", "shelf", "desk", "desk_chair", "sideboard", "pouf", "cat_tree", "rug", "plant")
 MODEL_IDS = {o["id"] for o in LAY["objects"] if o.get("model_path") and o["type"] in MODEL_TYPES}
 
@@ -434,15 +440,26 @@ def m_model(o, fallback):
     pts = [x.matrix_world @ Vector(c) for x in meshes for c in x.bound_box]
     mn = Vector([min(p[i] for p in pts) for i in range(3)]); mx = Vector([max(p[i] for p in pts) for i in range(3)]); dims = mx - mn
     want = (o["size"]["w"], o["size"]["d"], o["size"]["h"])
-    ratios = sorted(w / max(d, 1e-3) for w, d in zip(want, dims) if w > 0.05)
-    s = 1.0 if all(0.75 <= r <= 1.33 for r in ratios) else max(0.5, min(2.0, ratios[len(ratios) // 2]))
+    # the plan's long side runs along the wall (x); if the model's long side runs the other way, turn it 90°
+    turn = abs(want[0] - want[1]) > 0.15 and abs(dims.x - dims.y) > 0.15 and (want[0] > want[1]) != (dims.x > dims.y)
+    fdims = (dims.y, dims.x, dims.z) if turn else (dims.x, dims.y, dims.z)
+    # IKEA models are true to size: keep them as they are. Only rescale when every side is off by the same
+    # factor (a model made in other units), never to squeeze a model into a misread size.
+    ratios = [w / max(d, 1e-3) for w, d in zip(want, fdims) if w > 0.05]
+    uniform = ratios and max(ratios) / min(ratios) < 1.2
+    s = sum(ratios) / len(ratios) if uniform and not 0.8 <= sum(ratios) / len(ratios) <= 1.25 else 1.0
     g = place(o)
-    root = bpy.data.objects.new(o["name"] + ".model", None); sc.collection.objects.link(root)
+    inner = bpy.data.objects.new(o["name"] + ".model_centre", None); sc.collection.objects.link(inner)
     for x in new:
-        if x.parent is None: x.parent = root
-    root.scale = (s, s, s); root.location = (-(mn.x + mx.x) / 2 * s, -(mn.y + mx.y) / 2 * s, -mn.z * s)
+        if x.parent is None: x.parent = inner
+    # centred on its footprint and standing ON the floor surface (the floor slab's top is at +6 mm;
+    # a flat rug placed at 0 would vanish inside it)
+    inner.location = (-(mn.x + mx.x) / 2, -(mn.y + mx.y) / 2, -mn.z + FLOOR_TOP)
+    root = bpy.data.objects.new(o["name"] + ".model", None); sc.collection.objects.link(root)
+    inner.parent = root
+    root.scale = (s, s, s); root.rotation_euler = (0, 0, math.pi / 2 if turn else 0)
     root.parent = g
-    print(f"model {o['id']}: {dims.x:.2f}x{dims.y:.2f}x{dims.z:.2f} m, scale {s:.2f}")
+    print(f"model {o['id']}: {dims.x:.2f}x{dims.y:.2f}x{dims.z:.2f} m, scale {s:.2f}{', turned 90' if turn else ''}")
 
 BUILD = dict(floor=a_floor, wall=a_wall, window=a_window, door=a_door,
              platform=f_platform, niche=f_niche, window_seat=f_window_seat, ceiling_beam=f_beam, half_wall=f_half_wall,

@@ -26,6 +26,9 @@ export interface LayoutResponseDto {
   summary: { pass: number; warn: number; fail: number };
   checks: { rule: string; status: string; detail: string }[];
   dropped: Dropped[];
+  /** Which design option won, and how many were compared. */
+  variant: Record<string, unknown>;
+  variantsTried: number;
   objects: PlacedObject[];
   shoppingList: ShoppingListDto;
   createdAt: string;

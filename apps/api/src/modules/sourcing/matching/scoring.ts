@@ -11,7 +11,9 @@ export interface ScoreDetail {
   matchedWords: string[];
 }
 
-const WEIGHTS = { style: 0.4, colour: 0.3, fit: 0.2, price: 0.1 };
+const WEIGHTS = { style: 0.3, colour: 0.4, fit: 0.2, price: 0.1 };
+/** Pieces that carry the 10 % accent colour. */
+const SMALL_PIECES: FurnitureType[] = ['side_table', 'floor_lamp', 'table_lamp', 'ceiling_light', 'pouf', 'art', 'desk_chair'];
 
 /** Colour words a seller used, e.g. "rust velvet sofa" → ["rust"]. */
 export function coloursIn(text: string): string[] {
@@ -21,7 +23,7 @@ export function coloursIn(text: string): string[] {
 
 /** How well one listing suits this room and moodboard, 0..1. */
 export function scoreListing(
-  input: { type: FurnitureType; text: string; size: Size; sizeEstimated: boolean; price: number | null },
+  input: { type: FurnitureType; text: string; size: Size; sizeEstimated: boolean; price: number | null; colourHexes?: string[] },
   style: StyleProfile,
   plan: FloorPlan,
 ): ScoreDetail {
@@ -32,13 +34,20 @@ export function scoreListing(
   const matchedWords = phrases.filter((p) => p.split(/\s+/).every((w) => text.includes(w)));
   const styleScore = Math.min(1, matchedWords.length / 2);
 
-  // colour: nearest palette colour to any colour word in the title (no colour words → neutral)
-  const palette = [...style.palette.dominant, ...style.palette.secondary, ...style.palette.accent].map((h) => rgbToLab(hexToRgb(h)));
-  const words = coloursIn(text);
-  let colourScore = 0.5;
-  if (words.length) {
-    const best = Math.min(...words.flatMap((w) => palette.map((p) => labDistance(colourWordLab(w)!, p))));
-    colourScore = Math.max(0, 1 - best / 50);
+  // colour: how close the product's colour is to the board colours its ROLE should wear
+  // (big pieces → main colours, small pieces → accents; 60/30/10). Exact colours when the shop gives them.
+  const roleHexes = SMALL_PIECES.includes(input.type)
+    ? [...style.palette.accent, ...style.palette.secondary]
+    : [...style.palette.secondary, ...style.palette.dominant];
+  const palette = roleHexes.map((h) => rgbToLab(hexToRgb(h)));
+  const productLabs = input.colourHexes?.length
+    ? input.colourHexes.map((h) => rgbToLab(hexToRgb(h)))
+    : coloursIn(text).map((w) => colourWordLab(w)!);
+  let colourScore = 0.5; // unknown colour: neutral
+  if (input.type === 'plant') colourScore = 0.7;
+  else if (productLabs.length) {
+    const best = Math.min(...productLabs.flatMap((c) => palette.map((p) => labDistance(c, p))));
+    colourScore = Math.max(0, 1 - best / 45);
   }
 
   // fit: big pieces must leave room to walk; flat things only need to fit the floor

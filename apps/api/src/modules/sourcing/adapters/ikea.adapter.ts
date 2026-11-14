@@ -1,20 +1,34 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AppConfig } from '../../../common/config/app-config.service';
+import { colourWordLab, COLOUR_WORDS } from '../../style/analysis/colour-names';
 import { classifyTitle } from '../matching/classify';
 import { RawListing, SourceAdapter, SourceQuery } from './source.adapter';
 
 /** Spare parts and covers that mention a furniture word but aren't the furniture. */
 const NOT_FURNITURE = /\b(cover|slipcover|legs?|feet|cushion cover|fittings?|parts?|frame for|insert|hardware|glass top)\b/i;
+/** Ranges that don't belong in a grown-up living room. */
+const WRONG_RANGE = /child|kid|baby|junior|outdoor|garden|gaming|pet/i;
+
+interface IkeaVariant {
+  id: string;
+  pipUrl: string;
+  imageUrl?: string;
+  imageAlt?: string;
+  name: string;
+  typeName: string;
+}
 
 interface IkeaProduct {
   itemNo: string;
+  businessStructure?: { homeFurnishingBusinessName?: string; productAreaName?: string };
+  gprDescription?: { variants?: IkeaVariant[] };
   name: string;
   typeName: string;
   pipUrl: string;
   mainImageUrl?: string;
   itemMeasureReferenceText?: string;
   validDesignText?: string;
-  colors?: { name: string }[];
+  colors?: { name: string; hex?: string }[];
   salesPrice?: { numeral?: number; currencyCode?: string };
 }
 
@@ -43,29 +57,51 @@ export class IkeaAdapter implements SourceAdapter {
     const products: IkeaProduct[] = [];
     for (const text of [...new Set(texts.map((t) => t.trim()))]) {
       for (const p of await this.query(text, q.limit))
-        if (!seen.has(p.itemNo) && !NOT_FURNITURE.test(p.typeName) && classifyTitle(p.typeName) === q.type) {
+        if (!seen.has(p.itemNo) && !NOT_FURNITURE.test(p.typeName) && !this.wrongRange(p, p.businessStructure?.homeFurnishingBusinessName) && classifyTitle(p.typeName) === q.type) {
           seen.add(p.itemNo);
           products.push(p);
         }
     }
-    return products
-      .slice(0, q.limit * 2)
-      .map((p) => {
-        const colours = (p.colors ?? []).map((c) => c.name).join(' ');
-        return {
-          source: 'ikea',
-          externalId: p.itemNo,
-          url: p.pipUrl,
-          title: `${p.name} ${p.typeName}${colours ? `, ${colours}` : ''}`,
-          // the measure text is sometimes "90x55 cm" (tables, rugs): the size parser picks it up
-          description: [p.itemMeasureReferenceText, p.validDesignText].filter(Boolean).join(' '),
-          price: p.salesPrice?.numeral ?? null,
-          currency: p.salesPrice?.currencyCode ?? 'CAD',
-          imageUrl: p.mainImageUrl ?? null,
-          condition: 'new',
-          location: null,
-        } satisfies RawListing;
-      });
+    // each product and its colour variants are separate candidates: scoring picks the colour that suits the board
+    return products.slice(0, q.limit * 2).flatMap((p) => [this.toListing(p), ...this.variantsOf(p)]);
+  }
+
+  private wrongRange(p: { typeName: string }, area?: string) {
+    return WRONG_RANGE.test(p.typeName) || (!!area && WRONG_RANGE.test(area));
+  }
+
+  private toListing(p: IkeaProduct): RawListing {
+    const colours = (p.colors ?? []).map((c) => c.name).join(' ');
+    return {
+      source: 'ikea',
+      externalId: p.itemNo,
+      url: p.pipUrl,
+      title: `${p.name} ${p.typeName}${colours ? `, ${colours}` : ''}`,
+      // the measure text is sometimes "90x55 cm" (tables, rugs): the size parser picks it up
+      description: [p.itemMeasureReferenceText, p.validDesignText].filter(Boolean).join(' '),
+      price: p.salesPrice?.numeral ?? null,
+      currency: p.salesPrice?.currencyCode ?? 'CAD',
+      imageUrl: p.mainImageUrl ?? null,
+      condition: 'new',
+      location: null,
+      colourHexes: (p.colors ?? []).filter((c) => c.hex).map((c) => `#${c.hex!.toUpperCase()}`),
+    };
+  }
+
+  /** Other colours of the same product ("Samsala dark blue"). Price is the main product's until the page is read. */
+  private variantsOf(p: IkeaProduct): RawListing[] {
+    return (p.gprDescription?.variants ?? []).slice(0, 6).filter((v) => !this.wrongRange(v)).map((v) => {
+      const colourText = (v.imageAlt ?? '').split(',').slice(1).join(' ').toLowerCase(); // "…, Samsala dark blue"
+      const words = COLOUR_WORDS.filter((w) => new RegExp(`\\b${w}\\b`).test(colourText));
+      return {
+        ...this.toListing(p),
+        externalId: v.id.replace(/^s/, ''),
+        url: v.pipUrl,
+        title: `${v.name} ${v.typeName}${colourText ? `, ${colourText}` : ''}`,
+        imageUrl: v.imageUrl ?? null,
+        colourHexes: words.length ? words.map(wordHex) : undefined,
+      };
+    });
   }
 
   private async query(text: string, limit: number): Promise<IkeaProduct[]> {
@@ -81,3 +117,15 @@ export class IkeaAdapter implements SourceAdapter {
 }
 
 export const USER_AGENT = 'hey-jenna/0.1 (hackathon prototype; furniture matching)';
+
+/** A colour word's reference colour as #RRGGBB. */
+function wordHex(word: string): string {
+  const [L, a, b] = colourWordLab(word)!;
+  // Lab → sRGB
+  const fy = (L + 16) / 116, fx = fy + a / 500, fz = fy - b / 200;
+  const f = (t: number) => (t ** 3 > 0.008856 ? t ** 3 : (t - 16 / 116) / 7.787);
+  const [x, y, z] = [f(fx) * 0.95047, f(fy), f(fz) * 1.08883];
+  const lin = [x * 3.2406 - y * 1.5372 - z * 0.4986, -x * 0.9689 + y * 1.8758 + z * 0.0415, x * 0.0557 - y * 0.204 + z * 1.057];
+  const g = (c: number) => Math.round(255 * Math.max(0, Math.min(1, c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055)));
+  return '#' + lin.map((c) => g(c).toString(16).padStart(2, '0')).join('').toUpperCase();
+}

@@ -32,6 +32,8 @@ export function toLayoutResponse(layout: Layout): LayoutResponseDto {
     summary: data.summary,
     checks: data.checks,
     dropped: data.dropped,
+    variant: (data.variant as Record<string, unknown>) ?? {},
+    variantsTried: (data.variantsTried as number) ?? 1,
     objects: data.objects,
     shoppingList: shoppingListOf(data),
     createdAt: layout.createdAt.toISOString(),

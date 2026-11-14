@@ -10,7 +10,7 @@ import { EditError, moveObject, overlapWarnings, removeObject } from './editing/
 import { insideRoom } from './editing/geometry';
 import { EngineFailedError } from './engine/python-layout.engine';
 import { LAYOUT_ENGINE, LayoutEngine } from './engine/layout-engine';
-import { solveWithRepairs } from './engine/repair';
+import { solveBestVariant } from './engine/variants';
 import { buildEngineSpec, ListingIndex } from './engine/spec-builder';
 import { LayoutsRepository } from './layouts.repository';
 import { LayoutData, PlacedObject, PlacedProduct } from './layout.types';
@@ -39,7 +39,7 @@ export class LayoutService {
 
     let solved;
     try {
-      solved = await solveWithRepairs(this.engine, spec);
+      solved = await solveBestVariant(this.engine, spec);
     } catch (e) {
       if (e instanceof EngineFailedError) throw new UnprocessableEntityException(`Couldn't lay out this room: ${e.message}`);
       throw e;
@@ -47,7 +47,7 @@ export class LayoutService {
     const suggestedIds = new Set(spec.furniture.filter((f) => f.suggested).map((f) => f.id));
     const specIds = new Set(spec.furniture.map((f) => f.id));
     const objects = solved.result.objects.map((o) => attach(o as PlacedObject, index, suggestedIds, specIds));
-    const data: LayoutData = { ...solved.result, objects, dropped: solved.dropped, edits: 0 };
+    const data: LayoutData = { ...solved.result, objects, dropped: solved.dropped, edits: 0, variant: solved.variant, variantsTried: solved.tried };
     return toLayoutResponse(await this.repo.create(roomId, data));
   }
 

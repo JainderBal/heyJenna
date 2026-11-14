@@ -1,5 +1,7 @@
 /** Input for the design engine (the shape engines/layout/design_logic.py reads). */
 export interface EngineSpec {
+  /** Design variant: orient (faces/frames), lounge (reading/conversation), mount (wall/float), lateral (-1/0/1). */
+  variant?: Record<string, unknown>;
   room: Record<string, unknown>;
   needs: string[];
   style_profile: Record<string, unknown>;

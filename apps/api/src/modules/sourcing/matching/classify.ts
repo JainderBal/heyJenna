@@ -16,11 +16,17 @@ const RULES: [FurnitureType, RegExp][] = [
   ['shelf', /\b(bookshelf|bookcase|shelving|etagere|shelf unit|shelf)\b/i],
   ['desk', /\b(desk|writing table)\b/i],
   ['rug', /\b(rug|carpet|runner)\b/i],
+  // a real plant, not the things that hold one (stands, pots, hangers…), which are checked first below
   ['plant', /\b(plant|monstera|fiddle leaf|ficus|palm|snake plant|pothos)\b/i],
   ['art', /\b(wall art|print|poster|painting|canvas|framed art|artwork)\b/i],
 ];
 
+/** Plant accessories that mention "plant" but aren't one. */
+const PLANT_ACCESSORY = /\b(plant stand|plant pot|pot|planter|plant holder|hanger|saucer|plant clip|watering)\b/i;
+const LIVE_OR_FAKE_PLANT = /\b(potted plant|artificial plant|plant with pot|monstera|fiddle leaf|ficus|palm|snake plant|pothos)\b/i;
+
 export function classifyTitle(title: string): FurnitureType | null {
+  if (/\bplant\b/i.test(title) && PLANT_ACCESSORY.test(title) && !LIVE_OR_FAKE_PLANT.test(title)) return null;
   for (const [type, re] of RULES) if (re.test(title)) return type;
   return null;
 }

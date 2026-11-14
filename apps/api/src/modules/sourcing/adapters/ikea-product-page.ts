@@ -42,3 +42,19 @@ export function findIkeaModelUrl(html: string): string | null {
   const links = [...new Set(html.match(/https:\/\/web-api\.ikea\.com\/dimma\/assets\/[^"'\s\\]+?\.glb/g) ?? [])];
   return links.find((u) => u.includes('/iqp2/')) ?? links.find((u) => u.includes('/iqp1/')) ?? links[0] ?? null;
 }
+
+/** The page's own price (schema.org Product offer), so colour variants get their real price. */
+export function findIkeaPrice(html: string): number | null {
+  for (const m of html.matchAll(/<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)) {
+    try {
+      const items = [JSON.parse(m[1])].flat() as Record<string, any>[];
+      const product = items.find((i) => [i['@type']].flat().includes('Product'));
+      const offer = [product?.offers].flat()[0];
+      const price = Number(offer?.price ?? offer?.lowPrice);
+      if (Number.isFinite(price) && price > 0) return price;
+    } catch {
+      /* skip broken JSON-LD */
+    }
+  }
+  return null;
+}

@@ -12,6 +12,8 @@ export interface RawListing {
   imageUrl: string | null;
   condition: 'new' | 'used' | 'unknown';
   location: string | null;
+  /** Exact product colours as #RRGGBB when the shop gives them (IKEA does). */
+  colourHexes?: string[];
 }
 
 export interface SourceQuery {

@@ -1,0 +1,71 @@
+{
+  "name": "retro",
+  "source": "moodboard: 70s retro loft (reference.jpg)",
+  "palette": {
+    "dominant": [
+      "#F1E7DA",
+      "#CBC3B7"
+    ],
+    "secondary": [
+      "#2F6E3E",
+      "#B9733A",
+      "#B65F3F",
+      "#2F8C4E"
+    ],
+    "accent": [
+      "#D6483C",
+      "#2E4FC4",
+      "#E9A23B",
+      "#F2A7B8"
+    ]
+  },
+  "shape_family": "retro",
+  "materials": {
+    "wood": "#B9733A",
+    "wood_light": "#D3A06A",
+    "metal": "chrome",
+    "floor": null,
+    "curtain": "#E27A2C",
+    "fabric": "boucle"
+  },
+  "styling_density": "balanced",
+  "plant_count": 4,
+  "art": {
+    "content": "abstract colour blocks",
+    "arrangement": "gallery",
+    "colours": [
+      "#D6483C",
+      "#2E4FC4",
+      "#E9A23B",
+      "#3A8C5C",
+      "#F3E6D3",
+      "#C2432E",
+      "#7FA7C9",
+      "#E27A2C",
+      "#2F6E3E"
+    ]
+  },
+  "light_warmth_k": 2700,
+  "features": {
+    "allow": [
+      "platform",
+      "niche",
+      "built_in_shelf",
+      "half_wall",
+      "window_seat",
+      "wainscoting"
+    ],
+    "prefer": [
+      "platform",
+      "niche"
+    ],
+    "max": 2
+  },
+  "fillers": [
+    "lounge_chair",
+    "plant_group",
+    "side_table",
+    "pouf",
+    "reading_lamp"
+  ]
+}

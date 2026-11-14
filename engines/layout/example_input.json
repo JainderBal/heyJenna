@@ -1,0 +1,447 @@
+{
+  "room": {
+    "name": "retro loft living room",
+    "width": 6.0,
+    "depth": 4.8,
+    "wall_height": 2.7,
+    "walls": {
+      "back": {
+        "finish": "brick",
+        "feature": true,
+        "colour": "#B65F3F"
+      },
+      "left": {
+        "finish": "plaster"
+      }
+    },
+    "windows": [
+      {
+        "id": "window_left",
+        "wall": "back",
+        "position": 3.05,
+        "width": 1.5,
+        "sill": 0.8,
+        "head": 2.45,
+        "view": "street"
+      },
+      {
+        "id": "window_right",
+        "wall": "back",
+        "position": 4.95,
+        "width": 1.6,
+        "sill": 0.8,
+        "head": 2.45,
+        "view": "street"
+      }
+    ],
+    "doors": [
+      {
+        "id": "doorway",
+        "wall": "back",
+        "position": 1.25,
+        "width": 0.95,
+        "swing": "none",
+        "style": "striped curtain"
+      }
+    ],
+    "light": {
+      "from": "back",
+      "time": "late afternoon",
+      "colour": "#FFAE6E"
+    },
+    "open_walls_in_render": [
+      "front",
+      "right"
+    ],
+    "floor": "concrete"
+  },
+  "needs": [
+    "one cat",
+    "works from home",
+    "reads in the evening",
+    "has friends over"
+  ],
+  "style_profile": {
+    "name": "retro",
+    "source": "moodboard: 70s retro loft (reference.jpg)",
+    "palette": {
+      "dominant": [
+        "#F1E7DA",
+        "#CBC3B7"
+      ],
+      "secondary": [
+        "#2F6E3E",
+        "#B9733A",
+        "#B65F3F",
+        "#2F8C4E"
+      ],
+      "accent": [
+        "#D6483C",
+        "#2E4FC4",
+        "#E9A23B",
+        "#F2A7B8"
+      ]
+    },
+    "shape_family": "retro",
+    "materials": {
+      "wood": "#B9733A",
+      "wood_light": "#D3A06A",
+      "metal": "chrome",
+      "floor": null,
+      "curtain": "#E27A2C",
+      "fabric": "boucle"
+    },
+    "styling_density": "balanced",
+    "plant_count": 4,
+    "art": {
+      "content": "abstract colour blocks",
+      "arrangement": "gallery",
+      "colours": [
+        "#D6483C",
+        "#2E4FC4",
+        "#E9A23B",
+        "#3A8C5C",
+        "#F3E6D3",
+        "#C2432E",
+        "#7FA7C9",
+        "#E27A2C",
+        "#2F6E3E"
+      ]
+    },
+    "light_warmth_k": 2700,
+    "features": {
+      "allow": [
+        "platform",
+        "niche",
+        "built_in_shelf",
+        "half_wall",
+        "window_seat",
+        "wainscoting"
+      ],
+      "prefer": [
+        "platform",
+        "niche"
+      ],
+      "max": 2
+    },
+    "fillers": [
+      "lounge_chair",
+      "plant_group",
+      "side_table",
+      "pouf",
+      "reading_lamp"
+    ]
+  },
+  "furniture": [
+    {
+      "id": "sofa",
+      "type": "sofa",
+      "name": "modular 3-seat sofa",
+      "size": {
+        "w": 2.16,
+        "d": 0.95,
+        "h": 0.85
+      },
+      "colour": "secondary",
+      "style": "camaleonda"
+    },
+    {
+      "id": "lounge_chair",
+      "type": "armchair",
+      "name": "green lounge chair",
+      "size": {
+        "w": 0.78,
+        "d": 0.85,
+        "h": 0.9
+      },
+      "colour": "auto",
+      "tags": [
+        "lounge",
+        "upholstered"
+      ],
+      "style": "lounge"
+    },
+    {
+      "id": "tube_chair",
+      "type": "armchair",
+      "name": "chrome tube chair",
+      "size": {
+        "w": 0.5,
+        "d": 0.64,
+        "h": 0.88
+      },
+      "colour": "auto",
+      "tags": [
+        "accent"
+      ],
+      "style": "tube"
+    },
+    {
+      "id": "coffee_table",
+      "type": "coffee_table",
+      "name": "glossy pedestal coffee table",
+      "colour": "auto",
+      "style": "pedestal",
+      "options": [
+        {
+          "w": 0.92,
+          "d": 0.92,
+          "h": 0.43,
+          "shape": "round"
+        },
+        {
+          "w": 1.0,
+          "d": 0.6,
+          "h": 0.43,
+          "shape": "oval"
+        },
+        {
+          "w": 1.3,
+          "d": 0.7,
+          "h": 0.43,
+          "shape": "oval"
+        }
+      ]
+    },
+    {
+      "id": "rug",
+      "type": "rug",
+      "name": "wool rug",
+      "colour": "auto",
+      "options": [
+        {
+          "w": 2.2,
+          "d": 2.2,
+          "h": 0.02,
+          "shape": "round"
+        },
+        {
+          "w": 2.4,
+          "d": 1.7,
+          "h": 0.02,
+          "shape": "rect"
+        },
+        {
+          "w": 3.0,
+          "d": 2.0,
+          "h": 0.02,
+          "shape": "rect"
+        },
+        {
+          "w": 3.0,
+          "d": 2.5,
+          "h": 0.02,
+          "shape": "rect"
+        }
+      ]
+    },
+    {
+      "id": "pendant",
+      "type": "ceiling_light",
+      "name": "globe pendant",
+      "size": {
+        "w": 0.4,
+        "d": 0.4,
+        "h": 0.3
+      },
+      "colour": "auto",
+      "hang_height": 2.15
+    },
+    {
+      "id": "pole_lamp",
+      "type": "floor_lamp",
+      "name": "pink globe floor lamp",
+      "size": {
+        "w": 0.34,
+        "d": 0.34,
+        "h": 1.84
+      },
+      "colour": "auto",
+      "style": "pole"
+    },
+    {
+      "id": "sideboard_lamp",
+      "type": "table_lamp",
+      "name": "mushroom table lamp",
+      "size": {
+        "w": 0.24,
+        "d": 0.24,
+        "h": 0.36
+      },
+      "colour": "auto"
+    },
+    {
+      "id": "desk_lamp",
+      "type": "table_lamp",
+      "name": "mushroom desk lamp",
+      "size": {
+        "w": 0.2,
+        "d": 0.2,
+        "h": 0.32
+      },
+      "colour": "auto",
+      "on": "desk"
+    },
+    {
+      "id": "spiral_shelf",
+      "type": "shelf",
+      "name": "spiral bookshelf",
+      "size": {
+        "w": 0.6,
+        "d": 0.6,
+        "h": 1.95
+      },
+      "colour": "auto",
+      "style": "spiral"
+    },
+    {
+      "id": "desk",
+      "type": "desk",
+      "name": "wood desk",
+      "size": {
+        "w": 1.25,
+        "d": 0.6,
+        "h": 0.75
+      },
+      "colour": "auto"
+    },
+    {
+      "id": "desk_chair",
+      "type": "desk_chair",
+      "name": "swivel desk chair",
+      "size": {
+        "w": 0.46,
+        "d": 0.46,
+        "h": 0.9
+      },
+      "colour": "auto"
+    },
+    {
+      "id": "sideboard",
+      "type": "sideboard",
+      "name": "teak sideboard",
+      "size": {
+        "w": 1.4,
+        "d": 0.42,
+        "h": 0.62
+      },
+      "material": "wood"
+    },
+    {
+      "id": "gallery",
+      "type": "art",
+      "name": "gallery wall (9 frames)",
+      "size": {
+        "w": 1.6,
+        "d": 0.03,
+        "h": 0.95
+      },
+      "colour": "auto",
+      "placement": "over_sofa"
+    },
+    {
+      "id": "stool",
+      "type": "side_table",
+      "name": "red stool side table",
+      "size": {
+        "w": 0.38,
+        "d": 0.38,
+        "h": 0.48
+      },
+      "colour": "auto",
+      "style": "stool"
+    },
+    {
+      "id": "drum_table",
+      "type": "side_table",
+      "name": "drum side table",
+      "size": {
+        "w": 0.46,
+        "d": 0.46,
+        "h": 0.58
+      },
+      "colour": "auto",
+      "tags": [
+        "reading"
+      ],
+      "style": "drum"
+    },
+    {
+      "id": "cat_tree",
+      "type": "cat_tree",
+      "name": "cat tree with window perch",
+      "size": {
+        "w": 0.5,
+        "d": 0.5,
+        "h": 1.1
+      },
+      "colour": "auto"
+    },
+    {
+      "id": "plant_1",
+      "type": "plant",
+      "name": "fiddle leaf",
+      "size": {
+        "w": 0.42,
+        "d": 0.42,
+        "h": 1.5
+      },
+      "kind": "tall"
+    },
+    {
+      "id": "plant_2",
+      "type": "plant",
+      "name": "parlour palm",
+      "size": {
+        "w": 0.45,
+        "d": 0.45,
+        "h": 0.75
+      },
+      "kind": "bush"
+    },
+    {
+      "id": "plant_3",
+      "type": "plant",
+      "name": "cactus",
+      "size": {
+        "w": 0.32,
+        "d": 0.32,
+        "h": 0.85
+      },
+      "kind": "cactus"
+    },
+    {
+      "id": "plant_4",
+      "type": "plant",
+      "name": "rubber plant",
+      "size": {
+        "w": 0.42,
+        "d": 0.42,
+        "h": 1.3
+      },
+      "kind": "tall"
+    },
+    {
+      "id": "plant_5",
+      "type": "plant",
+      "name": "calathea",
+      "size": {
+        "w": 0.4,
+        "d": 0.4,
+        "h": 0.65
+      },
+      "kind": "bush"
+    },
+    {
+      "id": "plant_6",
+      "type": "plant",
+      "name": "snake plant",
+      "size": {
+        "w": 0.3,
+        "d": 0.3,
+        "h": 0.8
+      },
+      "kind": "cactus"
+    }
+  ]
+}

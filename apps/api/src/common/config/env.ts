@@ -17,6 +17,8 @@ const Env = z.object({
   EBAY_MARKETPLACE: z.string().default('EBAY_CA'),
   BRAVE_SEARCH_API_KEY: z.string().optional(),
   PYTHON_BIN: z.string().default('python3'),
+  /** Shared secret render workers send in x-worker-token. Unset = worker routes are off. */
+  WORKER_TOKEN: z.string().min(16).optional(),
 });
 export type Env = z.infer<typeof Env>;
 

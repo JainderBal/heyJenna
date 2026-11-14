@@ -17,5 +17,6 @@ import { LayoutsRepository } from './layouts.repository';
     // swap this one line to change engines (e.g. a TypeScript port later)
     { provide: LAYOUT_ENGINE, useClass: PythonLayoutEngine },
   ],
+  exports: [LayoutService],
 })
 export class LayoutModule {}

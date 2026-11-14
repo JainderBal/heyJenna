@@ -61,6 +61,17 @@ export class LayoutService {
     return toLayoutResponse(await this.load(roomId, layoutId));
   }
 
+  /** For the render module: the stored layout (checks the person owns the room). */
+  async getData(roomId: string, ownerId: string, layoutId: string): Promise<LayoutData> {
+    await this.rooms.getOwnedRoom(roomId, ownerId);
+    return (await this.load(roomId, layoutId)).data as unknown as LayoutData;
+  }
+
+  /** For render workers (no user): the stored layout by id. */
+  async getDataForWorker(roomId: string, layoutId: string): Promise<LayoutData> {
+    return (await this.load(roomId, layoutId)).data as unknown as LayoutData;
+  }
+
   async shoppingList(roomId: string, ownerId: string, layoutId: string): Promise<ShoppingListDto> {
     await this.rooms.getOwnedRoom(roomId, ownerId);
     return shoppingListOf((await this.load(roomId, layoutId)).data as unknown as LayoutData);

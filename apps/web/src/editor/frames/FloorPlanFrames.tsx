@@ -1,10 +1,12 @@
 /**
- * Floor plan page frames:
- *  - drop / add: read a plan photo (POST /projects/:id/floor-plan) → preview → "Create these rooms";
- *    on 422 (no ANTHROPIC_API_KEY on the API, or no rooms found) → "Draw rooms" by hand, or the sample plan.
- *  - plan: the rooms drawn to scale.  - found: one row per room → its page.
+ * Floor plan page frames (the prototype's Plan, 3D floor plan, Rooms found):
+ *  - plan: the rooms drawn to scale. With no rooms yet, or after "+ Add rooms", it holds the intake:
+ *    read a plan photo (POST /projects/:id/floor-plan) → preview → "Create these rooms"; on 422 (no
+ *    ANTHROPIC_API_KEY on the API, or no rooms found) → "Draw rooms" by hand, or the sample plan.
+ *  - plan3d: the whole plan as an isometric clay model (the prototype's planShot).
+ *  - found: one row per room → its page, and "+ Add rooms".
  */
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { BulkRoomInput } from '@hey-jenna/contracts';
 import { useBulkCreateRooms, useReadFloorPlan } from '../../api/hooks';
 import { errorText, isApiError } from '../../api/client';
@@ -13,6 +15,7 @@ import { toast, useEditorStore } from '../../app/useEditorStore';
 import { PlanDrop } from '../icons';
 import { PLANS, floorPlanOf, placeRooms, sampleRooms, savePlanSpots } from '../plans';
 import { shade } from '../colour';
+import { planShot, roomKind } from '../../viewer/three-kit';
 
 type Mode =
   | { kind: 'idle' }
@@ -26,8 +29,8 @@ interface DraftRoom {
   depth: number;
 }
 
-/** Shared by the empty page's "Drop your floor plan" frame and the "Add rooms" frame. */
-export function RoomsIntake({ projectId, empty }: { projectId: string; empty: boolean }) {
+/** The Plan frame's intake: the empty page's "Drop your floor plan", or "Add rooms" (closed with `onClose`). */
+export function RoomsIntake({ projectId, empty, onClose }: { projectId: string; empty: boolean; onClose?: () => void }) {
   const [mode, setMode] = useState<Mode>({ kind: 'idle' });
   const [drafts, setDrafts] = useState<DraftRoom[]>([]);
   const [over, setOver] = useState(false);
@@ -63,6 +66,7 @@ export function RoomsIntake({ projectId, empty }: { projectId: string; empty: bo
         savePlanSpots(projectId, created, spots.filter((s): s is { x: number; z: number } => !!s));
         setMode({ kind: 'idle' });
         setDrafts([]);
+        onClose?.();
         toast(`jenna found ${created.length} rooms and made a page for each`);
         goPage('plan');
       },
@@ -84,6 +88,7 @@ export function RoomsIntake({ projectId, empty }: { projectId: string; empty: bo
       readPlan(e.dataTransfer.files[0]);
     },
   };
+  const sample = () => create(sampleRooms(PLANS.flat), PLANS.flat.map(([, x, z]) => ({ x, z })));
   const input = <input ref={file} type="file" accept="image/*" hidden onChange={(e) => (readPlan(e.target.files?.[0]), (e.target.value = ''))} />;
 
   if (mode.kind === 'preview') {
@@ -162,7 +167,7 @@ export function RoomsIntake({ projectId, empty }: { projectId: string; empty: bo
           >
             {bulk.isPending ? 'Creating…' : `Create ${drafts.length || ''} room${drafts.length === 1 ? '' : 's'}`}
           </button>
-          <button className="pbtn" type="button" disabled={busy} onClick={() => create(sampleRooms(PLANS.flat), PLANS.flat.map(([, x, z]) => ({ x, z })))}>
+          <button className="pbtn" type="button" disabled={busy} onClick={sample}>
             Use sample plan
           </button>
           <button className="pbtn" type="button" disabled={busy} onClick={() => setMode({ kind: 'idle' })}>
@@ -188,6 +193,9 @@ export function RoomsIntake({ projectId, empty }: { projectId: string; empty: bo
           <button className="pbtn" type="button" disabled={busy} onClick={() => setMode({ kind: 'draw' })}>
             Draw rooms
           </button>
+          <button className="pbtn" type="button" disabled={busy} onClick={sample}>
+            Use a sample
+          </button>
         </div>
       </div>
     );
@@ -204,6 +212,14 @@ export function RoomsIntake({ projectId, empty }: { projectId: string; empty: bo
         <button className="pbtn" type="button" disabled={busy} onClick={() => setMode({ kind: 'draw' })}>
           Draw rooms
         </button>
+        <button className="pbtn" type="button" disabled={busy} onClick={sample}>
+          Use sample plan
+        </button>
+        {onClose && (
+          <button className="pbtn" type="button" disabled={busy} onClick={onClose}>
+            Cancel
+          </button>
+        )}
       </div>
     </div>
   );
@@ -237,6 +253,14 @@ function DrawForm({ onAdd }: { onAdd: (d: DraftRoom) => void }) {
 
 /** The plan drawn to scale (the prototype's `plan` frame). Rooms are clickable → their page. */
 export function PlanFrame({ projectId, rooms, palette, upload }: { projectId: string; rooms: Room[]; palette: string[]; upload?: string }) {
+  const adding = useEditorStore((s) => s.addingRooms === projectId);
+  const setAdding = useEditorStore((s) => s.setAddingRooms);
+  if (!rooms.length) return <RoomsIntake projectId={projectId} empty />;
+  if (adding) return <RoomsIntake projectId={projectId} empty={false} onClose={() => setAdding(null)} />;
+  return <PlanDrawing projectId={projectId} rooms={rooms} palette={palette} upload={upload} />;
+}
+
+function PlanDrawing({ projectId, rooms, palette, upload }: { projectId: string; rooms: Room[]; palette: string[]; upload?: string }) {
   const goPage = useEditorStore((s) => s.goPage);
   const R = placeRooms(projectId, rooms);
   const minX = Math.min(...R.map((r) => r.x));
@@ -282,12 +306,42 @@ export function PlanFrame({ projectId, rooms, palette, upload }: { projectId: st
   );
 }
 
-/** "N rooms found": one row per room → its page. */
-export function FoundFrame({ rooms, palette }: { rooms: Room[]; palette: string[] }) {
+/** The prototype's "3D floor plan": every room at its plan position, as an isometric clay model with labels. */
+export function Plan3DFrame({ projectId, rooms, palette }: { projectId: string; rooms: Room[]; palette: string[] }) {
+  const R = placeRooms(projectId, rooms);
+  const key = JSON.stringify([R.map((p) => [p.room.name, p.x, p.z, p.w, p.d]), palette]);
+  const src = useMemo(() => {
+    if (!R.length) return '';
+    try {
+      // 2× the frame for a crisp image, as the prototype's 1040 × 840
+      return planShot(R.map((p) => ({ name: p.room.name, x: p.x, z: p.z, w: p.w, d: p.d, kind: roomKind(p.room.name) })), palette, 1040, 840).toDataURL('image/jpeg', 0.9);
+    } catch {
+      return ''; // no WebGL
+    }
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!src) return <p className="muted" style={{ padding: 16 }}>{R.length ? '3D needs WebGL.' : 'Add rooms to see them in 3D.'}</p>;
+  return <img className="shot" alt="3D render of the whole floor plan" src={src} />;
+}
+
+/** "N rooms found": one row per room → its page; "+ Add rooms" opens the intake in the Plan frame. */
+export function FoundFrame({ projectId, rooms, palette }: { projectId: string; rooms: Room[]; palette: string[] }) {
   const goPage = useEditorStore((s) => s.goPage);
+  const setAdding = useEditorStore((s) => s.setAddingRooms);
   return (
     <div className="found">
-      <h4>{rooms.length} rooms found</h4>
+      <div className="found-h">
+        <h4>{rooms.length} rooms found</h4>
+        <button
+          className="pbtn sm"
+          type="button"
+          onClick={() => {
+            setAdding(projectId);
+            goPage('plan', 'plan');
+          }}
+        >
+          + Add rooms
+        </button>
+      </div>
       {rooms.map((r, i) => (
         <button key={r.id} className="frow" type="button" onClick={() => goPage(r.id)}>
           <span className="sw" style={{ background: palette[i % palette.length] }} />

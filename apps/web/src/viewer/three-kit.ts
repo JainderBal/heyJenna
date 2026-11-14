@@ -279,3 +279,118 @@ export function roomShot(palette: string[], kind: string, W: number, H: number):
 }
 
 export { shade };
+
+/** One room on the 3D floor plan: name, plan position and size (metres), furniture kind. */
+export interface PlanShotRoom {
+  name: string;
+  x: number;
+  z: number;
+  w: number;
+  d: number;
+  kind: string;
+}
+
+/** The furniture set for a room, from its name (the prototype's PLANS kinds). */
+export function roomKind(name: string): string {
+  const n = name.toLowerCase();
+  if (/bed|sleep|guest|nursery|kid/.test(n)) return 'bed';
+  if (/kitchen/.test(n)) return 'kitchen';
+  if (/dining/.test(n)) return 'dining';
+  if (/bath|shower|toilet|wc|powder|laundry/.test(n)) return 'bath';
+  if (/office|study|desk|work/.test(n)) return 'desk';
+  return 'sofa';
+}
+
+/**
+ * The prototype's planShot(): the whole floor plan as an isometric clay model (each room's floor in
+ * a light tint of the palette, low white walls with a door gap, the room's furniture set), with a
+ * label pill over each room. Cached by palette, rooms and size.
+ */
+export function planShot(R: PlanShotRoom[], palette: string[], W: number, H: number): HTMLCanvasElement {
+  const P = pal6(palette);
+  const key = ['plan', P.join(''), R.map((r) => [r.name, r.x, r.z, r.w, r.d].join(':')).join(','), W, H].join('|');
+  const hit = SHOTS.get(key);
+  if (hit) return hit;
+  const r = shotRenderer(W, H);
+  const scene = new THREE.Scene();
+  scene.background = lc('#F7F5F2');
+  const g = new THREE.Group();
+  scene.add(g);
+  const mat = (c: THREE.ColorRepresentation) => new THREE.MeshStandardMaterial({ color: lc(c), roughness: 0.85 });
+  const minX = Math.min(...R.map((p) => p.x));
+  const minZ = Math.min(...R.map((p) => p.z));
+  const maxX = Math.max(...R.map((p) => p.x + p.w));
+  const maxZ = Math.max(...R.map((p) => p.z + p.d));
+  const cx = (minX + maxX) / 2;
+  const cz = (minZ + maxZ) / 2;
+  const span = Math.max(maxX - minX, maxZ - minZ);
+  g.position.set(-cx, 0, -cz);
+  const wallM = mat('#FBF8F3');
+  const WH = 1.15;
+  const TH = 0.1;
+  R.forEach(({ x, z, w, d, kind }, i) => {
+    const fl = new THREE.Mesh(new THREE.BoxGeometry(w, 0.06, d), mat(lc(P[i % 6]).lerp(lc('#fff'), 0.35)));
+    fl.position.set(x + w / 2, -0.03, z + d / 2);
+    fl.receiveShadow = true;
+    g.add(fl);
+    const add = (gx: number, gz: number, gw: number, gd: number) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(gw, WH, gd), wallM);
+      m.position.set(gx, WH / 2, gz);
+      m.castShadow = m.receiveShadow = true;
+      g.add(m);
+    };
+    const door = Math.min(0.9, w * 0.5);
+    add(x + w / 2, z, w, TH);
+    add(x, z + d / 2, TH, d);
+    add(x + w - (w - door) / 4, z + d, (w - door) / 2, TH);
+    add(x + (w - door) / 4, z + d, (w - door) / 2, TH);
+    add(x + w, z + d / 2, TH, d);
+    if (w >= 2.4 && d >= 2.4) furnish(g, kind, x, z, w, d, P, mat);
+  });
+  scene.add(new THREE.HemisphereLight(lc(0xffffff), lc(0xbfb4a8), 0.75 * LI));
+  const sun = new THREE.DirectionalLight(lc(0xfff0dc), 0.85 * LI);
+  sun.position.set(6, 10, 4);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.radius = 4;
+  const sh = Math.max(12, span);
+  Object.assign(sun.shadow.camera, { left: -sh, right: sh, top: sh, bottom: -sh });
+  scene.add(sun);
+  const a = W / H;
+  const v = span * 0.6;
+  const cam = new THREE.OrthographicCamera(-v * a, v * a, v, -v, 0.1, 100);
+  const ang = Math.PI / 4;
+  const el = 0.8;
+  cam.position.set(Math.sin(ang) * Math.cos(el) * 30, Math.sin(el) * 30, Math.cos(ang) * Math.cos(el) * 30);
+  cam.lookAt(0, 0, 0);
+  cam.updateProjectionMatrix();
+  r.render(scene, cam);
+  const out = grabShot(r, W, H);
+  // room labels: a white pill over each room's centre
+  const c2 = out.getContext('2d')!;
+  const sc = W / 520;
+  c2.font = `600 ${Math.round(12 * sc)}px Inter, system-ui, sans-serif`;
+  c2.textAlign = 'center';
+  c2.textBaseline = 'middle';
+  for (const rm of R) {
+    const p = new THREE.Vector3(rm.x + rm.w / 2 - cx, 0.1, rm.z + rm.d / 2 - cz).project(cam);
+    const x = ((p.x + 1) / 2) * W;
+    const y = ((1 - p.y) / 2) * H;
+    const tw = c2.measureText(rm.name).width + 18 * sc;
+    const th = 22 * sc;
+    c2.fillStyle = 'rgba(255,255,255,.94)';
+    c2.strokeStyle = '#E6E6E6';
+    c2.lineWidth = 1;
+    c2.beginPath();
+    if (c2.roundRect) c2.roundRect(x - tw / 2, y - th / 2, tw, th, th / 2);
+    else c2.rect(x - tw / 2, y - th / 2, tw, th);
+    c2.fill();
+    c2.stroke();
+    c2.fillStyle = '#1E1E1E';
+    c2.fillText(rm.name, x, y + 0.5);
+  }
+  disposeTree(scene);
+  sun.shadow.map?.dispose();
+  SHOTS.set(key, out);
+  return out;
+}

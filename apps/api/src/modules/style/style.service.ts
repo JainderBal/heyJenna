@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { densityBand, StyleProfile } from '@hey-jenna/contracts';
+import { densityBand, PinRef, StyleProfile } from '@hey-jenna/contracts';
 import sharp from 'sharp';
 import { safeFetch } from '../../common/http/safe-fetch';
 import { StorageService } from '../../common/storage/storage.service';
@@ -7,6 +7,7 @@ import { RoomsService } from '../rooms/rooms.service';
 import { DENSITY_VALUE, deriveDials } from './analysis/dials';
 import { RuleVibeReader } from './analysis/rule-vibe.reader';
 import { extractPalette, PaletteResult } from './analysis/palette';
+import { paletteDistance } from './analysis/pin-rank';
 import { Vibe, VIBE_READER, VibeReader } from './analysis/vibe';
 import { StyleResponseDto } from './dto/style-response.dto';
 import { UpdateStyleDto } from './dto/update-style.dto';
@@ -19,6 +20,7 @@ export interface MoodboardFile {
 }
 
 const MAX_IMAGES = 8;
+const PIN_HOST = 'i.pinimg.com';
 
 /** Moodboard → style profile. Other modules call getProfile() to search and lay out in this style. */
 @Injectable()
@@ -39,9 +41,50 @@ export class StyleService {
     if (files.length + urls.length > MAX_IMAGES) throw new BadRequestException(`At most ${MAX_IMAGES} images`);
 
     const images = [...files.map((f) => f.buffer), ...(await this.download(urls))];
-    await this.assertImages(images);
+    return this.build(roomId, images, []);
+  }
 
-    const keys = await Promise.all(images.map((img) => this.storage.save(`moodboards/${roomId}`, img, 'img', 'application/octet-stream')));
+  /** Adds Pinterest pins to the room's moodboard (kept images + pins), then re-derives style and dials. */
+  async addPins(roomId: string, ownerId: string, pins: PinRef[]): Promise<StyleResponseDto> {
+    await this.rooms.getOwnedRoom(roomId, ownerId);
+    const existing = (await this.repo.findByRoom(roomId))?.imageKeys ?? [];
+    if (existing.length + pins.length > MAX_IMAGES)
+      throw new BadRequestException(`A moodboard holds at most ${MAX_IMAGES} images (${existing.length} already); add fewer pins`);
+    const fresh = await this.download(pins.map((p) => this.pinUrl(p)));
+    const kept = await Promise.all(existing.map((k) => this.storage.load(k)));
+    return this.build(roomId, [...kept, ...fresh], existing);
+  }
+
+  /** Ranks candidate pins by colour distance to the room's palette, closest first. Unreadable pins are listed apart. */
+  async rankPins(roomId: string, ownerId: string, pins: PinRef[]) {
+    const { profile } = await this.get(roomId, ownerId);
+    const roomHex = [...profile.palette.dominant, ...profile.palette.secondary, ...profile.palette.accent];
+    const ranked: { pin: PinRef; distance: number }[] = [];
+    const unreadable: { id: string; reason: string }[] = [];
+    await Promise.all(
+      pins.map(async (pin) => {
+        try {
+          const [img] = await this.download([this.pinUrl(pin)]);
+          const { clusters } = await extractPalette([img], 4);
+          ranked.push({ pin, distance: Math.round(paletteDistance(clusters, roomHex) * 10) / 10 });
+        } catch (e) {
+          unreadable.push({ id: pin.id, reason: (e as Error).message });
+        }
+      }),
+    );
+    ranked.sort((a, b) => a.distance - b.distance);
+    return { ranked, unreadable };
+  }
+
+  private pinUrl(pin: PinRef): string {
+    if (new URL(pin.imageUrl).hostname !== PIN_HOST) throw new BadRequestException(`Pin ${pin.id}: images must be on ${PIN_HOST}`);
+    return pin.imageUrl;
+  }
+
+  private async build(roomId: string, images: Buffer[], keptKeys: string[]): Promise<StyleResponseDto> {
+    await this.assertImages(images);
+    const fresh = images.slice(keptKeys.length);
+    const keys = [...keptKeys, ...(await Promise.all(fresh.map((img) => this.storage.save(`moodboards/${roomId}`, img, 'img', 'application/octet-stream'))))];
     const palette = await extractPalette(images);
     const vibe = await this.readVibe(images, palette);
     const profile = this.buildProfile(palette, vibe);

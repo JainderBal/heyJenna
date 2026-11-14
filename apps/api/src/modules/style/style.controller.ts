@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, UploadedFiles, UseInterceptors } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
+import { AddPinsRequest, SimilarPinsRequest } from '@hey-jenna/contracts';
 import { AuthUser, CurrentUser } from '../../common/auth/auth.decorators';
 import { ZodPipe } from '../../common/validation/zod.pipe';
 import { MoodboardUrlsSchema } from './dto/moodboard-urls.dto';
@@ -32,6 +33,26 @@ export class StyleController {
   ) {
     const urls = imageUrls ? new ZodPipe(MoodboardUrlsSchema).transform(safeJson(imageUrls)) : [];
     return this.style.analyseMoodboard(roomId, user.id, files, urls);
+  }
+
+  /** POST /rooms/:roomId/moodboard/pins  { pins: [{ id, imageUrl (i.pinimg.com), link? }] } */
+  @Post('moodboard/pins')
+  addPins(
+    @CurrentUser() user: AuthUser,
+    @Param('roomId', ParseUUIDPipe) roomId: string,
+    @Body(new ZodPipe(AddPinsRequest)) dto: AddPinsRequest,
+  ) {
+    return this.style.addPins(roomId, user.id, dto.pins);
+  }
+
+  /** POST /rooms/:roomId/pins/similar  { pins } → the pins ranked by colour distance to the room's palette */
+  @Post('pins/similar')
+  similar(
+    @CurrentUser() user: AuthUser,
+    @Param('roomId', ParseUUIDPipe) roomId: string,
+    @Body(new ZodPipe(SimilarPinsRequest)) dto: SimilarPinsRequest,
+  ) {
+    return this.style.rankPins(roomId, user.id, dto.pins);
   }
 
   @Get('style')

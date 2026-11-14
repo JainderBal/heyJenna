@@ -10,7 +10,7 @@ const Env = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
   SUPABASE_BUCKET: z.string().default('moodboards'),
   ANTHROPIC_API_KEY: z.string().optional(),
-  ANTHROPIC_MODEL: z.string().default('claude-sonnet-5-5'),
+  ANTHROPIC_MODEL: z.string().default('claude-opus-5-5'),
   SOURCES: z.string().default('mock,ebay,web'),
   EBAY_CLIENT_ID: z.string().optional(),
   EBAY_CLIENT_SECRET: z.string().optional(),

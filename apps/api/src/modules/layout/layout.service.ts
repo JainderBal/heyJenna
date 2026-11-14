@@ -8,7 +8,7 @@ import { EditObjectDto } from './dto/move-object.dto';
 import { EditResultDto, LayoutResponseDto, ShoppingListDto } from './dto/layout-response.dto';
 import { EditError, moveObject, overlapWarnings, removeObject } from './editing/edits';
 import { insideRoom } from './editing/geometry';
-import { findWallSpot, hiddenBehind, isWallType, wallClashes, wallLength, wallPose } from './editing/walls';
+import { defaultHeight, findWallSpot, hiddenBehind, isWallType, wallClashes, wallLength, wallPose } from './editing/walls';
 import { AddObjectDto } from './dto/add-object.dto';
 import { Wall } from '@hey-jenna/contracts';
 import { EngineFailedError } from './engine/python-layout.engine';
@@ -119,8 +119,9 @@ export class LayoutService {
     const plan = room.floorPlan as unknown as FloorPlan;
     const layout = await this.load(roomId, layoutId);
     const data = layout.data as unknown as LayoutData;
-    const listing = await this.sourcing.getListing(roomId, dto.listingId);
-    if (!listing) throw new NotFoundException('Listing not found in this room');
+    const found = await this.sourcing.getListing(roomId, dto.listingId);
+    if (!found) throw new NotFoundException('Listing not found in this room');
+    const listing = await this.sourcing.ensureDetails(found); // real size from its 3D model before choosing a spot
     if (!isWallType(listing.type)) throw new BadRequestException(`Only wall pieces (pictures, mirrors, wall shelves) can be added for now; this is a ${listing.type}`);
     const size = listing.size as unknown as Size;
     const openWalls = ((data.room as { open_walls_in_render?: Wall[] } | undefined)?.open_walls_in_render ?? ['front', 'right']) as Wall[];
@@ -132,7 +133,7 @@ export class LayoutService {
       if (!spot) throw new ConflictException(`No free wall space for "${listing.title}" (${size.w} m wide)${wall ? ` on the ${wall} wall` : ''}`);
       wall = spot.wall; u = spot.u; z ??= spot.z;
     }
-    z ??= Math.max(1.45, size.h / 2 + 0.9);
+    z ??= defaultHeight(size);
     const problems = wallClashes(plan, data, wall, u, z, size);
     if (problems.length) throw new BadRequestException({ message: `Can't hang it there`, problems });
 

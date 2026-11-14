@@ -17,7 +17,7 @@ import { toListingResponse } from './mappers/listing.mapper';
 import { classifyTitle } from './matching/classify';
 import { buildListing } from './matching/listing-builder';
 import { buildQuery, queryParts } from './matching/query';
-import { plausibleSize } from './matching/dimensions';
+import { plausibleSize, sizeFor } from './matching/dimensions';
 import { FurnitureType as FType } from '@hey-jenna/contracts';
 import { shoppingList, Slot } from './matching/shopping-list';
 import { chooseSet } from './matching/companions';
@@ -133,6 +133,11 @@ export class SourcingService {
     return this.repo.findInRoom(listingId, roomId);
   }
 
+  /** For the layout module: make sure an IKEA listing's real size and 3D model have been read (once). */
+  async ensureDetails(listing: Listing): Promise<Listing> {
+    return listing.source === 'ikea' && (listing.modelUrl === null || listing.sizeEstimated) ? this.ikeaDetails(listing) : listing;
+  }
+
   /** For the layout module: per slot, the listings to use (picked first, then best score). */
   async chooseForRoom(room: Room): Promise<ChosenSlot[]> {
     const plan = room.floorPlan as unknown as FloorPlan;
@@ -186,6 +191,11 @@ export class SourcingService {
         }
       }
       this.log.log(`IKEA ${listing.title.slice(0, 40)}: size ${size ? `${size.w}×${size.d}×${size.h} m` : 'estimated'}, 3D model ${modelUrl ? 'yes' : 'no'}`);
+      if (!size && listing.sizeEstimated) {
+        // last resort: the size printed in the product title ("78x196 cm"), read with today's size reader
+        const fromTitle = sizeFor(listing.title, listing.type as FType);
+        if (!fromTitle.estimated) size = fromTitle.size;
+      }
       const price = findIkeaPrice(html) ?? undefined;
       return await this.repo.setDetails(listing.id, { size: size ? (size as unknown as Prisma.InputJsonValue) : undefined, modelUrl, price });
     } catch (e) {

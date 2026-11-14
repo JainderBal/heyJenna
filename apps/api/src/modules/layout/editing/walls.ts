@@ -31,6 +31,13 @@ export function wallObstacles(plan: FloorPlan, data: LayoutData, wall: Wall, ign
     out.push({ a: w.position - w.width / 2, b: w.position + w.width / 2, lo: w.sill, hi: w.head, what: `window ${w.id}` });
   for (const d of plan.doors.filter((d) => d.wall === wall))
     out.push({ a: d.position - d.width / 2, b: d.position + d.width / 2, lo: 0, hi: DOOR_HEIGHT, what: `door ${d.id}` });
+  // built-ins on this wall (shelves, niches, window seats…) take its space from their base up
+  const offWall = (o: PlacedObject) => ({ back: o.position.y, front: plan.depth - o.position.y, left: o.position.x, right: plan.width - o.position.x })[wall];
+  for (const o of data.objects)
+    if (o.layer === 'features' && o.type !== 'feature_wall' && o.type !== 'wainscoting' && offWall(o) - o.size.d / 2 < 0.15) {
+      const u = along(wall, o);
+      out.push({ a: u - o.size.w / 2, b: u + o.size.w / 2, lo: o.position.z, hi: o.position.z + o.size.h, what: o.id });
+    }
   for (const o of data.objects)
     if (o.id !== ignoreId && isWallType(o.type) && (o.wall as string | undefined) === wall) {
       const u = along(wall, o);
@@ -54,14 +61,18 @@ export function wallClashes(plan: FloorPlan, data: LayoutData, wall: Wall, u: nu
 export function hiddenBehind(data: LayoutData, plan: FloorPlan, wall: Wall, u: number, z: number, size: Size): string[] {
   const offWall = (o: PlacedObject) => ({ back: o.position.y, front: plan.depth - o.position.y, left: o.position.x, right: plan.width - o.position.x })[wall];
   return data.objects
-    .filter((o) => o.mount === 'floor' && o.size.h > z - size.h / 2 + 0.2 && offWall(o) - o.size.d / 2 < 0.4)
+    // furniture and built-ins only: the room's own walls, floor and helpers don't hide anything
+    .filter((o) => o.mount === 'floor' && !['architecture', 'zones'].includes(o.layer) && o.size.h > z - size.h / 2 + 0.2 && offWall(o) - o.size.d / 2 < 0.4)
     .filter((o) => Math.abs(along(wall, o) - u) < (o.size.w + size.w) / 2)
     .map((o) => o.id);
 }
 
 /** Best free spot for a piece: widest clear stretch on a visible wall, at eye height (~145 cm centre). */
+/** Default centre height: eye level (~145 cm) for pictures; a full-length piece (over 1.3 m) hangs just off the floor. */
+export const defaultHeight = (size: Size) => (size.h > 1.3 ? size.h / 2 + 0.1 : Math.max(1.45, size.h / 2 + 0.9));
+
 export function findWallSpot(plan: FloorPlan, data: LayoutData, size: Size, walls: Wall[]): { wall: Wall; u: number; z: number } | null {
-  const z = Math.max(1.45, size.h / 2 + 0.9);
+  const z = defaultHeight(size);
   let best: { wall: Wall; u: number; z: number; room: number } | null = null;
   for (const wall of walls) {
     const L = wallLength(plan, wall);

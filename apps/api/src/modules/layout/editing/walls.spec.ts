@@ -24,6 +24,14 @@ describe('walls', () => {
     expect(wallPose(plan, 'left', 2, 0.03)).toEqual({ x: 0.02, y: 2, rotation: 90 });
     expect(wallPose(plan, 'back', 3, 0.2)).toEqual({ x: 3, y: 0.105, rotation: 0 });
   });
+  it('treats built-in shelves as taken wall', () => {
+    const builtIn = { id: 'built_in_shelf', type: 'built_in_shelf', mount: 'floor', layer: 'features', position: { x: 0.5, y: 0.15, z: 0.9 }, size: { w: 0.8, d: 0.3, h: 1.2 } };
+    expect(wallClashes(plan, data([builtIn]), 'back', 0.5, 1.45, picture)).toContain('overlaps built_in_shelf');
+  });
+  it("isn't hidden by the room's own walls", () => {
+    const wallObj = { id: 'wall_left', type: 'wall', mount: 'floor', layer: 'architecture', position: { x: -0.07, y: 2.4, z: 0 }, size: { w: 4.8, d: 0.14, h: 2.7 } };
+    expect(findWallSpot(plan, data([wallObj]), picture, ['left'])).not.toBeNull();
+  });
   it('finds a free spot, away from windows and doors and not behind a tall bookcase', () => {
     const bookcase = { id: 'shelf_1', type: 'shelf', mount: 'floor', layer: 'furniture', position: { x: 0.2, y: 1, z: 0 }, size: { w: 1.6, d: 0.4, h: 2 } };
     const spot = findWallSpot(plan, data([bookcase]), picture, ['back', 'left'])!;

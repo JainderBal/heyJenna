@@ -4,12 +4,17 @@
  * plan and places the layout's objects: the real product model (GLB from
  * /api/rooms/:roomId/listings/:listingId/model) when the product has one, else a clay piece.
  *
+ * Given a finished render's model (`render`) it can show that room instead (`mode="render"`), in the
+ * same orbit; until the model has loaded, or if it fails, the live room stays on screen.
+ *
  * It renders inside `.viewer` (position:absolute; inset:0), which the canvas leaves alone for
  * pointer and wheel events, so the viewer can own drag and zoom.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Layout, Room } from '../api/types';
-import { createViewer, type Viewer, type ViewerScene, type ViewKey } from './viewer3d';
+import { createViewer, type RenderModel, type Viewer, type ViewerScene, type ViewKey, type ViewMode } from './viewer3d';
+
+export type RenderModelState = 'none' | 'loading' | 'ready' | 'error';
 
 export interface RoomViewerProps {
   roomId: string;
@@ -19,6 +24,12 @@ export interface RoomViewerProps {
   room?: Room;
   /** Colours to paint with (moodboard palette, else the project's). */
   palette?: string[];
+  /** A finished render's room model to have ready (null: none). */
+  render?: RenderModel | null;
+  /** Which room to show; 'render' falls back to live until the render's model is ready. */
+  mode?: ViewMode;
+  /** Tells the frame how the render's model is getting on. */
+  onRenderState?: (s: RenderModelState) => void;
 }
 
 /** No room to hand: size the box around the layout's objects (else the prototype's 4.2 × 3.6). */
@@ -34,7 +45,7 @@ function planOf(room: Room | undefined, layout: Layout | null): ViewerScene['pla
   return { width: w, depth: d };
 }
 
-export function RoomViewer({ roomId, layout, room, palette }: RoomViewerProps) {
+export function RoomViewer({ roomId, layout, room, palette, render = null, mode = 'live', onRenderState }: RoomViewerProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewer = useRef<Viewer | null>(null);
   const [auto, setAuto] = useState(true);
@@ -42,6 +53,11 @@ export function RoomViewer({ roomId, layout, room, palette }: RoomViewerProps) {
   const planJson = JSON.stringify(planOf(room, layout));
   const plan = useMemo<ViewerScene['plan']>(() => JSON.parse(planJson), [planJson]);
   const palKey = (palette ?? []).join(',');
+  const [renderState, setRenderState] = useState<RenderModelState>('none');
+  const stateCb = useRef(onRenderState);
+  stateCb.current = onRenderState;
+  const renderJob = render?.jobId ?? '';
+  const renderPath = render?.path ?? '';
 
   useEffect(() => {
     const host = hostRef.current;
@@ -63,15 +79,44 @@ export function RoomViewer({ roomId, layout, room, palette }: RoomViewerProps) {
     // palette by value: a new array with the same colours is not a rebuild
   }, [roomId, plan, layout, palKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    const v = viewer.current;
+    if (!v) return;
+    let live = true;
+    const set = (s: RenderModelState) => {
+      if (!live) return;
+      setRenderState(s);
+      stateCb.current?.(s);
+    };
+    if (!renderJob) {
+      v.setRender(null);
+      set('none');
+      return;
+    }
+    set('loading');
+    v.setRender({ jobId: renderJob, path: renderPath }).then(
+      () => set('ready'),
+      () => set('error'),
+    );
+    return () => {
+      live = false;
+    };
+  }, [renderJob, renderPath]);
+
+  const showing: ViewMode = mode === 'render' && renderState === 'ready' ? 'render' : 'live';
+  useEffect(() => {
+    viewer.current?.setMode(showing);
+  }, [showing]);
+
   const press = (k: ViewKey) => viewer.current?.view(k);
   const stop = (e: React.PointerEvent) => e.stopPropagation();
 
   if (noGL) return <p className="muted" style={{ padding: 16 }}>3D needs WebGL.</p>;
   return (
-    <div ref={hostRef} className="vhost" aria-label={`Live 3D model${room ? ` of the ${room.name.toLowerCase()}` : ''}. Drag to turn, scroll to zoom.`}>
+    <div ref={hostRef} className="vhost" aria-label={`${showing === 'render' ? 'Rendered' : 'Live'} 3D model${room ? ` of the ${room.name.toLowerCase()}` : ''}. Drag to turn, scroll to zoom.`}>
       <span className="vhud">
         <i />
-        360° · drag to turn · scroll to zoom
+        {mode === 'render' && renderState === 'loading' ? 'loading the render…' : `${showing === 'render' ? 'render' : 'live'} · 360° · drag to turn · scroll to zoom`}
       </span>
       <div className="vbtns">
         <button type="button" className={auto ? 'on' : ''} title="Auto-rotate" onPointerDown={stop} onClick={() => press('auto')}>

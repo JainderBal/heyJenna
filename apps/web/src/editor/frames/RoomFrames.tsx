@@ -1,11 +1,11 @@
-/** Room page frames: Moodboard, Palette, 3D room (+ render), Shopping list. */
+/** Room page frames: Moodboard, Palette, 3D room (live or the render's room), Shopping list. */
 import { useState } from 'react';
-import { useAddMoodboardPins, useDeleteMoodboardImage, useMoodboardImages, useCreateLayout, useCreateRender, useRenderImage, useRenderJob, useSearchListingsAsync, useUploadMoodboard } from '../../api/hooks';
+import { useAddMoodboardPins, useDeleteMoodboardImage, useMoodboardImages, useCreateLayout, useCreateRender, useRenderImage, useRenderJob, useRenders, useSearchListingsAsync, useUploadMoodboard } from '../../api/hooks';
 import { errorText } from '../../api/client';
-import type { Layout, Listing, PinRef, Room, StyleResponse } from '../../api/types';
+import type { Layout, Listing, PinRef, RenderJob, Room, StyleResponse } from '../../api/types';
 import { openPinterestWindow } from '../../app/openPinterest';
 import { toast, useEditorStore } from '../../app/useEditorStore';
-import { RoomViewer } from '../../viewer/RoomViewer';
+import { RoomViewer, type RenderModelState } from '../../viewer/RoomViewer';
 import { shade } from '../colour';
 import { listRows } from '../model';
 
@@ -168,18 +168,27 @@ export function Room3DFrame({ room, layout, palette }: { room: Room; layout: Lay
   const setJob = useEditorStore((s) => s.setRenderJob);
   const create = useCreateRender(room.id);
   const job = useRenderJob(room.id, jobId);
-  const img = useRenderImage(job.data);
-  // the live 3D always stays on screen; a finished render is a thumbnail that opens full size on click
-  const [showRender, setShowRender] = useState(false);
-  const status = create.isPending ? 'queued' : job.data?.status;
+  const renders = useRenders(room.id);
+  // newest first: this session's job, then the room's history
+  const jobs = [job.data, ...(renders.data ?? [])].filter((j): j is RenderJob => !!j).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const latest = jobs[0];
+  // what's on screen stays until a newer render is done
+  const shown = jobs.find((j) => j.status === 'done' && j.modelUrl);
+  const photoJob = jobs.find((j) => j.status === 'done' && j.imageUrl);
+  const img = useRenderImage(photoJob);
+  // the render is the default; "Live" is remembered per render, so a new render comes up as the render again
+  const [liveFor, setLiveFor] = useState<string | null>(null);
+  const [modelState, setModelState] = useState<RenderModelState>('none');
+  const mode = shown && liveFor !== shown.id ? 'render' : 'live';
+  const status = create.isPending ? 'queued' : latest?.status;
   const working = status === 'queued' || status === 'running';
+  const stop = (e: React.PointerEvent) => e.stopPropagation();
 
   function render() {
     if (!layout) return toast('Lay out the room first');
     create.mutate(layout.id, {
       onSuccess: (j) => {
         setJob(room.id, j.id);
-        setShowRender(false);
         toast('Render queued: the 3D keeps spinning while the worker renders (~45 s)');
       },
       onError: (e) => toast(errorText(e)),
@@ -187,26 +196,39 @@ export function Room3DFrame({ room, layout, palette }: { room: Room; layout: Lay
   }
 
   return (
-    <div className="viewer" aria-label={`Live 3D model of the ${room.name.toLowerCase()}`}>
-      <RoomViewer roomId={room.id} layout={layout ?? null} room={room} palette={palette} />
-      {img && !showRender && (
-        <button type="button" className="render-thumb" title="Open the render" onPointerDown={(e) => e.stopPropagation()} onClick={() => setShowRender(true)}>
-          <img src={img} alt={`Render of the ${room.name.toLowerCase()}`} />
-          <span>Render</span>
-        </button>
-      )}
-      {img && showRender && (
-        <div className="render-full" onPointerDown={(e) => e.stopPropagation()} onClick={() => setShowRender(false)} role="dialog" aria-label="Render">
-          <img src={img} alt={`Render of the ${room.name.toLowerCase()}`} />
-          <button type="button" className="render-close" aria-label="Back to the live 3D">× Back to 3D</button>
-        </div>
-      )}
+    <div className="viewer" aria-label={`3D model of the ${room.name.toLowerCase()}`}>
+      <RoomViewer
+        roomId={room.id}
+        layout={layout ?? null}
+        room={room}
+        palette={palette}
+        render={shown?.modelUrl ? { jobId: shown.id, path: shown.modelUrl } : null}
+        mode={mode}
+        onRenderState={setModelState}
+      />
       <div className="vbtns" style={{ left: 'auto', right: 12, top: 12, bottom: 'auto', transform: 'none' }}>
-        <button type="button" disabled={!layout || working} title={layout ? 'Render a photo-real PNG' : 'Lay out the room first'} onClick={render}>
-          {working ? (status === 'running' ? 'Rendering…' : 'Queued…') : status === 'failed' ? 'Render again' : img ? 'Re-render' : 'Render'}
+        {shown && (
+          <>
+            <button type="button" className={mode === 'render' ? 'on' : ''} disabled={modelState === 'error'} title="The rendered room" onPointerDown={stop} onClick={() => setLiveFor(null)}>
+              Render 3D
+            </button>
+            <button type="button" className={mode === 'live' ? 'on' : ''} title="The live room: follows your layout edits" onPointerDown={stop} onClick={() => setLiveFor(shown.id)}>
+              Live
+            </button>
+          </>
+        )}
+        {img && (
+          <button type="button" title="Open the rendered photo full size" onPointerDown={stop} onClick={() => window.open(img, '_blank', 'noopener')}>
+            Photo
+          </button>
+        )}
+        <button type="button" disabled={!layout || working} title={layout ? 'Render the room in Blender' : 'Lay out the room first'} onPointerDown={stop} onClick={render}>
+          {working ? (status === 'running' ? 'Rendering…' : 'Queued…') : status === 'failed' ? 'Render again' : shown || img ? 'Re-render' : 'Render'}
         </button>
       </div>
-      {status === 'failed' && <span className="vstatus" style={{ top: 52 }}>{job.data?.error ?? 'Render failed'}</span>}
+      {working && <span className="vstatus" style={{ top: 52 }}>{status === 'running' ? 'Rendering a new version…' : 'New render queued…'}</span>}
+      {!working && status === 'failed' && <span className="vstatus" style={{ top: 52 }}>{latest?.error?.split('\n')[0] ?? 'Render failed'}</span>}
+      {!working && status !== 'failed' && mode === 'render' && modelState === 'error' && <span className="vstatus" style={{ top: 52 }}>Couldn’t load the render’s 3D model: showing the live room</span>}
     </div>
   );
 }

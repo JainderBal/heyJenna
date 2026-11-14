@@ -8,6 +8,8 @@ export const ProjectInput = z.object({
   name: z.string().min(1).max(120),
   kind: z.string().min(1).max(60).optional(),
   palette: z.array(Hex).max(12).optional(),
+  /** Furniture budget for the whole home, in CAD. Null clears it (no limit). */
+  budgetCad: z.number().positive().max(1_000_000).nullable().optional(),
 });
 export type ProjectInput = z.infer<typeof ProjectInput>;
 

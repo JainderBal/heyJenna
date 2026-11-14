@@ -7,7 +7,7 @@ import { ProjectsRepository } from './projects.repository';
 import { ProjectsService } from './projects.service';
 
 const row = (extra: Partial<Project> = {}): Project => ({
-  id: 'p1', ownerId: 'u1', name: 'Dundas condo', kind: 'condo', palette: ['#C46A3A'],
+  id: 'p1', ownerId: 'u1', name: 'Dundas condo', kind: 'condo', palette: ['#C46A3A'], budgetCad: null,
   createdAt: new Date('2026-11-12T00:00:00Z'), updatedAt: new Date('2026-11-12T00:00:00Z'), ...extra,
 });
 const plan = { width: 4, depth: 3.5 };
@@ -25,7 +25,7 @@ describe('ProjectsService', () => {
 
   it('creates a project and maps it to the response shape', async () => {
     const res = await service.create('u1', { name: 'Cottage' });
-    expect(res).toEqual({ id: 'p1', name: 'Cottage', kind: null, palette: [], createdAt: '2026-11-12T00:00:00.000Z', updatedAt: '2026-11-12T00:00:00.000Z' });
+    expect(res).toEqual({ id: 'p1', name: 'Cottage', kind: null, palette: [], budgetCad: null, createdAt: '2026-11-12T00:00:00.000Z', updatedAt: '2026-11-12T00:00:00.000Z' });
   });
 
   it("hides other people's projects behind a 404, for every route", async () => {
@@ -50,5 +50,8 @@ describe('ProjectsService', () => {
     expect(BulkRoomsSchema.parse({ rooms: [{ name: 'Den', floorPlan: plan }] }).rooms[0].needs).toEqual([]);
     expect(UpdateProjectSchema.safeParse({ kind: null }).success).toBe(true);
     expect(UpdateProjectSchema.safeParse({ palette: ['red'] }).success).toBe(false);
+    expect(UpdateProjectSchema.safeParse({ budgetCad: null }).success).toBe(true);
+    expect(UpdateProjectSchema.safeParse({ budgetCad: 12000 }).success).toBe(true);
+    expect(UpdateProjectSchema.safeParse({ budgetCad: 0 }).success).toBe(false);
   });
 });

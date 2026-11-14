@@ -58,12 +58,23 @@ export class ChatTools {
     return fitSummary(latest);
   }
 
+  budget() {
+    return this.deps.sourcing.budgetContext(this.roomId, this.ownerId);
+  }
+
   async shoppingList() {
     const [latest] = await this.deps.layout.list(this.roomId, this.ownerId);
     if (!latest) throw new NotFoundException('This room has no layout yet');
     const list = await this.deps.layout.shoppingList(this.roomId, this.ownerId, latest.id);
+    const budget = await this.budget();
     this.actions.push({ type: 'shopping_list_read', layoutId: latest.id, total: list.total, currency: list.currency });
-    return { ...list, items: list.items.map((i) => ({ type: i.type, title: i.title, price: i.price, source: i.source })) };
+    return {
+      ...list,
+      items: list.items.map((i) => ({ type: i.type, title: i.title, price: i.price, source: i.source })),
+      budgetCad: budget?.budgetCad ?? null,
+      roomShare: budget?.roomShare ?? null,
+      spentElsewhere: budget?.spentElsewhere ?? null,
+    };
   }
 }
 

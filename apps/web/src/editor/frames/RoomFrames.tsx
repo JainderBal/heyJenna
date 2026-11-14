@@ -1,12 +1,13 @@
 /** Room page frames: Moodboard, Palette, 3D room (live or the render's room), Shopping list. */
 import { useState } from 'react';
-import { useAddMoodboardPins, useDeleteMoodboardImage, useMoodboardImages, useCreateLayout, useCreateRender, useRenderImage, useRenderJob, useRenders, useSearchListingsAsync, useUploadMoodboard } from '../../api/hooks';
+import { useAddMoodboardPins, useDeleteMoodboardImage, useMoodboardImages, useCreateLayout, useCreateRender, useProject, useRenderImage, useRenderJob, useRenders, useSearchListingsAsync, useUploadMoodboard } from '../../api/hooks';
 import { errorText } from '../../api/client';
 import type { Layout, Listing, PinRef, RenderJob, Room, StyleResponse } from '../../api/types';
 import { openPinterestWindow } from '../../app/openPinterest';
 import { toast, useEditorStore } from '../../app/useEditorStore';
 import { RoomViewer, type RenderModelState } from '../../viewer/RoomViewer';
 import { shade } from '../colour';
+import { BudgetSlider, roomShare } from '../BudgetSlider';
 import { listRows, money, shortTitle } from '../model';
 import { SwapPicker } from '../SwapPicker';
 
@@ -240,9 +241,11 @@ export function Room3DFrame({ room, layout, palette }: { room: Room; layout: Lay
   );
 }
 
-export function ShoppingListFrame({ room, layout, listings }: { room: Room; layout: Layout | null | undefined; listings: Listing[] | undefined }) {
+export function ShoppingListFrame({ room, projectId, rooms, layout, listings }: { room: Room; projectId: string; rooms: Room[]; layout: Layout | null | undefined; listings: Listing[] | undefined }) {
   const search = useSearchListingsAsync(room.id);
   const lay = useCreateLayout(room.id);
+  const budgetCad = useProject(projectId).data?.budgetCad ?? null;
+  const share = budgetCad != null ? Math.round(roomShare(budgetCad, room.id, rooms)) : null;
   const spOpen = useEditorStore((s) => s.spOpen);
   const rows = listRows({ layout, listings });
   const total = layout ? layout.shoppingList.total : rows.reduce((a, r) => a + (r.price ?? 0), 0);
@@ -295,12 +298,13 @@ export function ShoppingListFrame({ room, layout, listings }: { room: Room; layo
       {rows.length > 0 && (
         <div className="total">
           <span>Total</span>
-          <span>{money(total, currency)}</span>
+          <span>{share != null ? `${money(total, currency)} of this room’s ${money(share, 'CAD')}` : money(total, currency)}</span>
         </div>
       )}
       <button className="pbtn dark pvbtn" type="button" onClick={() => spOpen('shop')}>
         Open live preview
       </button>
+      <BudgetSlider projectId={projectId} rooms={rooms} roomId={room.id} />
       <div className="list-acts">
         <button
           className="pbtn sm"

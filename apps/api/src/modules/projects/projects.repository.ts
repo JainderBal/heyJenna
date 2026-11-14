@@ -10,7 +10,9 @@ export class ProjectsRepository {
   constructor(private readonly db: PrismaService) {}
 
   create(ownerId: string, dto: CreateProjectDto): Promise<Project> {
-    return this.db.project.create({ data: { ownerId, name: dto.name, kind: dto.kind ?? null, palette: dto.palette ?? [] } });
+    return this.db.project.create({
+      data: { ownerId, name: dto.name, kind: dto.kind ?? null, palette: dto.palette ?? [], budgetCad: dto.budgetCad ?? null },
+    });
   }
 
   listByOwner(ownerId: string): Promise<Project[]> {
@@ -22,7 +24,7 @@ export class ProjectsRepository {
   }
 
   update(id: string, dto: UpdateProjectDto): Promise<Project> {
-    return this.db.project.update({ where: { id }, data: { name: dto.name, kind: dto.kind, palette: dto.palette } });
+    return this.db.project.update({ where: { id }, data: { name: dto.name, kind: dto.kind, palette: dto.palette, budgetCad: dto.budgetCad } });
   }
 
   /** Rooms in the project are kept (their project_id is set to null). */

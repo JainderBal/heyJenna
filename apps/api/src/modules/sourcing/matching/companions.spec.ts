@@ -26,4 +26,43 @@ describe('companions', () => {
     const mine = listing('rug', 1.5, 1, 0.02, { score: 0.1, picked: true });
     expect(chooseSet(slots, new Map([['sofa', [sofa]], ['rug', [small, big, mine]]]), plan)[1].listings[0]).toBe(mine);
   });
+
+  const slots = [
+    { type: 'sofa', count: 1, required: true, why: '' },
+    { type: 'rug', count: 1, required: false, why: '' },
+  ] as never;
+
+  it('drops an optional piece that does not fit what is left of the cap', () => {
+    const sofa = listing('sofa', 2.2, 0.9, 0.8, { score: 0.8, price: 400 });
+    const rug = listing('rug', 2.6, 1.8, 0.02, { score: 0.9, price: 200 });
+    const chosen = chooseSet(slots, new Map([['sofa', [sofa]], ['rug', [rug]]]), plan, 500);
+    expect(chosen[0].listings).toEqual([sofa]);
+    expect(chosen[1].listings).toEqual([]);
+  });
+
+  it('keeps a person’s pick even when it costs more than the cap', () => {
+    const sofa = listing('sofa', 2.2, 0.9, 0.8, { score: 0.5, price: 100 });
+    const mine = listing('rug', 2.6, 1.8, 0.02, { score: 0.1, picked: true, price: 800 });
+    const chosen = chooseSet(slots, new Map([['sofa', [sofa]], ['rug', [mine]]]), plan, 500);
+    expect(chosen[1].listings[0]).toBe(mine);
+    expect(chosen[0].listings[0]).toBe(sofa);
+  });
+
+  it('takes the cheapest sofa when every sofa is over the cap, and skips optionals', () => {
+    const nice = listing('sofa', 2.2, 0.9, 0.8, { score: 0.9, price: 800 });
+    const cheap = listing('sofa', 2.2, 0.9, 0.8, { score: 0.2, price: 400 });
+    const lamp = listing('floor_lamp', 0.4, 0.4, 1.6, { score: 0.8, price: 50 });
+    const withLamp = [...slots, { type: 'floor_lamp', count: 1, required: false, why: '' }] as never;
+    const chosen = chooseSet(withLamp, new Map([['sofa', [nice, cheap]], ['floor_lamp', [lamp]]]), plan, 100);
+    expect(chosen[0].listings).toEqual([cheap]);
+    expect(chosen[2].listings).toEqual([]);
+  });
+
+  it('prefers a cheaper piece that fits over a better one that does not', () => {
+    const sofa = listing('sofa', 2.2, 0.9, 0.8, { score: 0.8, price: 400 });
+    const fancy = listing('rug', 2.6, 1.8, 0.02, { score: 0.9, price: 700 });
+    const plain = listing('rug', 2.6, 1.8, 0.02, { score: 0.4, price: 200 });
+    const chosen = chooseSet(slots, new Map([['sofa', [sofa]], ['rug', [fancy, plain]]]), plan, 1000);
+    expect(chosen[1].listings).toEqual([plain]);
+  });
 });

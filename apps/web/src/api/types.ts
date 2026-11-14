@@ -24,6 +24,8 @@ export interface Project {
   name: string;
   kind: string | null;
   palette: string[];
+  /** Furniture budget for the whole home, in CAD. Null means no limit. */
+  budgetCad: number | null;
   createdAt: string;
   updatedAt: string;
 }

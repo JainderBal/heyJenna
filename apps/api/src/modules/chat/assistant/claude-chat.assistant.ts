@@ -48,7 +48,7 @@ export class ClaudeChatAssistant implements ChatAssistant {
 
   constructor(private readonly client: ChatClient, private readonly model: string) {}
 
-  async reply({ message, history, tools }: ChatInput) {
+  async reply({ message, history, tools, budgetNote }: ChatInput) {
     const firstUser = history.findIndex((t) => t.role === 'user');
     const messages: Anthropic.Beta.BetaMessageParam[] = [
       ...(firstUser < 0 ? [] : history.slice(firstUser)).map((t) => ({ role: t.role, content: t.content })),
@@ -62,7 +62,7 @@ export class ClaudeChatAssistant implements ChatAssistant {
         betas: ['server-side-fallback-2026-07-01'],
         fallbacks: 'default',
         output_config: { effort: 'low' },
-        system: SYSTEM,
+        system: budgetNote ? `${SYSTEM}\n\n${budgetNote}` : SYSTEM,
         tools: TOOLS,
         messages,
       });

@@ -5,6 +5,7 @@ import { SourcingService } from '../sourcing/sourcing.service';
 import { StyleService } from '../style/style.service';
 import { CHAT_ASSISTANT, ChatAssistant } from './assistant/chat-assistant';
 import { RuleChatAssistant } from './assistant/rule-chat.assistant';
+import { budgetPrompt } from '../sourcing/matching/budget';
 import { ChatTools } from './chat-tools';
 import { ChatRequestDto, ChatResponseDto } from './dto/chat.dto';
 
@@ -25,16 +26,17 @@ export class ChatService {
   async chat(roomId: string, ownerId: string, dto: ChatRequestDto): Promise<ChatResponseDto> {
     await this.rooms.getOwnedRoom(roomId, ownerId);
     const deps = { style: this.style, sourcing: this.sourcing, layout: this.layout };
+    const budgetNote = budgetPrompt(await this.sourcing.budgetContext(roomId, ownerId));
     let tools = new ChatTools(roomId, ownerId, deps);
     let reply: string;
     try {
-      ({ reply } = await this.assistant.reply({ message: dto.message, history: dto.history, tools }));
+      ({ reply } = await this.assistant.reply({ message: dto.message, history: dto.history, tools, budgetNote }));
     } catch (e) {
       if (this.assistant instanceof RuleChatAssistant) throw e;
       this.log.warn(`chat assistant failed, using rules instead: ${(e as Error).message}`);
       const actionsSoFar = tools.actions;
       tools = new ChatTools(roomId, ownerId, deps);
-      ({ reply } = await this.fallback.reply({ message: dto.message, history: dto.history, tools }));
+      ({ reply } = await this.fallback.reply({ message: dto.message, history: dto.history, tools, budgetNote }));
       tools.actions.unshift(...actionsSoFar);
     }
     return { reply, actions: tools.actions };

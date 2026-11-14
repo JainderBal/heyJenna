@@ -25,6 +25,7 @@ function deps() {
         searched: [{ type: 'sofa', query: 'teak sofa', found: 4, kept: 2 }], errors: [],
         listings: [{ type: 'sofa', title: 'Teak sofa', price: 400, currency: 'CAD', source: 'mock' }],
       }),
+      budgetContext: jest.fn().mockResolvedValue(null),
     },
     layout: {
       list: jest.fn().mockResolvedValue([layout]),
@@ -63,6 +64,25 @@ describe('RuleChatAssistant', () => {
     const r = await ask('how much will it cost?');
     expect(r.reply).toContain('400.00 CAD');
     expect(r.actions).toEqual([{ type: 'shopping_list_read', layoutId: 'L1', total: 400, currency: 'CAD' }]);
+  });
+
+  it('reports the home budget and this room’s share', async () => {
+    const d = deps();
+    d.sourcing.budgetContext.mockResolvedValue({ budgetCad: 20000, roomShare: 8000, cap: 8000, spentElsewhere: 3000 });
+    const r = await ask('what is my budget?', d);
+    expect(r.reply).toContain('400.00 CAD');
+    expect(r.reply).toContain('Home budget 20000 CAD');
+    expect(r.reply).toContain("this room's share 8000 CAD");
+    expect(r.reply).toContain('other rooms 3000 CAD');
+  });
+
+  it('reports the budget even when the room has no shopping list yet', async () => {
+    const d = deps();
+    d.layout.list.mockResolvedValue([]);
+    d.sourcing.budgetContext.mockResolvedValue({ budgetCad: 20000, roomShare: 8000, cap: 8000, spentElsewhere: 0 });
+    const r = await ask('how much is the budget', d);
+    expect(r.reply).toContain('Home budget 20000 CAD');
+    expect(r.reply).toContain('no shopping list yet');
   });
 
   it('finds similar pieces of the named type', async () => {
@@ -141,6 +161,7 @@ describe('ChatService', () => {
     const svc = new ChatService(rooms as never, d.style as never, d.sourcing as never, d.layout as never, broken);
     const out = await svc.chat('room', 'me', req('what is my palette'));
     expect(rooms.getOwnedRoom).toHaveBeenCalledWith('room', 'me');
+    expect(broken.reply).toHaveBeenCalledWith(expect.objectContaining({ budgetNote: '' }));
     expect(out.actions).toEqual([{ type: 'style_read' }]);
     expect(out.reply).toContain('Warm retro');
   });

@@ -20,4 +20,15 @@ describe('scoreListing', () => {
     const s = scoreListing({ type: 'sofa', text: 'sofa', size: { w: 3.8, d: 1.1, h: 0.8 }, sizeEstimated: false, price: 1 }, style, plan);
     expect(s.fit).toBe(0);
   });
+  it('scores a price against the slot target, and still rewards any price when there is no target', () => {
+    const at = scoreListing({ type: 'sofa', text: 'sofa', size, sizeEstimated: false, price: 400, priceTarget: 500 }, style, plan);
+    const over = scoreListing({ type: 'sofa', text: 'sofa', size, sizeEstimated: false, price: 900, priceTarget: 500 }, style, plan);
+    const missing = scoreListing({ type: 'sofa', text: 'sofa', size, sizeEstimated: false, price: null, priceTarget: 500 }, style, plan);
+    const plain = scoreListing({ type: 'sofa', text: 'sofa', size, sizeEstimated: false, price: 600 }, style, plan);
+    expect(at.price).toBe(1);
+    expect(over.price).toBe(0);
+    expect(missing.price).toBe(0.35);
+    expect(plain.price).toBe(1);
+    expect(at.total).toBeGreaterThan(over.total);
+  });
 });

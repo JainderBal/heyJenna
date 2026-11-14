@@ -144,7 +144,7 @@ export function Editor() {
       case 'room3d':
         return room && <Room3DFrame room={room} layout={layout.data} palette={palette} />;
       case 'list':
-        return room && <ShoppingListFrame room={room} layout={layout.data} listings={listings.data} />;
+        return room && <ShoppingListFrame room={room} projectId={projectId} rooms={rooms} layout={layout.data} listings={listings.data} />;
     }
   };
 

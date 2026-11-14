@@ -299,6 +299,19 @@ export function useLatestLayout(roomId: string | undefined) {
   return { ...q, data: q.data ? (q.data[0] ?? null) : undefined };
 }
 
+/** Newest layout total per room, for the home-budget slider. Shares the layouts cache. */
+export function useProjectSpend(roomIds: string[]): Record<string, number> {
+  const layouts = useQueries({
+    queries: roomIds.map((id) => ({ queryKey: qk.layouts(id), queryFn: () => api<Layout[]>(`/rooms/${id}/layouts`), enabled: !!id })),
+  });
+  const spent: Record<string, number> = {};
+  roomIds.forEach((id, i) => {
+    const total = layouts[i]?.data?.[0]?.shoppingList.total;
+    if (total != null) spent[id] = total;
+  });
+  return spent;
+}
+
 export const useLayout = (roomId: string | undefined, layoutId: string | undefined, opts?: Opts<Layout>) =>
   useQuery({
     queryKey: qk.layout(roomId ?? '', layoutId ?? ''),

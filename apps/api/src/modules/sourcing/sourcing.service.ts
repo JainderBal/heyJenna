@@ -1,7 +1,8 @@
 import { BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { JobsService } from '../../common/jobs/jobs.service';
 import { FloorPlan, FurnitureType } from '@hey-jenna/contracts';
-import { Listing, Room } from '@prisma/client';
+import { Listing, Prisma, Room } from '@prisma/client';
+import { PrismaService } from '../../common/database/prisma.service';
 import { RoomEventsService } from '../../common/events/events.service';
 import { AppConfig } from '../../common/config/app-config.service';
 import { RoomsService } from '../rooms/rooms.service';
@@ -9,7 +10,6 @@ import { StyleService } from '../style/style.service';
 import { findIkeaModelUrl, findIkeaPrice, parseIkeaMeasurements } from './adapters/ikea-product-page';
 import { LinkAdapter } from './adapters/link.adapter';
 import { safeFetch } from '../../common/http/safe-fetch';
-import { Prisma } from '@prisma/client';
 import { SOURCE_ADAPTERS, SourceAdapter } from './adapters/source.adapter';
 import { AddLinkDto } from './dto/add-link.dto';
 import { ListingResponseDto, SearchSummaryDto } from './dto/listing-response.dto';
@@ -22,6 +22,7 @@ import { buildQuery, queryParts } from './matching/query';
 import { plausibleSize, sizeFor } from './matching/dimensions';
 import { FurnitureType as FType } from '@hey-jenna/contracts';
 import { shoppingList, Slot } from './matching/shopping-list';
+import { BudgetContext, budgetForRoom, layoutSpent, overSlotCeiling, planArea, RoomBudget } from './matching/budget';
 import { chooseSet } from './matching/companions';
 import { glbSize } from './matching/glb-bounds';
 
@@ -53,6 +54,7 @@ export class SourcingService implements OnModuleInit {
     @Inject(SOURCE_ADAPTERS) private readonly adapters: SourceAdapter[],
     private readonly events: RoomEventsService,
     private readonly jobs: JobsService,
+    private readonly db: PrismaService,
   ) {}
 
   onModuleInit(): void {
@@ -95,7 +97,9 @@ export class SourcingService implements OnModuleInit {
     if (!style) throw new ConflictException('Upload a moodboard first: products are matched to its style');
     const plan = room.floorPlan as unknown as FloorPlan;
 
-    const slots = shoppingList(plan, room.needs).filter((s) => !dto.types || dto.types.includes(s.type));
+    const allSlots = shoppingList(plan, room.needs);
+    const budget = await this.loadBudget(room, allSlots);
+    const slots = allSlots.filter((s) => !dto.types || dto.types.includes(s.type));
     const active = this.activeAdapters();
     const summary: SearchSummaryDto = {
       searched: [], sources: active.map((a) => a.name),
@@ -117,11 +121,13 @@ export class SourcingService implements OnModuleInit {
           ),
         );
         const seenUrls = new Set<string>();
+        const target = budget?.targets.get(slot.type);
         const built = results
           .flat()
           .filter((r) => !seenUrls.has(r.url) && seenUrls.add(r.url))
-          .map((r) => buildListing(r, slot.type, style, plan))
+          .map((r) => buildListing(r, slot.type, style, plan, target))
           .filter((l): l is NewListing => l !== null)
+          .filter((l) => !overSlotCeiling(l.price, target))
           .filter((l) => dto.maxPrice === undefined || (l.price != null && l.price <= dto.maxPrice))
           .sort((a, b) => b.score - a.score)
           .slice(0, perSlot);
@@ -194,6 +200,7 @@ export class SourcingService implements OnModuleInit {
   async chooseForRoom(room: Room): Promise<ChosenSlot[]> {
     const plan = room.floorPlan as unknown as FloorPlan;
     const slots = shoppingList(plan, room.needs);
+    const budget = await this.loadBudget(room, slots);
     const all = await this.repo.listByRoom(room.id);
     // Real sizes + 3D model links for the leading candidates (not just the winner), so pieces can be
     // matched to each other. Key pieces look at their top 4, the rest at their top 2. Each page is read once.
@@ -204,7 +211,37 @@ export class SourcingService implements OnModuleInit {
       const head = await this.mapLimited(ofType.slice(0, depth * slot.count), 4, (l) => (l.source === 'ikea' && l.modelUrl === null ? this.ikeaDetails(l) : Promise.resolve(l)));
       byType.set(slot.type, [...head, ...ofType.slice(depth * slot.count)]);
     }
-    return chooseSet(slots, byType, plan);
+    return chooseSet(slots, byType, plan, budget?.cap);
+  }
+
+  /** Home budget and this room's share, or null when the home has no limit. */
+  async budgetContext(roomId: string, ownerId: string): Promise<BudgetContext | null> {
+    const room = await this.rooms.getOwnedRoom(roomId, ownerId);
+    const plan = room.floorPlan as unknown as FloorPlan;
+    const budget = await this.loadBudget(room, shoppingList(plan, room.needs));
+    if (!budget) return null;
+    const { budgetCad, roomShare, cap, spentElsewhere } = budget;
+    return { budgetCad, roomShare, cap, spentElsewhere };
+  }
+
+  /** Area share of the project budget. A room with no project, or a project with no budget, is uncapped. */
+  private async loadBudget(room: Room, slots: Slot[]): Promise<RoomBudget | null> {
+    if (!room.projectId) return null;
+    const project = await this.db.project.findUnique({ where: { id: room.projectId }, select: { budgetCad: true } });
+    if (project?.budgetCad == null) return null;
+    const siblings = await this.db.room.findMany({ where: { projectId: room.projectId }, select: { id: true, floorPlan: true } });
+    const otherIds = siblings.map((s) => s.id).filter((id) => id !== room.id);
+    const layouts = otherIds.length
+      ? await this.db.layout.findMany({ where: { roomId: { in: otherIds } }, orderBy: { createdAt: 'desc' }, select: { roomId: true, data: true } })
+      : [];
+    const spent = new Map<string, number>();
+    for (const layout of layouts) if (!spent.has(layout.roomId)) spent.set(layout.roomId, layoutSpent(layout.data));
+    return budgetForRoom(
+      project.budgetCad,
+      room.id,
+      siblings.map((s) => ({ id: s.id, area: planArea(s.floorPlan as FloorPlan), spent: spent.get(s.id) ?? 0 })),
+      slots,
+    );
   }
 
   /** Runs fn over items, at most `limit` at a time (polite to the shop's servers). */

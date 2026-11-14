@@ -19,6 +19,7 @@ import { PLANS, floorPlanOf, placeRooms, sampleRooms, snapPlan, type PlacedRoom 
 import { useMoveLegacyPlanSpots } from '../useLegacyPlanSpots';
 import { shade } from '../colour';
 import { planShot, roomKind } from '../../viewer/three-kit';
+import { BudgetSlider } from '../BudgetSlider';
 
 type Mode =
   | { kind: 'idle' }
@@ -251,9 +252,19 @@ function DrawForm({ onAdd }: { onAdd: (d: DraftRoom) => void }) {
 export function PlanFrame({ projectId, rooms, palette, upload }: { projectId: string; rooms: Room[]; palette: string[]; upload?: string }) {
   const adding = useEditorStore((s) => s.addingRooms === projectId);
   const setAdding = useEditorStore((s) => s.setAddingRooms);
-  if (!rooms.length) return <RoomsIntake projectId={projectId} empty />;
-  if (adding) return <RoomsIntake projectId={projectId} empty={false} onClose={() => setAdding(null)} />;
-  return <PlanDrawing projectId={projectId} rooms={rooms} palette={palette} upload={upload} />;
+  const body = !rooms.length ? (
+    <RoomsIntake projectId={projectId} empty />
+  ) : adding ? (
+    <RoomsIntake projectId={projectId} empty={false} onClose={() => setAdding(null)} />
+  ) : (
+    <PlanDrawing projectId={projectId} rooms={rooms} palette={palette} upload={upload} />
+  );
+  return (
+    <div className="plan-frame">
+      <BudgetSlider projectId={projectId} rooms={rooms} />
+      <div className="plan-body">{body}</div>
+    </div>
+  );
 }
 
 /** How the plan's metres map onto the 520 × 420 drawing. */

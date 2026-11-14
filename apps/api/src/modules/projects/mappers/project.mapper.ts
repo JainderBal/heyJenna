@@ -8,6 +8,7 @@ export function toProjectResponse(project: Project): ProjectResponseDto {
     name: project.name,
     kind: project.kind,
     palette: project.palette,
+    budgetCad: project.budgetCad,
     createdAt: project.createdAt.toISOString(),
     updatedAt: project.updatedAt.toISOString(),
   };

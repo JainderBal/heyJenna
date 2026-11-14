@@ -33,9 +33,19 @@ export class RuleChatAssistant implements ChatAssistant {
           return { reply: parts.join(' ') };
         }
         case 'shopping': {
-          const l = await tools.shoppingList();
-          const missing = l.missing.length ? ` Still missing: ${l.missing.join(', ')}.` : '';
-          return { reply: `${l.items.length} items, ${l.total.toFixed(2)} ${l.currency} in total.${missing}` };
+          try {
+            const l = await tools.shoppingList();
+            const missing = l.missing.length ? ` Still missing: ${l.missing.join(', ')}.` : '';
+            const cap = l.budgetCad != null
+              ? ` Home budget ${Math.round(l.budgetCad)} CAD, this room's share ${Math.round(l.roomShare ?? 0)} CAD, other rooms ${Math.round(l.spentElsewhere ?? 0)} CAD.`
+              : '';
+            return { reply: `${l.items.length} items, ${l.total.toFixed(2)} ${l.currency} in total.${cap}${missing}` };
+          } catch (e) {
+            if (!(e instanceof HttpException)) throw e;
+            const b = await tools.budget();
+            if (!b) return { reply: e.message };
+            return { reply: `Home budget ${Math.round(b.budgetCad)} CAD. This room's share is ${Math.round(b.roomShare)} CAD. Other rooms already total ${Math.round(b.spentElsewhere)} CAD. This room has no shopping list yet.` };
+          }
         }
         case 'similar': {
           const types = mentionedTypes(message);

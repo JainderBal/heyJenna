@@ -116,7 +116,7 @@ export function listRows(d: Pick<RoomData, 'layout' | 'listings'>) {
 
 /** The Floor plan page, as the prototype: Plan, 3D floor plan, Rooms found. With no rooms yet, the Plan frame is where they are added. */
 export function planFrames(rooms: Room[], uploaded: boolean): Frame[] {
-  if (!rooms.length) return [{ id: 'plan', name: 'Plan', type: 'plan', x: 0, y: 0, w: 520, h: 420, children: [] }];
+  if (!rooms.length) return [{ id: 'plan', name: 'Plan', type: 'plan', x: 0, y: 0, w: 520, h: 492, children: [] }];
   return [
     {
       id: 'plan',
@@ -125,7 +125,7 @@ export function planFrames(rooms: Room[], uploaded: boolean): Frame[] {
       x: 0,
       y: 0,
       w: 520,
-      h: 420,
+      h: 492,
       children: [
         { id: 'plan/src', name: uploaded ? 'your-upload.jpg' : 'floor-plan.jpg', icon: 'img' as const },
         ...rooms.map((r) => ({ id: `plan/${r.id}`, name: `${r.name} outline`, icon: 'vec' as const })),
@@ -177,7 +177,7 @@ export function roomFrames(room: Room, d: RoomData, palette: string[]): Frame[] 
       x: 1120,
       y: 0,
       w: 320,
-      h: Math.max(340, 190 + rows.length * 58),
+      h: Math.max(430, 280 + rows.length * 58),
       children: rows.map((r) => ({ id: `list/${r.id}`, name: shortTitle(r.title), icon: 'img' })),
     },
   ];

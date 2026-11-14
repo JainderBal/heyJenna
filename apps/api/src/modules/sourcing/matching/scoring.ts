@@ -1,6 +1,7 @@
 import { FloorPlan, FurnitureType, Size, StyleProfile } from '@hey-jenna/contracts';
 import { hexToRgb, labDistance, rgbToLab } from '../../style/analysis/colour';
 import { COLOUR_WORDS, colourWordLab } from '../../style/analysis/colour-names';
+import { PRICE_HEADROOM } from './budget';
 import { dialWords, ORNATE, shapeWords } from './dial-words';
 
 export interface ScoreDetail {
@@ -22,9 +23,22 @@ export function coloursIn(text: string): string[] {
   return COLOUR_WORDS.filter((w) => new RegExp(`\\b${w}\\b`).test(t));
 }
 
+/**
+ * Price term. With no slot target, having a price to show is enough.
+ * With a target, at or under it scores 1, falling to 0 at the search ceiling. A missing price stays uncertain.
+ */
+export function priceFit(price: number | null, target?: number): number {
+  if (target == null) return price != null ? 1 : 0.4;
+  if (price == null) return 0.35;
+  if (!(target > 0)) return price <= 0 ? 1 : 0;
+  if (price <= target) return 1;
+  const span = target * (PRICE_HEADROOM - 1);
+  return Math.max(0, 1 - (price - target) / span);
+}
+
 /** How well one listing suits this room and moodboard, 0..1. */
 export function scoreListing(
-  input: { type: FurnitureType; text: string; size: Size; sizeEstimated: boolean; price: number | null; colourHexes?: string[] },
+  input: { type: FurnitureType; text: string; size: Size; sizeEstimated: boolean; price: number | null; colourHexes?: string[]; priceTarget?: number },
   style: StyleProfile,
   plan: FloorPlan,
 ): ScoreDetail {
@@ -67,7 +81,7 @@ export function scoreListing(
   if (input.type === 'rug') fit = input.size.w <= longest - 0.6 && input.size.d <= Math.min(plan.width, plan.depth) - 0.6 ? 1 : 0;
   if (fit && input.sizeEstimated) fit = 0.6;
 
-  const priceScore = input.price != null ? 1 : 0.4;
+  const priceScore = priceFit(input.price, input.priceTarget);
   const total = WEIGHTS.style * styleScore + WEIGHTS.colour * colourScore + WEIGHTS.fit * fit + WEIGHTS.price * priceScore;
   const r = (v: number) => Math.round(v * 1000) / 1000;
   return { style: r(styleScore), colour: r(colourScore), fit: r(fit), price: r(priceScore), total: r(total), matchedWords };

@@ -36,6 +36,7 @@ model Project {
   name      String
   kind      String?                              // e.g. condo, house, office
   palette   String[]                             // optional shared hex colours
+  budgetCad Float?   @map("budget_cad")          // home furniture budget in CAD; null = no limit
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   rooms     Room[]

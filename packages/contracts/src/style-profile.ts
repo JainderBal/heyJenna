@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { StyleDials } from './style-dials';
 
 const Hex = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
 
@@ -23,5 +24,7 @@ export const StyleProfile = z.object({
   warmth: z.number().min(-1).max(1),       // -1 cool … +1 warm
   saturation: z.number().min(0).max(1),
   lightness: z.number().min(0).max(1),
+  /** The 55 style dials (docs/style-dials.md). Missing on older profiles: filled from defaults. */
+  dials: StyleDials.default({}),
 });
 export type StyleProfile = z.infer<typeof StyleProfile>;

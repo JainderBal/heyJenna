@@ -104,6 +104,7 @@ export class SourcingService implements OnModuleInit {
     };
 
     const keep: NewListing[] = [];
+    let done = 0;
     await Promise.all(
       slots.map(async (slot) => {
         const query = buildQuery(slot.type, style);
@@ -127,6 +128,8 @@ export class SourcingService implements OnModuleInit {
           .slice(0, perSlot);
         summary.searched.push({ type: slot.type, query, found: results.flat().length, kept: built.length });
         keep.push(...built);
+        // one furniture type done: the studio shows "6 of 11"
+        this.events.publish(roomId, 'listings.search.progress', { type: slot.type, kept: built.length, done: ++done, total: slots.length });
       }),
     );
 

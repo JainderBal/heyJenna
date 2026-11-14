@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 export type RoomEventType =
-  | 'listings.search.started' | 'listings.search.finished' | 'listings.search.failed'
+  | 'listings.search.started' | 'listings.search.progress' | 'listings.search.finished' | 'listings.search.failed'
   | 'layout.generated' | 'layout.object.added' | 'layout.object.moved' | 'layout.object.removed'
   | 'render.queued' | 'render.running' | 'render.done' | 'render.failed'
   | 'job.queued' | 'job.running' | 'job.done' | 'job.failed';

@@ -6,3 +6,4 @@ export * from './listing';
 export * from './chat';
 export * from './project';
 export * from './pinterest';
+export * from './moodboard';

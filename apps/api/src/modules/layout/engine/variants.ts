@@ -1,3 +1,4 @@
+import { StyleDialValues } from '@hey-jenna/contracts';
 import { EngineResult, EngineSpec, LayoutEngine } from './layout-engine';
 import { Dropped, solveWithRepairs } from './repair';
 
@@ -14,6 +15,29 @@ const VARIANTS: Record<string, unknown>[] = [
   { orient: 'frames', lounge: 'conversation' },
   { lateral: 1 },
 ];
+
+/**
+ * Variant keys the layout dials already decide (same thresholds as `dial_variant` in
+ * engines/layout/design_logic.py). A variant that sets one of them would override the dial in that run
+ * and could win on score, undoing the dial, so it is not tried.
+ */
+export function pinnedByDials(d: Partial<StyleDialValues> | undefined): Set<string> {
+  const pinned = new Set<string>();
+  if (!d) return pinned;
+  const symmetry = d.symmetry ?? 0.4;
+  const float = d.furniture_float ?? 0.5;
+  if (symmetry >= 0.65 || symmetry < 0.3) pinned.add('lateral').add('symmetry');
+  if (float >= 0.65 || float <= 0.3) pinned.add('mount');
+  if (d.rug_shape === 'round' || d.rug_shape === 'organic') pinned.add('rug');
+  if (d.focal_point && d.focal_point !== 'auto') pinned.add('focal');
+  return pinned;
+}
+
+/** The variants worth trying for these dials: the ones that don't fight a dial. */
+export function variantsFor(d: Partial<StyleDialValues> | undefined): Record<string, unknown>[] {
+  const pinned = pinnedByDials(d);
+  return VARIANTS.filter((v) => !Object.keys(v).some((k) => pinned.has(k)));
+}
 
 export interface Solved {
   result: EngineResult;
@@ -47,9 +71,10 @@ function badness(r: EngineResult, dropped: Dropped[]): number {
   return r.summary.fail * 100 + dropped.length * 25 + seatingSpread(r) * 15 + r.summary.warn * 3 + fillerCount(r) * 2;
 }
 
-/** Lays the room out every way in VARIANTS (in parallel, each auto-repaired) and keeps the best. */
+/** Lays the room out every way in VARIANTS that the dials allow (in parallel, each auto-repaired) and keeps the best. */
 export async function solveBestVariant(engine: LayoutEngine, spec: EngineSpec): Promise<Solved> {
-  const runs = await Promise.allSettled(VARIANTS.map(async (variant) => ({ variant, ...(await solveWithRepairs(engine, { ...spec, variant })) })));
+  const dials = (spec.style_profile as { dials?: Partial<StyleDialValues> }).dials;
+  const runs = await Promise.allSettled(variantsFor(dials).map(async (variant) => ({ variant, ...(await solveWithRepairs(engine, { ...spec, variant })) })));
   const ok = runs.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
   if (!ok.length) throw (runs[0] as PromiseRejectedResult).reason; // every variant failed: report the first error
   ok.sort((a, b) => badness(a.result, a.dropped) - badness(b.result, b.dropped));

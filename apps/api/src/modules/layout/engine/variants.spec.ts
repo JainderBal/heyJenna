@@ -1,5 +1,6 @@
 import { EngineResult, EngineSpec } from './layout-engine';
-import { solveBestVariant } from './variants';
+import { DIAL_DEFAULTS } from '@hey-jenna/contracts';
+import { solveBestVariant, variantsFor } from './variants';
 
 const result = (fail: number, warn: number, objects: unknown[] = []): EngineResult =>
   ({ objects, zones: {}, focal_point: {}, checks: [], summary: { pass: 10, warn, fail } }) as EngineResult;
@@ -27,5 +28,21 @@ describe('seating group', () => {
     const engine = { run: async (s: EngineSpec) => result(0, 1, (s.variant as Record<string, unknown>).lateral ? tight : loose) };
     const best = await solveBestVariant(engine, { room: {}, needs: [], style_profile: {}, furniture: [] });
     expect(best.variant).toEqual({ lateral: 1 });
+  });
+});
+
+describe('variants and the layout dials', () => {
+  it('tries every variant at the default dials', () => {
+    expect(variantsFor(DIAL_DEFAULTS)).toHaveLength(6);
+    expect(variantsFor(undefined)).toHaveLength(6);
+  });
+
+  it('skips variants that would undo a dial the user set', async () => {
+    const tried: Record<string, unknown>[] = [];
+    const engine = { run: async (s: EngineSpec) => (tried.push(s.variant as Record<string, unknown>), result(0, 0)) };
+    const style_profile = { dials: { ...DIAL_DEFAULTS, furniture_float: 1, symmetry: 1 } };
+    await solveBestVariant(engine, { room: {}, needs: [], style_profile, furniture: [] });
+    expect(tried.some((v) => 'mount' in v || 'lateral' in v)).toBe(false);
+    expect(tried).toHaveLength(4);
   });
 });

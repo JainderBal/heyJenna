@@ -87,6 +87,52 @@ def load_profile(spec, override=None):
     return p
 
 
+# ---------------------------------------------------------------- layout + props dials (style_profile.dials, 0..1 unless an enum)
+# Each dial is one small rule. Dials only choose between options the design rules already allow;
+# clearance, fit and the checks still decide (a dial-picked floating sofa that can't fit falls back to the wall).
+# At the default dial values (DIAL_DEFAULTS in packages/contracts) every rule here is neutral, so the room
+# comes out exactly as it did before the dials were wired.
+FOCAL_DIAL = {"window_view": ("view", "windows"), "fireplace": ("fireplace",), "feature_wall": ("gallery",), "art": ("gallery",), "tv": ("media",)}
+BLINDS = ("roman_blind", "venetian", "shutters")
+CURTAIN_WIDTH = {"sheer": 0.45, "heavy_drape": 0.7}  # panel width stacked beside the window; linen_drape (default) keeps 0.54
+ART_MIX = ["line drawings", "photography", "botanical prints", "graphic posters", "landscapes", "abstract colour blocks"]
+PATTERN_SCALES = ("small", "medium", "large")
+
+
+def dial_variant(dials, room):
+    """Layout dials that pick one of the existing variant choices (an explicit variant still wins)."""
+    v = {}; g = lambda k, d: float(dials.get(k, d))
+    if g("symmetry", 0.4) >= 0.65: v["symmetry"] = "symmetric"       # sofa centred, plants and lamps paired
+    elif g("symmetry", 0.4) < 0.3: v["lateral"] = 1                   # group set off-centre
+    big = room.W * room.D >= 16 and min(room.W, room.D) >= 3.5
+    if g("furniture_float", 0.5) >= 0.65 and big: v["mount"] = "float"   # conversation group floated off the walls
+    elif g("furniture_float", 0.5) <= 0.3: v["mount"] = "wall"
+    if dials.get("rug_shape") in ("round", "organic"): v["rug"] = "round"
+    if dials.get("focal_point") in FOCAL_DIAL: v["focal"] = {"kinds": list(FOCAL_DIAL[dials["focal_point"]])}
+    return v
+
+
+def dial_rules(dials):
+    """Props dials -> plain numbers the soft-furnishing, colour and wall steps read. No dials = the old behaviour."""
+    if not dials: return {}
+    g = lambda k, d: float(dials.get(k, d))
+    tl, order, st, art = g("textile_layers", 0.45), g("styling_order", 0.6), g("statement_strength", 0.5), g("art_amount", 0.4)
+    return dict(
+        # textile_layers: cushions move from the styling-density count (0 at 0, +3 at 1); the throw goes below .25, always above .65
+        cushion_shift=round((tl - 0.45) * 6), throw=False if tl < 0.25 else True if tl > 0.65 else None,
+        # styling_order: tilt of cushions, throw and books; 1 at the default .6, 0 = upright and aligned, 2.5 = tossed
+        tilt=round(max(0.0, min(2.5, (1 - order) / 0.4)), 3),
+        # pattern_amount: share of the textiles that is patterned (none up to .3, all at 1); pattern_scale: the biggest print
+        patterned=max(0.0, (g("pattern_amount", 0.3) - 0.3) / 0.7), pattern_scale=g("pattern_scale", 0.5),
+        motifs=[m for m in (dials.get("pattern_motif") or []) if m != "none"],
+        cushion_pairs=g("repetition", 0.5) >= 0.6, cushion_mix=g("repetition", 0.5) < 0.3,   # repetition
+        statement="none" if st < 0.3 else "bold" if st >= 0.7 else "normal",                 # statement_strength
+        art_amount=art, extra_art=max(0, round(art * 5) - 2), bare_walls=art < 0.15,          # art_amount
+        art_mix=g("eclecticism", 0.3) >= 0.6,                                                 # eclecticism
+        window=dials.get("window_treatment", "linen_drape"),                                  # window_treatment
+    )
+
+
 # ---------------------------------------------------------------- geometry
 class Box:
     """Oriented footprint: centre, width (along the front), depth, rotation (deg)."""
@@ -184,6 +230,7 @@ class Layout:
     def __init__(s, room, prof, V=None):
         s.room, s.prof, s.objs, s.reserved, s.zones, s.V, s.focal, s.needs = room, prof, [], [], {}, V or {}, None, []
         s.notes, s.unplaced, s.penalty, s.features, s.fill_log = [], [], 0.0, [], []
+        s.D = dial_rules((prof or {}).get("dials") or {})
 
     def add(s, item, box, zone, mount="floor", elev=0.0, **meta):
         o = dict(id=item["id"], type=item["type"], name=item.get("name", item["type"]), zone=zone, box=box,
@@ -246,7 +293,7 @@ def focal_candidates(room, needs, items):
 def choose_focal(room, needs, items, pick=None):
     cands = focal_candidates(room, needs, items)
     if pick:
-        m = [c for c in cands if c["kind"] == pick.get("kind") and (not pick.get("wall") or c["wall"] == pick["wall"])]
+        m = [c for c in cands if c["kind"] in (pick.get("kinds") or (pick.get("kind"),)) and (not pick.get("wall") or c["wall"] == pick["wall"])]
         if m: return m[0]
     return cands[0]
 
@@ -373,10 +420,13 @@ def place_conversation(L, items, zones, focal, cand):
         def rug_cost(o):
             want_round = mode == "round"
             return (0 if ok(o) else 1, 0 if (o.get("shape") == "round") == want_round else 1, o["w"] * o["d"])
-        opt = pick_option(rug, rug_cost)
+        opts = list(rug.get("options") or [rug["size"]])
+        if mode == "round" and rug.get("suggested") and not any(o.get("shape") == "round" for o in opts):  # a placeholder rug can be any shape
+            dia = round(2 * math.hypot(need_w / 2, need_d / 2) + 0.05, 2); opts.append(dict(w=dia, d=dia, h=rug["size"]["h"], shape="round"))
+        opt = min(opts, key=rug_cost)
         if mode == "round" and opt.get("shape") != "round": L.notes.append("variant asked for a round rug; no round option reaches the front legs of every seat, so a rectangle was used")
         if mode == "all" and not ok(opt): L.notes.append("variant asked for a rug under all the seating; no option is that big, so the largest one was used")
-        if not ok(opt): opt = max(rug.get("options") or [rug["size"]], key=lambda o: o["w"] * o["d"])
+        if not ok(opt): opt = max(opts, key=lambda o: o["w"] * o["d"])
         rw, rd = (max(opt["w"], opt["d"]), min(opt["w"], opt["d"])) if opt.get("shape") != "round" else (opt["w"], opt["d"])
         rb = Box(*sb.pt((a0 + a1) / 2, (b0 + b1) / 2), rw, rd, sb.rot)
         if not L.fits(rb, 0.02, rug=True):
@@ -585,6 +635,26 @@ def place_lamp_by_sofa(L, lamp, sofa):
         b = Box(abs(cx - m), abs(cy - m), ls["w"], ls["d"])
         if L.fits(b, ls["h"], "conversation"): L.add(lamp, b, "conversation"); return
     L.unplaced.append((lamp["id"], "no free spot for the floor lamp"))
+
+
+def pair_lamps(L):
+    """symmetry: a floor lamp at one sofa end gets a twin at the other end, mirrored or just past a side table
+    standing there (only if it fits and the walkways stay open)."""
+    if L.V.get("symmetry") != "symmetric": return
+    sofa = next((o for o in L.objs if o["type"] == "sofa"), None)
+    if not sofa: return
+    sb = sofa["box"]
+    for lamp in [o for o in L.objs if o["type"] == "floor_lamp" and not o["meta"].get("pair")]:
+        a, b = sb.local(*lamp["box"].pt(0, 0))
+        if abs(a) < sb.w / 2 or abs(a) > sb.w / 2 + 0.6 or abs(b) > sb.d: continue  # not at a sofa end
+        base = walk_check(L); lb = lamp["box"]
+        twin = mk(f"{lamp['id']}_pair", "floor_lamp", lb.w, lb.d, lamp["h"], colour=lamp["item"].get("colour", "auto"), style=lamp["item"].get("style"), suggested=True)
+        for extra in (0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6):
+            tb = Box(*sb.pt(-a - math.copysign(extra, a), b), lb.w, lb.d, lb.rot)
+            if not L.fits(tb, lamp["h"], lamp["zone"]): continue
+            p = L.add(twin, tb, lamp["zone"], pair=lamp["id"])
+            if walk_ok(base, walk_check(L)): lamp["meta"]["pair"] = p["id"]; return
+            L.objs.remove(p)
 
 
 def place_surfaces(L, items):
@@ -1086,22 +1156,56 @@ def fill_empty(L, phase):
     return L.fill_log[n0:]
 
 
+def pattern_soft(L):
+    """pattern_amount: that share of the textiles (biggest first: rug, curtains, throw, cushions) is patterned.
+    pattern_scale: the biggest patterned piece gets the dial's print size, the next one size down, the rest small
+    (one large, one medium, the rest small). pattern_motif: the patterned pieces take the listed motifs in turn."""
+    order = ("rug", "curtain", "throw", "cushion")
+    soft = sorted([o for o in L.objs if o["type"] in order], key=lambda o: order.index(o["type"]))
+    n = round(L.D["patterned"] * len(soft)); top = min(2, int(L.D["pattern_scale"] * 3)); motifs = L.D["motifs"]
+    for k, o in enumerate(soft[:n]):
+        o["meta"]["pattern"] = PATTERN_SCALES[max(0, top - k)]
+        if motifs: o["meta"]["motif"] = motifs[k % len(motifs)]
+
+
 # ---------------------------------------------------------------- soft furnishings + props (derived from the placed pieces)
 def add_soft_and_props(L, taste):
-    room, prof = L.room, L.prof; dens = DENSITY[taste["styling_density"]]; acc = prof["palette"]["accent"]
+    room, prof, D = L.room, L.prof, L.D; dens = dict(DENSITY[taste["styling_density"]]); acc = prof["palette"]["accent"]
+    if D:  # textile_layers moves the soft layers away from the styling-density count
+        dens["pillows"] = max(0, min(5, dens["pillows"] + D["cushion_shift"]))
+        if D["throw"] is not None: dens["throw"] = D["throw"]
+    tilt_k = D.get("tilt", 1.0)
+    tilted = lambda deg: deg if tilt_k == 1 else deg * tilt_k  # styling_order; the default keeps the old angles exactly
+    win = D.get("window", "linen_drape")
     for w in room.windows:
+        if win == "none": break
+        if win in BLINDS:  # one blind or shutter inside the opening instead of a pair of panels
+            h = w["head"] - w["sill"]
+            it = mk(f"curtain_{w['id']}_blind", "curtain", w["width"], 0.04, h, colour=prof["materials"]["curtain"], style=win)
+            L.add(it, room.against(w["wall"], w["position"], w["width"], 0.04, 0.02), w["id"], mount="wall", elev=w["sill"], window=w["id"], side="centre")
+            continue
+        pw = CURTAIN_WIDTH.get(win, 0.54)  # sheer stacks thin, heavy drapes stack wide
+        style = {"style": win} if win in CURTAIN_WIDTH else {}
         for side in ("left", "right"):
             u = w["position"] + (-1 if side == "left" else 1) * (w["width"] / 2 - 0.15)
-            it = mk(f"curtain_{w['id']}_{side}", "curtain", 0.54, 0.05, w["head"] - 0.05, colour=prof["materials"]["curtain"])
-            L.add(it, room.against(w["wall"], u, 0.54, 0.05, 0.08), w["id"], mount="wall", elev=0.06, window=w["id"], side=side)
+            it = mk(f"curtain_{w['id']}_{side}", "curtain", pw, 0.05, w["head"] - 0.05, colour=prof["materials"]["curtain"], **style)
+            L.add(it, room.against(w["wall"], u, pw, 0.05, 0.08), w["id"], mount="wall", elev=0.06, window=w["id"], side=side)
     sofa = next((o for o in L.objs if o["type"] == "sofa"), None)
     if sofa:
         b, w = sofa["box"], sofa["box"].w; mw = w / max(1, round(w / 0.72))
         if dens["throw"]:
-            L.add(mk("throw", "throw", 0.6, 0.62, 0.03, colour=acc[2 % len(acc)]), Box(*b.pt(-w / 2 + mw / 2, 0.12), 0.6, 0.62, b.rot), "conversation", mount="surface", elev=0.43, on=sofa["id"])
-        for k, (px, tilt) in enumerate([(0.29, -11.5), (0.07, 8.6), (-0.05, -5.7)][:dens["pillows"]]):
-            col = [acc[0], prof["palette"]["dominant"][0], acc[2 % len(acc)]][k]
-            L.add(mk(f"cushion_{k + 1}", "cushion", 0.42, 0.14, 0.38, colour=col), Box(*b.pt(px * w, -0.12), 0.42, 0.14, b.rot + tilt), "conversation", mount="surface", elev=0.47, on=sofa["id"])
+            rot = b.rot if tilt_k <= 1 else b.rot + 14 * (tilt_k - 1)  # tossed at an angle when casual
+            L.add(mk("throw", "throw", 0.6, 0.62, 0.03, colour=acc[2 % len(acc)]), Box(*b.pt(-w / 2 + mw / 2, 0.12), 0.6, 0.62, rot), "conversation", mount="surface", elev=0.43, on=sofa["id"])
+        n = dens["pillows"]; spots = [(0.29, -11.5), (0.07, 8.6), (-0.05, -5.7)]
+        if n > 3:  # more cushions than the old three spots: as many as overlap sensibly, spread evenly along the seat
+            n = max(3, min(n, int((w - 0.25) / 0.34)))
+            spots = [(0.36 - 0.72 * k / (n - 1), t) for k, t in zip(range(n), (-11.5, 8.6, -5.7, 7.2, -6.0))]
+        cols = [acc[0], prof["palette"]["dominant"][0], acc[2 % len(acc)]]
+        if D.get("cushion_pairs"): cols = [acc[0], acc[0], prof["palette"]["dominant"][0], prof["palette"]["dominant"][0]]  # repetition: matching pairs
+        elif D.get("cushion_mix"): cols = list(dict.fromkeys(acc + prof["palette"]["secondary"] + prof["palette"]["dominant"]))  # every cushion different
+        for k, (px, tilt) in enumerate(spots[:n]):
+            L.add(mk(f"cushion_{k + 1}", "cushion", 0.42, 0.14, 0.38, colour=cols[k % len(cols)]), Box(*b.pt(px * w, -0.12), 0.42, 0.14, b.rot + tilted(tilt)), "conversation", mount="surface", elev=0.47, on=sofa["id"])
+    if D: pattern_soft(L)
     def prop(host_type, pid, typ, a, b_, w, d, h, colour, rot=0.0, upto=1):
         host = next((o for o in L.objs if o["type"] == host_type), None)
         if not host or upto > dens["props"]: return
@@ -1109,7 +1213,7 @@ def add_soft_and_props(L, taste):
         put_on(L, mk(pid, typ, w, d, h, colour=colour), host, a * sx, b_ * sy, rot)
     lamp_on = {o["meta"].get("on") for o in L.objs if o["type"] == "table_lamp"}
     sbd = next((o for o in L.objs if o["type"] == "sideboard"), None)
-    prop("coffee_table", "coffee_book", "book", -0.12, 0.06, 0.24, 0.18, 0.05, acc[1 % len(acc)], 17)
+    prop("coffee_table", "coffee_book", "book", -0.12, 0.06, 0.24, 0.18, 0.05, acc[1 % len(acc)], tilted(17))
     prop("coffee_table", "coffee_vase", "cup", 0.15, -0.08, 0.12, 0.12, 0.16, prof["palette"]["dominant"][0], upto=2)
     prop("sideboard", "sideboard_vase", "vase", -0.45, 0.0, 0.18, 0.18, 0.4, acc[1 % len(acc)])
     prop("sideboard", "sideboard_books", "books", 0.0 if sbd and sbd["id"] in lamp_on else 0.35, 0.0, 0.3, 0.22, 0.19, acc[0], upto=2)
@@ -1200,7 +1304,9 @@ def assign_colours(L, statement=None):
     for o in auto:
         a = visible_area(o)
         if o["type"] == "plant": o["role"], o["colour"] = "natural", "#3E7F3A"; continue
-        if o["id"] == hero and sig:
+        if o["id"] == hero and L.D.get("statement") == "bold" and pal["accent"] and (tot["accent"] + a) / allarea <= R["split"]["accent"] + R["split_tol"]:
+            o["role"], o["colour"] = "accent", pal["accent"][0]; tot["accent"] += a; continue  # statement_strength: the hero wears the accent, if the 10 % allows
+        if o["id"] == hero and sig and L.D.get("statement") != "none":
             o["role"], o["colour"] = "secondary", sig; tot["secondary"] += a; continue
         if o["type"] == "feature_wall": r = "accent" if len(pal["accent"]) else "secondary"
         elif o["type"] in SMALL_ACCENT and (tot["accent"] + a) / allarea <= R["split"]["accent"] + R["split_tol"] / 3: r = "accent"
@@ -1336,7 +1442,7 @@ def art_over(L, art, host, wall, focal=False):
     cz = max(R["art_centre"], host["h"] + R["art_gap"][0] + ah / 2)
     u = hb.cx if wall in ("back", "front") else hb.cy
     o = L.add(art, Box(*room.at(wall, u, 0.02), aw, 0.03, room.ROT[wall]), host["zone"], mount="wall", elev=cz,
-              wall=wall, above=host["id"], focal=focal, content=L.prof["art"])
+              wall=wall, above=host["id"], focal=focal, content=art.get("content") or L.prof["art"])
     o["h"] = ah; return o
 
 
@@ -1369,6 +1475,19 @@ def dress_walls(L, items):
     a gallery on long stretches and single pieces elsewhere — on the walls you can see."""
     room = L.room
     pending = [i for i in items if i["type"] in WALL_ITEMS and not L.get(i["id"])]
+    D = L.D
+    if D.get("bare_walls"):  # art_amount ~0: only the focal piece stays up
+        for it in [i for i in pending if i["type"] == "art"]: L.notes.append(f"{it['id']}: kept off the walls (art_amount: bare walls)")
+        pending = [i for i in pending if i["type"] != "art"]
+    proto = next((i for i in items if i["type"] == "art"), None)
+    for k in range(D.get("extra_art", 0)):  # art_amount high: extra suggested pieces; eclecticism high mixes their subjects
+        s = (proto or {}).get("size") or dict(w=0.6, d=0.03, h=0.8)
+        it = mk(f"art_extra_{k + 1}", "art", s["w"], s["d"], s["h"], suggested=True)
+        pending.append(it)
+    if D.get("art_mix"):  # eclecticism high: the first piece keeps the board's subject, every other one takes a different one (collected, not a set)
+        mix = [c for c in ART_MIX if c != L.prof["art"].get("content")]
+        keep = 0 if any(o["type"] == "art" for o in L.objs) else 1  # the focal piece (or else the first one) keeps the board's subject
+        for k, it in enumerate([i for i in pending if i["type"] == "art"][keep:]): it["content"] = dict(L.prof["art"], content=mix[k % len(mix)])
     if not pending: return
     take = lambda *types: next((i for t in types for i in pending if i["type"] == t), None)
     closed = [w for w in WALLS if w not in room.open_walls]
@@ -1387,7 +1506,9 @@ def dress_walls(L, items):
         if it["type"] == "art": art_over(L, it, host, wall)
         else: hang(L, it, wall, u, host["box"].w * 0.9, above=host)
         pending.remove(it)
-    # 2. blank stretches, widest first
+    # 2. blank stretches, widest first. art_amount above .6 covers more of each stretch and turns shorter ones into galleries
+    more = max(0.0, D.get("art_amount", 0) - 0.6)
+    fill, max_w, gallery_from = (0.6, 1.4, 1.6) if not more else (0.6 + more / 2, 1.4 + more * 1.5, 1.6 - more * 2)
     doors = [(d["wall"], d["position"]) for d in room.doors]
     for wall in closed:
         for a, b in wall_free_spans(L, wall):
@@ -1397,8 +1518,8 @@ def dress_walls(L, items):
             near_door = any(w == wall and a - 1.2 <= p <= b + 1.2 for w, p in doors)
             it = take("mirror", "art") if near_door else take("art", "mirror", "wall_shelf")
             if not it: continue
-            hang(L, it, wall, (a + b) / 2, min(span * 0.6, 1.4 if it["type"] == "art" else it["size"]["w"]),
-                 arrangement="gallery" if it["type"] == "art" and span >= 1.6 else "single")
+            hang(L, it, wall, (a + b) / 2, min(span * fill, max_w if it["type"] == "art" else it["size"]["w"]),
+                 arrangement="gallery" if it["type"] == "art" and span >= gallery_from else "single")
             pending.remove(it)
     for it in pending: L.notes.append(f"{it['id']}: no free wall left for it")  # extra wall pieces are optional
 
@@ -1412,7 +1533,7 @@ def hang(L, it, wall, u, width, above=None, arrangement="single"):
     base = above["h"] + R["art_gap"][0] if above else 0
     cz = 1.5 if it["type"] == "wall_shelf" else max(R["art_centre"], base + h / 2)
     o = L.add(it, room.against(wall, u, w, d, 0.005), wall, mount="wall", elev=cz, wall=wall,
-              above=above["id"] if above else None, arrangement=arrangement, content=L.prof["art"])
+              above=above["id"] if above else None, arrangement=arrangement, content=it.get("content") or L.prof["art"])
     o["h"] = h
     return o
 
@@ -1496,17 +1617,38 @@ def core(L, items, zones, focal, cand, needs):
 
 
 def solve(spec, taste_override=None, profile_override=None, V=None):
-    V = dict(V or {})
+    """Lay the room out. Layout dials pick variant choices; if a dial pick breaks more rules than the
+    plain layout, the plain layout wins and the dial is noted as overruled."""
+    try: out = _solve(spec, taste_override, profile_override, V, use_dials=True)
+    except SystemExit: return _solve(spec, taste_override, profile_override, V, use_dials=False)  # the dial-picked group can't fit at all
+    fails = lambda r: sum(c["status"] == "fail" for c in r[5])
+    if out[0].from_dials and fails(out):
+        plain = _solve(spec, taste_override, profile_override, V, use_dials=False)
+        if fails(plain) < fails(out):
+            plain[0].notes.append(f"layout dials {sorted(out[0].from_dials)} overruled: they broke a design rule in this room")
+            return plain
+    return out
+
+
+def _solve(spec, taste_override, profile_override, V, use_dials):
     room = Room(spec["room"]); items = copy.deepcopy(spec["furniture"]); needs = spec.get("needs", [])
     prof = load_profile(spec, profile_override)
+    dials = (prof.get("dials") or {}) if use_dials else {}
+    from_dials = {k: v for k, v in dial_variant(dials, room).items() if k not in (V or {})}
+    V = {**from_dials, **(V or {})}
     if V.get("feature") and V["feature"] != "plant_corner":
         prof["features"]["prefer"] = [V["feature"]] + [p for p in prof["features"]["prefer"] if p != V["feature"]]
         if V["feature"] not in prof["features"]["allow"]: prof["features"]["allow"] = prof["features"]["allow"] + [V["feature"]]
     for i in items: i["size"] = i.get("size") or i["options"][0]
     zones = assign_zones(items, needs, V.get("lounge")); focal = choose_focal(room, needs, items, V.get("focal"))
     taste = run_taste(dict(spec, furniture=items), prof, taste_override)
+    if (prof.get("dials") or {}).get("statement_strength", 0.5) < 0.3 and not taste_override: taste["statement_piece"] = None  # nothing dominates
     sofa = next(i for i in items if i["type"] == "sofa"); best = None
-    for cand in conv_candidates(room, focal, sofa, V):
+    cands = conv_candidates(room, focal, sofa, V)
+    if from_dials.get("mount"):  # furniture_float picked the mount: the other mount stays as a fallback that loses unless the pick breaks a rule
+        want_float = from_dials["mount"] == "float"
+        cands += [dict(c, off_dial=True) for c in conv_candidates(room, focal, sofa, {**V, "mount": None}) if (c["back_gap"] > 0) != want_float]
+    for cand in cands:
         L = Layout(room, prof, V); L.needs = needs
         if not core(L, items, zones, focal, cand, needs): continue
         split, _ = assign_colours(L, taste["statement_piece"])
@@ -1516,13 +1658,14 @@ def solve(spec, taste_override=None, profile_override=None, V=None):
         if cand["orient"] == "faces": target = (focal["position"] + room.wall_len(cand["wall"]) / 2) / 2
         else: target = room.wall_len(cand["wall"]) / 2
         target += V.get("lateral", 0) * 0.6 * (0 if V.get("symmetry") == "symmetric" else 1)
-        sc = -100 * fails - 10 * warns - L.penalty - 2 * abs(along - target) - 20 * balance(L)[2]
+        sc = -100 * fails - 10 * warns - L.penalty - (8 if V.get("symmetry") == "symmetric" else 2) * abs(along - target) - 20 * balance(L)[2] - 50 * bool(cand.get("off_dial"))
         if best is None or sc > best[0]: best = (sc, cand)
     if best is None: raise SystemExit("could not fit the conversation group for this variant")
-    L = Layout(room, prof, V); L.needs = needs
+    L = Layout(room, prof, V); L.needs = needs; L.from_dials = from_dials
     core(L, items, zones, focal, best[1], needs)
     assign_colours(L, taste["statement_piece"])
     place_styling(L, items, taste, needs)
+    pair_lamps(L)
     complete_group(L)
     fill_empty(L, "before plants")
     place_plants(L, items, taste, needs)

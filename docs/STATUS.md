@@ -29,12 +29,11 @@ A moodboard plus a floor plan → every room laid out in 3D with real, buyable f
 
 **API (`apps/api`)**: projects and rooms (with their position on the plan), floor plan from a photo, moodboard (uploads, with `?append=1` to add to the board, and pins) → style + 55 style dials (the profile keeps the derived values for reset), sourcing (IKEA, eBay, Etsy, Brave web search for Kijiji / FB Marketplace, pasted links), layout engine (Python) with edits, shopping list, render jobs + Blender worker, jenna chat (Claude tool use, rules without a key), live room events (SSE), background jobs, IKEA 3D model proxy with cache, CORS.
 
-Style dials: shape dials steer sourcing, materials/lighting/palette dials steer renders. See `docs/style-dials.md`.
+Style dials: shape dials steer sourcing, materials/lighting/palette dials steer renders, layout and props dials steer the layout engine (symmetry, furniture float, focal point, rug shape, curtains, cushions and throw, patterns, statement piece, art amount and mix; at the default values the room comes out as before). See `docs/style-dials.md`.
 
 ## Not built yet (roughly in priority order)
 
-1. **Layout and props style dials** (symmetry, furniture float, rug shape, curtains, art and textile amounts…): unfinished work on branch `feat/dials-layout` (all tests pass, not reviewed).
-2. **Login in the desktop app:** the magic link and Google return to a web URL, not the app's `hj://studio/` page.
+1. **Login in the desktop app:** the magic link and Google return to a web URL, not the app's `hj://studio/` page.
 
 Not checked with real keys yet: Claude chat and floor-plan reading, Etsy, eBay, Brave, Supabase login.
 

@@ -13,12 +13,14 @@ const RULES: [FurnitureType, RegExp][] = [
   ['armchair', /\b(armchair|arm chair|accent chair|lounge chair|club chair|recliner|rocking chair|egg chair|wingback)\b/i],
   ['pouf', /\b(pouf|pouffe|ottoman|footstool|foot stool)\b/i],
   ['sideboard', /\b(sideboard|credenza|buffet|media console|tv stand|tv unit|dresser)\b/i],
+  ['wall_shelf', /\b(wall shelf|wall shelves|picture ledge|floating shelf)\b/i],
+  ['mirror', /\bmirror\b/i],
   ['shelf', /\b(bookshelf|bookcase|shelving|etagere|shelf unit|shelf)\b/i],
   ['desk', /\b(desk|writing table)\b/i],
   ['rug', /\b(rug|carpet|runner)\b/i],
   // a real plant, not the things that hold one (stands, pots, hangers…), which are checked first below
   ['plant', /\b(plant|monstera|fiddle leaf|ficus|palm|snake plant|pothos)\b/i],
-  ['art', /\b(wall art|print|poster|painting|canvas|framed art|artwork)\b/i],
+  ['art', /\b(wall art|print|poster|painting|canvas|framed art|artwork|picture)\b/i],
 ];
 
 /** Plant accessories that mention "plant" but aren't one. */

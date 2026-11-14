@@ -20,7 +20,8 @@ export function shoppingList(plan: FloorPlan, needs: string[]): Slot[] {
     { type: 'floor_lamp', count: 1, required: false, why: 'warm low light in the evening' },
     { type: 'side_table', count: 1, required: false, why: 'a surface next to every seat' },
     { type: 'plant', count: area > 18 ? 3 : 2, required: false, why: 'life and softness' },
-    { type: 'art', count: 1, required: false, why: 'a focal point on a blank wall' },
+    { type: 'art', count: area > 20 ? 4 : 3, required: false, why: 'walls shouldn\'t be bare: above the sofa, sideboard, desk and on blank stretches' },
+    { type: 'mirror', count: 1, required: false, why: 'light and depth, ideally near the way in' },
     { type: 'ceiling_light', count: 1, required: false, why: 'general light' },
   ];
   if (area >= 12) slots.push({ type: 'armchair', count: area > 26 ? 2 : 1, required: false, why: 'extra seat facing the sofa' });
@@ -31,6 +32,7 @@ export function shoppingList(plan: FloorPlan, needs: string[]): Slot[] {
       { type: 'table_lamp', count: 1, required: false, why: 'task light for the desk' },
     );
   if (has(needs, 'read', 'book')) slots.push({ type: 'shelf', count: 1, required: false, why: 'reads: books need a home' });
+  if (has(needs, 'work', 'desk', 'study', 'office', 'wfh', 'read', 'book')) slots.push({ type: 'wall_shelf', count: 1, required: false, why: 'a shelf above the desk or reading spot' });
   if (has(needs, 'cat')) slots.push({ type: 'cat_tree', count: 1, required: false, why: 'has a cat' });
   if (has(needs, 'friends', 'guests', 'host', 'entertain')) slots.push({ type: 'pouf', count: 1, required: false, why: 'flexible extra seat for guests' });
   if (area >= 16) slots.push({ type: 'sideboard', count: 1, required: false, why: 'storage along a wall' });

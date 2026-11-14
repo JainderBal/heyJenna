@@ -10,6 +10,7 @@ export const TYPICAL: Record<FurnitureType, Size> = {
   rug: { w: 2.4, d: 1.7, h: 0.02 }, floor_lamp: { w: 0.35, d: 0.35, h: 1.6 },
   table_lamp: { w: 0.25, d: 0.25, h: 0.45 }, ceiling_light: { w: 0.45, d: 0.45, h: 0.35 },
   plant: { w: 0.45, d: 0.45, h: 1.1 }, art: { w: 0.7, d: 0.03, h: 0.9 },
+  mirror: { w: 0.6, d: 0.04, h: 0.8 }, wall_shelf: { w: 0.8, d: 0.2, h: 0.15 },
 };
 
 /** Rough limits per type so a misread number ("2000 x 3 x 1") is thrown away. */

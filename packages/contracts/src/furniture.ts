@@ -3,7 +3,7 @@ import { z } from 'zod';
 /** Furniture types the layout engine knows how to place. */
 export const FURNITURE_TYPES = [
   'sofa', 'armchair', 'coffee_table', 'side_table', 'shelf', 'desk', 'desk_chair', 'sideboard',
-  'pouf', 'cat_tree', 'rug', 'floor_lamp', 'table_lamp', 'ceiling_light', 'plant', 'art',
+  'pouf', 'cat_tree', 'rug', 'floor_lamp', 'table_lamp', 'ceiling_light', 'plant', 'art', 'mirror', 'wall_shelf',
 ] as const;
 export const FurnitureType = z.enum(FURNITURE_TYPES);
 export type FurnitureType = z.infer<typeof FurnitureType>;

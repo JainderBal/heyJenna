@@ -281,9 +281,36 @@ svg{display:block}
 .addf li{display:flex;justify-content:space-between;padding:6px 8px;border-radius:6px;background:var(--hover)}
 .addf li small{color:var(--muted);font-variant-numeric:tabular-nums}
 .addf .warn{color:#9A6B00;font-size:11.5px}
-.addf li label{display:flex;align-items:center;gap:8px;min-width:0}
-.addf li.planonly span{color:var(--muted)}
 .frow.planonly{color:var(--muted)}
+/* floor-plan review: the upload with the rooms jenna found outlined on it */
+.review{height:100%;display:flex;flex-direction:column;gap:8px;padding:14px 16px}
+.review-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.review-h h3{margin:0;font-size:15px}
+.review .legend{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);white-space:nowrap}
+.review .legend .sw{display:inline-block;width:10px;height:10px;border-radius:2px}
+.review .legend .sw.on{background:rgba(13,153,255,.18);border:2px solid var(--select)}
+.review .legend .sw.off{border:1px solid #9A9A9A;margin-left:6px}
+.review-fig{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:var(--canvas);border-radius:8px;padding:6px}
+.review-img{position:relative;max-width:100%;max-height:100%;height:100%}
+.review-img img{display:block;width:100%;height:100%;object-fit:contain;user-select:none;-webkit-user-drag:none}
+.rbox{position:absolute;padding:0;border:1.5px solid rgba(60,60,60,.6);background:transparent;border-radius:2px;cursor:pointer;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.rbox.on{border:2.5px solid var(--select);background:rgba(13,153,255,.14)}
+.rbox.unsure{border-style:dashed}
+.rbox.hot{outline:2px solid var(--ink);outline-offset:1px;background:rgba(13,153,255,.08)}
+.rbox.on.hot{background:rgba(13,153,255,.24)}
+.rbox span{background:var(--select);color:#fff;font-size:10px;font-weight:600;padding:2px 6px;border-radius:999px;white-space:nowrap;max-width:95%;overflow:hidden;text-overflow:ellipsis}
+.review-svg{width:100%;height:100%}
+.rshape rect{fill:#fff;stroke:#9A9A9A;stroke-width:1;cursor:pointer}
+.rshape.on rect{fill:rgba(13,153,255,.14);stroke:var(--select);stroke-width:2.5}
+.rshape.hot rect{stroke:var(--ink);stroke-width:2.5}
+.rshape text{fill:var(--muted);pointer-events:none}
+.rshape.on text{fill:var(--ink);font-weight:600}
+.review-info{margin:0;font-size:12px;line-height:1.4;color:var(--muted);min-height:2.8em}
+.review-info b{color:var(--ink);font-weight:600}
+.review-notes{font-size:11.5px;color:#9A6B00}
+.review-notes summary{cursor:pointer}
+.review-notes ul{margin:4px 0 0;padding-left:16px;max-height:64px;overflow:auto}
+.review .acts{display:flex;gap:8px}
 .frow.planonly .sw{background:#F1EFEC;border:1px solid var(--line)}
 .pbtn:disabled{opacity:.5;cursor:default}
 /* room frames */

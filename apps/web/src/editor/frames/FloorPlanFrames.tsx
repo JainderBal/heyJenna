@@ -12,7 +12,8 @@ import { useMemo, useRef, useState } from 'react';
 import type { BulkRoomInput, FloorPlan, PlanPosition } from '@hey-jenna/contracts';
 import { useBulkCreateRooms, usePlanPositionSaver, useReadFloorPlan } from '../../api/hooks';
 import { errorText, isApiError } from '../../api/client';
-import { canFurnish, type DetectedRoom, type Room } from '../../api/types';
+import type { DetectedRoom, Room } from '../../api/types';
+import { PlanReview } from './PlanReview';
 import { toast, useEditorStore } from '../../app/useEditorStore';
 import { PlanDrop } from '../icons';
 import { PLANS, floorPlanOf, placeRooms, sampleRooms, snapPlan, type PlacedRoom } from '../plans';
@@ -44,6 +45,7 @@ function RoomsIntake({ projectId, empty, onClose }: { projectId: string; empty: 
   const read = useReadFloorPlan(projectId);
   const bulk = useBulkCreateRooms(projectId);
   const setPlanUpload = useEditorStore((s) => s.setPlanUpload);
+  const upload = useEditorStore((s) => s.planUploads[projectId]);
   const goPage = useEditorStore((s) => s.goPage);
 
   function readPlan(f: File | undefined) {
@@ -98,57 +100,22 @@ function RoomsIntake({ projectId, empty, onClose }: { projectId: string; empty: 
 
   if (mode.kind === 'preview') {
     return (
-      <div className="addf">
-        <h3>{mode.rooms.length} rooms found</h3>
-        <p>Untick a room to keep it on the plan without furnishing it. jenna furnishes living rooms and offices for now.</p>
-        <ul>
-          {mode.rooms.map((r, i) => (
-            <li key={i} className={r.furnish ? undefined : 'planonly'}>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={r.furnish}
-                  disabled={busy || !canFurnish(r.kind)}
-                  title={canFurnish(r.kind) ? undefined : `jenna can't furnish ${r.kind} rooms yet`}
-                  onChange={(e) =>
-                    setMode({ ...mode, rooms: mode.rooms.map((x, j) => (j === i ? { ...x, furnish: e.target.checked } : x)) })
-                  }
-                />
-                <span>{r.name}</span>
-              </label>
-              <small>
-                {r.kind}
-                {canFurnish(r.kind) ? '' : ' (not yet)'} · {r.floorPlan.width} × {r.floorPlan.depth} m{openOf(r.floorPlan).length ? ' · open-plan' : ''}
-                {r.confidence < 0.6 ? ' · unsure' : ''}
-              </small>
-            </li>
-          ))}
-        </ul>
-        {mode.warnings.map((w, i) => (
-          <p key={i} className="warn">
-            {w}
-          </p>
-        ))}
-        <div className="acts">
-          <button
-            className="pbtn dark"
-            type="button"
-            disabled={busy}
-            onClick={() =>
-              create(
-                mode.rooms.map((r) => ({
-                  name: r.name, floorPlan: r.floorPlan, needs: [], planPosition: { x: r.position.x, y: r.position.y }, kind: r.kind, furnish: r.furnish,
-                })),
-              )
-            }
-          >
-            {bulk.isPending ? 'Creating…' : 'Create these rooms'}
-          </button>
-          <button className="pbtn" type="button" disabled={busy} onClick={() => setMode({ kind: 'idle' })}>
-            Cancel
-          </button>
-        </div>
-      </div>
+      <PlanReview
+        image={upload}
+        rooms={mode.rooms}
+        warnings={mode.warnings}
+        busy={busy}
+        creating={bulk.isPending}
+        onToggle={(i) => setMode({ ...mode, rooms: mode.rooms.map((x, j) => (j === i ? { ...x, furnish: !x.furnish } : x)) })}
+        onCancel={() => setMode({ kind: 'idle' })}
+        onCreate={() =>
+          create(
+            mode.rooms.map((r) => ({
+              name: r.name, floorPlan: r.floorPlan, needs: [], planPosition: { x: r.position.x, y: r.position.y }, kind: r.kind, furnish: r.furnish,
+            })),
+          )
+        }
+      />
     );
   }
 

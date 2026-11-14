@@ -62,7 +62,7 @@ export function parseSize(text: string, type: FurnitureType): Size | null {
 }
 
 /** Rugs are usually "160x230 cm" (two numbers). */
-export function parseFlatSize(text: string, type: 'rug' | 'art'): Size | null {
+export function parseFlatSize(text: string, type: 'rug' | 'art' | 'mirror'): Size | null {
   const m = new RegExp(`${NUM}${UNIT}\\s*[x×X*]\\s*${NUM}${UNIT}`).exec(text);
   if (!m) return null;
   const nums = [Number(m[1]), Number(m[3])];
@@ -84,6 +84,6 @@ export function plausibleSize(type: FurnitureType, s: Size): boolean {
 }
 
 export function sizeFor(text: string, type: FurnitureType): { size: Size; estimated: boolean } {
-  const found = type === 'rug' || type === 'art' ? parseFlatSize(text, type) ?? parseSize(text, type) : parseSize(text, type);
+  const found = type === 'rug' || type === 'art' || type === 'mirror' ? parseFlatSize(text, type) ?? parseSize(text, type) : parseSize(text, type);
   return found ? { size: found, estimated: false } : { size: TYPICAL[type], estimated: true };
 }

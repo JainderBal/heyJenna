@@ -40,6 +40,9 @@ describe('sizeFor', () => {
     expect(size.w).toBeCloseTo(2.438, 2);
     expect(size.d).toBeCloseTo(1.524, 2);
   });
+  it('reads a tall mirror as width × height', () => {
+    expect(sizeFor('HOVET Mirror, oak effect 78x196 cm', 'mirror').size).toEqual({ w: 0.78, d: 0.03, h: 1.96 });
+  });
   it('falls back to a typical size', () => {
     const r = sizeFor('Lovely armchair', 'armchair');
     expect(r.estimated).toBe(true);

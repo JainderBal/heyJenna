@@ -121,8 +121,9 @@ curl $B/rooms/$ROOM/renders/$JOB/model -o room.glb
 | POST / GET | `/rooms/:roomId/layouts` | generate / list layouts |
 | GET | `/rooms/:roomId/layouts/:layoutId` | one layout (objects, checks, dropped, shopping list) |
 | GET | `/rooms/:roomId/layouts/:layoutId/shopping-list` | items + total |
-| PATCH | `/rooms/:roomId/layouts/:layoutId/objects/:objectId` | move/turn `{x, y, rotationDeg}` or swap `{listingId}` |
-| DELETE | `/rooms/:roomId/layouts/:layoutId/objects/:objectId` | remove a piece |
+| PATCH | `/rooms/:roomId/layouts/:layoutId/objects/:objectId` | move/turn `{x, y, rotationDeg}`, swap `{listingId}`, or re-hang a wall piece `{wall, position, height}` |
+| POST | `/rooms/:roomId/layouts/:layoutId/objects` | hang one of the room's products on a wall `{listingId, wall?, position?, height?}` (no spot given → best free spot on a visible wall) |
+| DELETE | `/rooms/:roomId/layouts/:layoutId/objects/:objectId` | remove a piece (wall pieces too) |
 | POST | `/rooms/:roomId/layouts/:layoutId/renders` | queue a render |
 | GET | `/rooms/:roomId/renders` · `/rooms/:roomId/renders/:jobId` | render status |
 | GET | `/rooms/:roomId/renders/:jobId/image` · `/model` | the PNG / .glb |

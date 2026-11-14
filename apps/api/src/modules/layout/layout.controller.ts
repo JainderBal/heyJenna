@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post } from
 import { AuthUser, CurrentUser } from '../../common/auth/auth.decorators';
 import { ZodPipe } from '../../common/validation/zod.pipe';
 import { EditObjectDto, EditObjectSchema } from './dto/move-object.dto';
+import { AddObjectDto, AddObjectSchema } from './dto/add-object.dto';
 import { LayoutService } from './layout.service';
 
 @Controller('rooms/:roomId/layouts')
@@ -29,7 +30,18 @@ export class LayoutController {
     return this.layouts.shoppingList(roomId, user.id, layoutId);
   }
 
-  /** Move / turn a piece ({x, y, rotationDeg}) or swap its product ({listingId}). */
+  /** Hang one of the room's products on a wall ({listingId}, optionally {wall, position, height}). */
+  @Post(':layoutId/objects')
+  add(
+    @CurrentUser() user: AuthUser,
+    @Param('roomId', ParseUUIDPipe) roomId: string,
+    @Param('layoutId', ParseUUIDPipe) layoutId: string,
+    @Body(new ZodPipe(AddObjectSchema)) dto: AddObjectDto,
+  ) {
+    return this.layouts.addObject(roomId, user.id, layoutId, dto);
+  }
+
+  /** Move / turn a piece ({x, y, rotationDeg}), swap its product ({listingId}), or re-hang a wall piece ({wall, position, height}). */
   @Patch(':layoutId/objects/:objectId')
   edit(
     @CurrentUser() user: AuthUser,

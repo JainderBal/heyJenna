@@ -52,7 +52,7 @@ Controllers parse with `ZodPipe` and pass `user.id`; services own rules and owne
 | `rooms/` | `/rooms` | CRUD; `rooms.validation.ts` checks openings fit their walls |
 | `projects/` | `/projects`, `/projects/:id/rooms(/bulk)`, `/projects/:id/floor-plan` | Projects group rooms. `floor-plan/`: Claude reads a plan photo (`floor-plan.reader.ts`), `normalise.ts` cleans the rooms it finds |
 | `style/` | `/rooms/:id/moodboard…`, `/rooms/:id/style` | Moodboard uploads/pins → `analysis/`: `palette.ts` (sharp, 60/30/10), `vibe.ts` reader (`claude-vibe.reader.ts` or `rule-vibe.reader.ts`), `dials.ts` (55 style dials) |
-| `sourcing/` | `/rooms/:id/listings…` | `adapters/` (IKEA, eBay, Etsy, Brave web search, pasted link, mock) behind `SourceAdapter`; `matching/` (query building, classify, dimensions, GLB bounds, scoring, dial words, companions, shopping list) |
+| `sourcing/` | `/rooms/:id/listings…` | `adapters/` (IKEA, pasted link, mock) behind `SourceAdapter`; `matching/` (query building, classify, dimensions, GLB bounds, scoring, dial words, companions, shopping list) |
 | `layout/` | `/rooms/:id/layouts…` | `engine/`: `spec-builder` → `variants` (several design variants in parallel, keep the best) → `repair` (drop pieces from over-full rooms) → `PythonLayoutEngine`; `accent-wall`, `style-dials`. `editing/`: move/add/remove floor and wall pieces with geometry checks |
 | `render/` | `/rooms/:id/…/renders`, `/internal/render-jobs/*` | Render job queue (own table), `WorkerTokenGuard`, `render-dials.ts` |
 | `models/` | `/models?url=`, `/rooms/:id/listings/:id/model` | GLB proxy + storage cache, host allow-list `MODEL_HOSTS` |
@@ -241,8 +241,8 @@ scraping: official APIs, IKEA's public search, or search-engine results.
      ┌────────────┬───────────────┬──────────────┬───────┴──────┬──────────────┐
   projects/     style/          sourcing/       layout/        render/        chat/
   rooms/        moodboard →     SourceAdapters  spec-builder   RenderJob      Claude tools
-  floor-plan    palette+vibe    IKEA·eBay·Etsy  → variants     queue          or rules
-  (Claude)      +dials          Brave·link      → repair             │
+  floor-plan    palette+vibe    IKEA·link       → variants     queue          or rules
+  (Claude)      +dials          mock            → repair             │
      │          (Claude/rules)  │ jobs queue    → python3            │
      │             │            │ (async)         engines/layout     │
      ▼             ▼            ▼                 /design_logic.py   │
@@ -339,7 +339,7 @@ worktrees and branches were removed too. Rows marked "keep" or "check first" are
 | `GET …/layouts/:l`, `…/shopping-list`, `PATCH …/listings/:l`, `POST …/listings/link`, `PATCH …/style`, `DELETE /projects/:id`, sync `POST …/listings/search` | | Only the unused web hooks above (and tools for sync search) | keep: documented public API |
 | `RoomEventsService.listenerCount` | Count of open streams | Only `events.service.spec.ts` | check first (test-only) |
 | `isFurnitureType` (`chat/chat-tools.ts`) | Type guard | knip; only its definition | yes |
-| `VARIANTS`, `seatingSpread`, `fillerCount`, `badness` (`engine/variants.ts`), `doorZones`, `windowZones` (`editing/floor.ts`), `WALL_TYPES`, `wallObstacles` (`editing/walls.ts`), `FloorPlanReadError`, `ETSY_SITE`, `USER_AGENT`, `woodWord`, `parseSize`, `parseFlatSize` | exports | knip: no importer, specs included; all used inside their own file | yes, the `export` keyword only |
+| `VARIANTS`, `seatingSpread`, `fillerCount`, `badness` (`engine/variants.ts`), `doorZones`, `windowZones` (`editing/floor.ts`), `WALL_TYPES`, `wallObstacles` (`editing/walls.ts`), `FloorPlanReadError`, `USER_AGENT`, `woodWord`, `parseSize`, `parseFlatSize` | exports | knip: no importer, specs included; all used inside their own file | yes, the `export` keyword only |
 | `RoomEventType`, `RoomEvent`, `JobHandler`, `ClaimedJob`, `MoodboardFile`, … (12 types) | exported types | knip; used locally | keep (harmless) |
 
 ### Env vars and config

@@ -1,13 +1,10 @@
 import { Module } from '@nestjs/common';
 import { RoomsModule } from '../rooms/rooms.module';
 import { StyleModule } from '../style/style.module';
-import { EbayAdapter } from './adapters/ebay.adapter';
-import { EtsyAdapter } from './adapters/etsy.adapter';
 import { IkeaAdapter } from './adapters/ikea.adapter';
 import { LinkAdapter } from './adapters/link.adapter';
 import { MockAdapter } from './adapters/mock.adapter';
 import { SOURCE_ADAPTERS } from './adapters/source.adapter';
-import { WebSearchAdapter } from './adapters/web-search.adapter';
 import { ListingsRepository } from './listings.repository';
 import { SourcingController } from './sourcing.controller';
 import { SourcingService } from './sourcing.service';
@@ -21,13 +18,10 @@ import { SourcingService } from './sourcing.service';
     LinkAdapter,
     MockAdapter,
     IkeaAdapter,
-    EbayAdapter,
-    EtsyAdapter,
-    WebSearchAdapter,
     {
       // all sources as one list; SOURCES + each source's keys decide which actually run
       provide: SOURCE_ADAPTERS,
-      inject: [MockAdapter, IkeaAdapter, EbayAdapter, EtsyAdapter, WebSearchAdapter],
+      inject: [MockAdapter, IkeaAdapter],
       useFactory: (...adapters) => adapters,
     },
   ],

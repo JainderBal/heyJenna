@@ -12,7 +12,7 @@ rendered 3D room, and where Blender and the desktop app fit.
  API (NestJS, apps/api) ──── Postgres + file storage (Supabase in production, local Docker + disk in dev)
    │      │        │
    │      │        └─ Claude: reads moodboards and floor-plan photos, answers jenna chat
-   │      └─ Sources: IKEA (no key, real 3D models) · eBay · Etsy · Brave web search (Kijiji, FB Marketplace)
+   │      └─ Sources: IKEA (no key, real 3D models) · pasted links
    └─ Layout engine (Python, engines/layout): places the furniture with interior-design rules
         │
         ▼  render job (Postgres queue)
@@ -34,7 +34,7 @@ rendered 3D room, and where Blender and the desktop app fit.
 4. **Lay out the room.** The Python engine places the best pieces with design rules (walkways, doors,
    windows, focal point) and writes the shopping list with prices and links.
 5. **See it.** The 3D room frame shows a live 360° model straight away (real IKEA models, clay stand-ins
-   for second-hand pieces). The side panel has the live shopping list and jenna chat.
+   when a piece has no 3D model). The side panel has the live shopping list and jenna chat.
 6. **Render.** Press **Render**: the API queues a job, the render worker builds the room in Blender,
    renders a photo and exports the whole room as `room.glb`. The 3D frame then shows that rendered room
    in 360° (**Render 3D**); **Live** switches back to the editable model; **Re-render** makes a new one.

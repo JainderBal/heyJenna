@@ -6,9 +6,6 @@ import { NoRooms, RailHeader, type RailBodyProps } from './RailPage';
 /** Where "Visit" goes for a seller group (links and unfound pieces have none). */
 const HOME: Partial<Record<string, string>> = {
   ikea: 'https://www.ikea.com/ca/en/',
-  ebay: 'https://www.ebay.ca/',
-  etsy: 'https://www.etsy.com/',
-  marketplace: 'https://www.kijiji.ca/',
 };
 
 export function SellersPage({ data, loading, openRoom }: RailBodyProps) {

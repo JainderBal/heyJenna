@@ -10,7 +10,7 @@ import { Vibe, VibeReader } from './vibe';
 const VibeSchema = z.object({
   name: z.string().describe('2-4 word name for the style, e.g. "70s motel lounge"'),
   vibe: z.array(z.string()).describe('4-8 short mood tags'),
-  keywords: z.array(z.string()).describe('4-8 words a person would type into eBay / IKEA / Kijiji to find matching furniture: eras, styles, materials, finishes'),
+  keywords: z.array(z.string()).describe('4-8 words a person would type into IKEA to find matching furniture: eras, styles, materials, finishes'),
   shapeFamily: z.enum(['retro', 'modern', 'garden']).describe('retro = rounded 60s-70s forms; modern = clean straight lines; garden = natural, rattan, plants'),
   woodHex: z.string().describe('the main wood tone seen, as #RRGGBB, or "" if none'),
   metal: z.string().describe('main metal finish, e.g. chrome, brass, black steel, or "" if none'),

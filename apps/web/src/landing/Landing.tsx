@@ -38,12 +38,12 @@ const STEPS: { n: string; title: string; text: string; art: React.ReactNode }[] 
   {
     n: '03',
     title: 'Get the room, and the list',
-    text: 'jenna finds real pieces (second-hand first: Kijiji, Marketplace, eBay, Etsy, then IKEA), lays them out in 3D and hands you a shopping list with links and prices.',
+    text: 'jenna finds real IKEA pieces, lays them out in 3D and hands you a shopping list with links and prices.',
     art: (
       <div className="ld-art ld-list">
         {[
-          ['Teak sideboard', 'Kijiji', '$180'],
-          ['Boucle armchair', 'Marketplace', '$95'],
+          ['Teak sideboard', 'IKEA', '$180'],
+          ['Boucle armchair', 'IKEA', '$95'],
           ['Paper lantern', 'IKEA', '$29'],
         ].map(([t, s, p]) => (
           <div key={t}>
@@ -77,7 +77,7 @@ export function Landing() {
           <p className="ld-kicker">your interior buddy for pre-loved homes</p>
           <h1>Every room starts as a feeling.</h1>
           <p className="ld-lede">
-            Give jenna a moodboard and a floor plan. She lays out every room in 3D with real furniture you can buy, second-hand first, and a shopping list with links and prices.
+            Give jenna a moodboard and a floor plan. She lays out every room in 3D with real IKEA furniture you can buy, and a shopping list with links and prices.
           </p>
           <div className="ld-cta">
             <Link className="pbtn dark lg" to="/projects">

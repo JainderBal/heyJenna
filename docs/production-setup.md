@@ -31,17 +31,14 @@ URL, not to the app's `hj://studio/` page, so for now build it without `VITE_SUP
 | Service | Get it at | Env vars | Adds |
 |---|---|---|---|
 | IKEA | nothing to sign up for | `IKEA_LOCALE` (default `ca/en`) | Products + real 3D models. On by default. |
-| Brave Search API | https://api-dashboard.search.brave.com | `BRAVE_SEARCH_API_KEY` | Kijiji and Facebook Marketplace listings (search results only, no scraping); Etsy fallback |
-| eBay | https://developer.ebay.com/my/keys | `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET`, `EBAY_MARKETPLACE` (default `EBAY_CA`) | eBay listings |
-| Etsy | https://www.etsy.com/developers/register | `ETSY_API_KEY` | Etsy listings with images |
 
-`SOURCES` picks which sources run (default `ikea,ebay,etsy,web`); each one only switches on when its keys are set.
+`SOURCES` picks which sources run (default `ikea`). Add `mock` for fake offline products.
 
 **Pinterest needs no key or API approval:** the studio opens pinterest.com in a window beside it and
 users drag or paste pins onto a moodboard.
 
 ## Prices
 
-Free tiers cover a demo for Supabase, Vercel, Brave and eBay. Expect roughly $5–10 a month for an
+Free tiers cover a demo for Supabase and Vercel. Expect roughly $5–10 a month for an
 always-on API host, pay-per-use for Anthropic, and pay-per-GPU-second for the render worker.
 Check each provider's pricing page before paying; these numbers are estimates.

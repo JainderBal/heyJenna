@@ -28,28 +28,18 @@ export interface ProjectItem {
   suggested: boolean;
 }
 
-export type SellerGroup = 'ikea' | 'ebay' | 'etsy' | 'marketplace' | 'links' | 'none';
+export type SellerGroup = 'ikea' | 'links' | 'none';
 
 export const GROUPS: { id: SellerGroup; name: string; blurb: string }[] = [
   { id: 'ikea', name: 'IKEA', blurb: 'new, with real 3D models' },
-  { id: 'ebay', name: 'eBay', blurb: 'second-hand and vintage' },
-  { id: 'etsy', name: 'Etsy', blurb: 'handmade and vintage' },
-  { id: 'marketplace', name: 'Kijiji / Marketplace', blurb: 'second-hand, local pickup' },
-  { id: 'links', name: 'Links', blurb: 'other shops and pasted links' },
+  { id: 'links', name: 'Links', blurb: 'pasted links and pieces from shops we no longer search' },
   { id: 'none', name: 'No product yet', blurb: 'pieces jenna still needs to find' },
 ];
 
 export function groupOf(source: string | null | undefined, url: string | null | undefined, suggested = false): SellerGroup {
   if (suggested || (!source && !url)) return 'none';
   if (source === 'ikea') return 'ikea';
-  if (source === 'ebay') return 'ebay';
-  if (source === 'etsy') return 'etsy';
-  if (source === 'kijiji' || source === 'facebook') return 'marketplace';
-  const host = hostOf(url);
-  if (/(^|\.)ikea\./.test(host)) return 'ikea';
-  if (/(^|\.)ebay\./.test(host)) return 'ebay';
-  if (/(^|\.)etsy\./.test(host)) return 'etsy';
-  if (/(^|\.)kijiji\./.test(host) || /facebook\.com$/.test(host)) return 'marketplace';
+  if (/(^|\.)ikea\./.test(hostOf(url))) return 'ikea';
   return 'links';
 }
 

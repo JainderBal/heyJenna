@@ -11,15 +11,9 @@ const Env = z.object({
   SUPABASE_BUCKET: z.string().default('moodboards'),
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL: z.string().default('claude-opus-5-5'),
-  SOURCES: z.string().default('ikea,ebay,etsy,web'),
+  SOURCES: z.string().default('ikea'),
   /** IKEA country/language, as in ikea.com/ca/en. */
   IKEA_LOCALE: z.string().regex(/^[a-z]{2}\/[a-z]{2}$/).default('ca/en'),
-  EBAY_CLIENT_ID: z.string().optional(),
-  EBAY_CLIENT_SECRET: z.string().optional(),
-  EBAY_MARKETPLACE: z.string().default('EBAY_CA'),
-  /** Etsy Open API v3 keystring. Unset = Etsy falls back to Brave site:etsy.com search. */
-  ETSY_API_KEY: z.string().optional(),
-  BRAVE_SEARCH_API_KEY: z.string().optional(),
   PYTHON_BIN: z.string().default('python3'),
   /** Shared secret render workers send in x-worker-token. Unset = worker routes are off. */
   WORKER_TOKEN: z.string().min(16).optional(),

@@ -1,7 +1,7 @@
 # hey jenna
 
 Give it a **moodboard** and a **floor plan**. It finds **real furniture you can buy**
-(eBay, Etsy, Kijiji, Facebook Marketplace, IKEA, or any link you paste) in the same style and colours,
+(IKEA, or any link you paste) in the same style and colours,
 places it in your room with interior-design rules, and lets you move or swap pieces.
 
 This repo holds the whole product: the **API** (`apps/api`), the **studio web app** (`apps/web`, React),
@@ -48,7 +48,7 @@ apps/api/src/
     rooms/       hand-drawn floor plans
     projects/    a home or job that groups rooms
     style/       moodboard → palette + vibe
-    sourcing/    shopping list · sources (mock, eBay, Etsy, web search, link) · sizes · scoring · picks
+    sourcing/    shopping list · sources (IKEA, pasted link, mock) · sizes · scoring · picks
     layout/      engine adapter · spec builder · auto-repair · edits · shopping list
     render/      render jobs (Postgres queue, SKIP LOCKED) · worker endpoints · image / model files
 engines/layout/  Python design engine
@@ -81,12 +81,9 @@ After pulling new code: `npm run build -w @hey-jenna/contracts`, `cd apps/api &&
 | Real login | `AUTH_MODE=supabase`, `SUPABASE_URL` (+ `SUPABASE_JWT_SECRET` for older projects) |
 | Supabase Storage | `STORAGE_DRIVER=supabase`, `SUPABASE_SERVICE_ROLE_KEY` |
 | Claude reads moodboards | `ANTHROPIC_API_KEY` |
-| eBay | `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET` |
-| Kijiji / FB Marketplace | `BRAVE_SEARCH_API_KEY` (search engine results only; no scraping) |
 | IKEA (+ 3D models) | nothing: uses IKEA's own search and model files, on by default (`IKEA_LOCALE`, default `ca/en`) |
 | A UI on another origin | `CORS_ORIGINS` (comma-separated; default `http://localhost:5173`) |
 | Background jobs off in this instance | `JOBS_RUNNER=off` (jobs then wait for an instance with it on) |
-| Etsy | `ETSY_API_KEY` (Open API v3); without it, `BRAVE_SEARCH_API_KEY` finds etsy.com listings instead |
 | Renders (Blender worker) | `WORKER_TOKEN` (16+ chars, same value for the API and the worker; make one with `openssl rand -hex 32`) |
 
 ## Try the flow

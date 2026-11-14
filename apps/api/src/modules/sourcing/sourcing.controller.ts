@@ -32,7 +32,7 @@ export class SourcingController {
     return this.sourcing.searchInBackground(roomId, user.id, dto);
   }
 
-  /** Add a product the person found themselves (eBay, Kijiji, FB Marketplace, IKEA, any shop). */
+  /** Add a product the person found themselves (an IKEA page, or any other shop link). */
   @Post('link')
   addLink(@CurrentUser() user: AuthUser, @Param('roomId', ParseUUIDPipe) roomId: string, @Body(new ZodPipe(AddLinkSchema)) dto: AddLinkDto) {
     return this.sourcing.addLink(roomId, user.id, dto);

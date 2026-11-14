@@ -17,6 +17,13 @@ Never commit real keys. Keep the Supabase service-role key and `WORKER_TOKEN` se
 | **Render worker** (GPU: Modal or RunPod) | https://modal.com · https://www.runpod.io | `API_URL` = the API's URL, `WORKER_TOKEN` (same as the API's), optional `SAMPLES`, `PCT`, `BLENDER_BIN` | Runs Blender 4.2+ for photo-real renders. Without it, render jobs stay "queued"; the live 3D room still works. |
 | **`WORKER_TOKEN`** | make it yourself: `openssl rand -hex 32` | `WORKER_TOKEN` | Shared secret between the API and the render worker |
 
+## The desktop app
+
+Build an unsigned Mac app with `npm run dist -w @hey-jenna/desktop` (a `.dmg` in `apps/desktop/release`;
+macOS warns on first open: right-click → Open; signing needs an Apple Developer account, $99/year).
+It needs no keys of its own: point it at the hosted API with `HJ_API_URL` or `apiUrl` in its
+`config.json`. Renders still go through the API to the render worker (see `docs/how-it-works.md`).
+
 ## Optional product sources
 
 | Service | Get it at | Env vars | Adds |

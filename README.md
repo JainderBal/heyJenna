@@ -7,7 +7,7 @@ places it in your room with interior-design rules, and lets you move or swap pie
 This repo holds the whole product: the **API** (`apps/api`), the **studio web app** (`apps/web`, React),
 the Python **layout engine** and the Blender **render worker**.
 
-- New here (person or agent)? Read [`docs/STATUS.md`](docs/STATUS.md) first: what's built, what's left, how we work.
+- New here (person or agent)? Read [`docs/how-it-works.md`](docs/how-it-works.md), then [`docs/STATUS.md`](docs/STATUS.md): what's built, what's left, how we work.
 - Setting up production? [`docs/production-setup.md`](docs/production-setup.md) lists every account and key.
 
 ## How it works

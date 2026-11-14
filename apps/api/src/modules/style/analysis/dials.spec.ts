@@ -1,6 +1,6 @@
-import { DIAL_COUNT, DIAL_DEFAULTS, StyleDials, StyleDialsPatch, StyleProfile } from '@hey-jenna/contracts';
+import { DIAL_COUNT, DIAL_DEFAULTS, DIAL_SECTIONS, StyleDials, StyleDialsPatch, StyleDialsShape, StyleProfile } from '@hey-jenna/contracts';
 import { rgbToLab, hexToRgb } from './colour';
-import { deriveDials, measuredDials } from './dials';
+import { deriveDials, deriveDialsWithOrigin, measuredDials } from './dials';
 import { PaletteResult } from './palette';
 import { RuleVibeReader } from './rule-vibe.reader';
 
@@ -37,6 +37,37 @@ describe('StyleDials schema', () => {
       keywords: [], vibe: [], warmth: 0, saturation: 0, lightness: 0.5,
     });
     expect(p.dials).toEqual(DIAL_DEFAULTS);
+  });
+});
+
+describe('DIAL_SECTIONS (the Style tab metadata)', () => {
+  const dials = DIAL_SECTIONS.flatMap((s) => s.dials);
+  it('lists every dial of the schema exactly once', () => {
+    expect(dials.map((d) => d.key).sort()).toEqual(Object.keys(StyleDialsShape.shape).sort());
+  });
+  it('has the same ranges and options as the schema', () => {
+    for (const d of dials) {
+      const field = StyleDialsShape.shape[d.key];
+      const ok = (v: unknown) => field.safeParse(v).success;
+      if (d.kind === 'number') {
+        expect([d.key, ok(d.min), ok(d.max), ok(d.min - d.step), ok(d.max + d.step)]).toEqual([d.key, true, true, false, false]);
+      } else if (d.kind === 'enum') {
+        expect([d.key, d.options.every(ok), ok('nope')]).toEqual([d.key, true, false]);
+      } else {
+        expect([d.key, ok([...d.options]), ok(d.options.slice(0, d.min)), ok(d.min ? [] : ['nope'])]).toEqual([d.key, true, true, false]);
+      }
+    }
+  });
+});
+
+describe('deriveDialsWithOrigin', () => {
+  it('names the dials read from the images; the rest come from the preset or the defaults', () => {
+    const v = { name: 'retro', vibe: [], keywords: [], shapeFamily: 'retro' as const, materials: {}, stylingDensity: 'balanced' as const, source: 'rules' as const };
+    const { dials, measured } = deriveDialsWithOrigin(warmBoard, v);
+    expect(dials).toEqual(deriveDials(warmBoard, v));
+    expect(measured).toEqual(expect.arrayContaining(['palette_temperature', 'hue_spread', 'wood_tone', 'styling_density', 'light_level']));
+    expect(measured).not.toContain('curvature');
+    expect(measured).not.toContain('rug_type');
   });
 });
 

@@ -136,7 +136,7 @@ curl $B/rooms/$ROOM/renders/$JOB/model -o room.glb
 | GET | `/projects/:id/rooms` | rooms in a project |
 | POST | `/projects/:id/rooms/bulk` | create several rooms at once `{rooms: [{name, floorPlan, needs?}]}` (all or nothing) |
 | POST | `/projects/:id/floor-plan` | one floor-plan photo → every room found and measured (multipart `image`, or `imageUrl`). Returns a preview `{rooms[{name, kind, confidence, position, floorPlan}], scaleSource, warnings[], imageKey}`; `?create=1` also creates the rooms (all or nothing, adds `created`). Needs `ANTHROPIC_API_KEY` (422 without) |
-| POST | `/rooms/:roomId/moodboard` | upload moodboard (multipart `images`, optional `imageUrls` JSON) |
+| POST | `/rooms/:roomId/moodboard` | upload moodboard (multipart `images`, optional `imageUrls` JSON); replaces the board, `?append=1` adds to it (max 8 images) |
 | POST | `/rooms/:roomId/moodboard/pins` | add image links (e.g. pins dragged from Pinterest) to the moodboard `{pins: [{id, imageUrl (i.pinimg.com), link?}]}` (max 8 images in total); style and dials are re-derived |
 | GET | `/rooms/:roomId/moodboard` | the stored moodboard images: `{images: [{id, url, source: 'upload' \| 'pin', link?}]}`. Pins keep their `i.pinimg.com` url and link; uploads point at the route below (a path on this API). `{images: []}` before any moodboard |
 | GET | `/rooms/:roomId/moodboard/images/:imageId` | streams one stored image with its content type (`Cache-Control: private`); 404 for an unknown image |

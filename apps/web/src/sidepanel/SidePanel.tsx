@@ -1,5 +1,5 @@
 /**
- * The tabbed side panel on the right (jenna / Shopping list, and Pinterest in the desktop app). Tabs close one by one
+ * The tabbed side panel on the right (jenna / Shopping list / Style, and Pinterest in the desktop app). Tabs close one by one
  * with ×, "+" opens the ones not shown, and the whole panel hides when no tab is open.
  */
 import { useEffect, useRef, useState, type ComponentType, type ReactNode } from 'react';
@@ -8,11 +8,13 @@ import { Bag, JennaFace, PinIcon } from '../editor/icons';
 import { ChatPanel } from './ChatPanel';
 import { PinterestPanel, useDesktopPins } from './PinterestPanel';
 import { ShopPreview } from './ShopPreview';
+import { StyleIcon, StylePanel } from './StylePanel';
 import type { SidePanelBodyProps } from './types';
 
 const DEF: Record<SideTab, { label: string; icon: ReactNode; Body: ComponentType<SidePanelBodyProps> }> = {
   chat: { label: 'jenna', icon: <JennaFace />, Body: ChatPanel },
   shop: { label: 'Shopping list', icon: <Bag />, Body: ShopPreview },
+  style: { label: 'Style', icon: <StyleIcon />, Body: StylePanel },
   pinterest: { label: 'Pinterest', icon: <PinIcon />, Body: PinterestPanel },
 };
 

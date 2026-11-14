@@ -41,8 +41,9 @@ src/
 **Pinterest:** there is no Pinterest API. The rail button and the Moodboard frame's "Open Pinterest"
 open pinterest.com in a window docked beside the studio; users drag a pin onto a moodboard, or copy
 its image and press ⌘V on a room page. Pin images (`i.pinimg.com`) go to
-`POST /rooms/:roomId/moodboard/pins`, which adds them without replacing the board. Pasting an image
-*file* goes through the upload endpoint, which replaces the board (see docs/STATUS.md).
+`POST /rooms/:roomId/moodboard/pins`, which adds them without replacing the board. Pasting or dropping an image
+*file* goes through the upload endpoint with `?append=1`, which adds it to the board; only the frame's
+"Replace board" button starts the board again.
 
 Routes: `/` home, `/p/:projectId?page=plan|<roomId>&sel=<frameId>`.
 

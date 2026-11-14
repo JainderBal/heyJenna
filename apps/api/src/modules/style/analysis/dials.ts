@@ -15,8 +15,14 @@ const round = (v: number) => Math.round(v * 100) / 100;
  *    that follow from the vibe (density, fabric, light warmth).
  */
 export function deriveDials(p: PaletteResult, v: Vibe): StyleDialValues {
+  return deriveDialsWithOrigin(p, v).dials;
+}
+
+/** deriveDials plus which dials were read from the images (steps 3) rather than taken from the preset or the defaults. */
+export function deriveDialsWithOrigin(p: PaletteResult, v: Vibe): { dials: StyleDialValues; measured: (keyof StyleDialValues)[] } {
   const preset = VIBE_POINTS[v.name] ?? FAMILY_POINTS[v.shapeFamily] ?? {};
-  return { ...DIAL_DEFAULTS, ...preset, ...measuredDials(p), ...ruleDials(p, v, preset) };
+  const read = { ...measuredDials(p), ...ruleDials(p, v, preset) };
+  return { dials: { ...DIAL_DEFAULTS, ...preset, ...read }, measured: Object.keys(read) as (keyof StyleDialValues)[] };
 }
 
 /** Dials measured straight from the k-means palette. */

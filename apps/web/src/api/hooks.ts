@@ -143,19 +143,25 @@ export function usePatchStyle(roomId: string) {
   return useMutation({
     mutationFn: (patch: StylePatch) =>
       api<StyleResponse>(`/rooms/${roomId}/style`, { method: 'PATCH', body: patch }),
+    // the answer is the whole style: everything that reads the room's style (frames, palette, Style tab) shares this key
     onSuccess: (s) => qc.setQueryData(qk.style(roomId), s),
+    // a refused edit: re-read what the API has, so nothing shows a value that wasn't saved
+    onError: () => qc.invalidateQueries({ queryKey: qk.style(roomId) }),
   });
 }
 
-/** POST /rooms/:roomId/moodboard (multipart `images`, optional `imageUrls` JSON). Replaces the board. */
+/**
+ * POST /rooms/:roomId/moodboard (multipart `images`, optional `imageUrls` JSON). Replaces the board, or with
+ * `append` adds to the images already on it (`?append=1`, max 8 in all). Either way the style is re-derived.
+ */
 export function useUploadMoodboard(roomId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ files, imageUrls }: { files: File[]; imageUrls?: string[] }) => {
+    mutationFn: ({ files, imageUrls, append }: { files: File[]; imageUrls?: string[]; append?: boolean }) => {
       const form = new FormData();
       files.forEach((f) => form.append('images', f));
       if (imageUrls?.length) form.append('imageUrls', JSON.stringify(imageUrls));
-      return api<StyleResponse>(`/rooms/${roomId}/moodboard`, { method: 'POST', body: form });
+      return api<StyleResponse>(`/rooms/${roomId}/moodboard`, { method: 'POST', body: form, query: { append: append ? 1 : undefined } });
     },
     onSuccess: (s) => {
       qc.setQueryData(qk.style(roomId), s);

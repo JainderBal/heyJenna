@@ -1,6 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import sharp from 'sharp';
 import { MoodboardImagesResponse } from '@hey-jenna/contracts';
+import { isOn } from './style.controller';
 import { StyleService } from './style.service';
 
 const ROOM = '11111111-1111-4111-8111-111111111111';
@@ -12,6 +13,7 @@ describe('StyleService moodboard images', () => {
   const solid = (rgb: [number, number, number]) =>
     sharp({ create: { width: 16, height: 16, channels: 3, background: { r: rgb[0], g: rgb[1], b: rgb[2] } } }).png().toBuffer();
 
+  let saved = 0;
   const make = (imageKeys: string[], imageMeta: unknown = {}) => {
     const row = { id: 's', roomId: ROOM, imageKeys, imageMeta, profile: {}, createdAt: new Date(), updatedAt: new Date() };
     const repo = {
@@ -19,7 +21,7 @@ describe('StyleService moodboard images', () => {
       delete: jest.fn().mockResolvedValue(undefined),
       upsert: jest.fn().mockImplementation(async (_r, k, p, m) => ({ ...row, imageKeys: k, profile: p, imageMeta: m })),
     };
-    const storage = { load: jest.fn(), tryLoad: jest.fn() };
+    const storage = { load: jest.fn(), tryLoad: jest.fn(), save: jest.fn().mockImplementation(async (dir: string) => `${dir}/fresh-${++saved}.img`) };
     const rooms = { getOwnedRoom: jest.fn().mockResolvedValue({}) };
     const reader = { read: jest.fn().mockResolvedValue({ name: 'n', source: 'rules', keywords: ['teak'], vibe: ['warm'], shapeFamily: 'retro', materials: {}, stylingDensity: 'balanced' }) };
     const svc = new StyleService(repo as never, rooms as never, storage as never, reader as never);
@@ -101,5 +103,76 @@ describe('StyleService moodboard images', () => {
     const { svc, repo } = make([keyOf(A)]);
     await expect(svc.removeImage(ROOM, 'me', B)).rejects.toBeInstanceOf(NotFoundException);
     expect(repo.upsert).not.toHaveBeenCalled();
+  });
+
+  describe('upload with ?append', () => {
+    const file = async (rgb: [number, number, number]) => ({ buffer: await solid(rgb), mimetype: 'image/png' });
+
+    it('adds the new uploads after the kept images and pins, and re-derives the style from all of them', async () => {
+      const { svc, repo, storage } = make([keyOf(A), keyOf(B)], pinMeta);
+      storage.load.mockResolvedValue(await solid([200, 180, 150]));
+      const r = await svc.analyseMoodboard(ROOM, 'me', [await file([40, 60, 90])], [], { append: true });
+      expect(storage.load.mock.calls.map((c) => c[0])).toEqual([keyOf(A), keyOf(B)]);
+      expect(storage.save).toHaveBeenCalledTimes(1);
+      const [, keys, profile, meta] = repo.upsert.mock.calls[0];
+      expect(keys).toHaveLength(3);
+      expect(keys.slice(0, 2)).toEqual([keyOf(A), keyOf(B)]);
+      expect(meta).toEqual(pinMeta);
+      expect(profile.derivedDials).toEqual(profile.dials);
+      expect(profile.measuredDials).toContain('palette_temperature');
+      expect(r.imageCount).toBe(3);
+    });
+
+    it('works on a room with no moodboard yet', async () => {
+      const { svc, repo } = make([]);
+      repo.findByRoom.mockResolvedValue(null);
+      await svc.analyseMoodboard(ROOM, 'me', [await file([40, 60, 90])], [], { append: true });
+      expect(repo.upsert.mock.calls[0][1]).toHaveLength(1);
+    });
+
+    it('refuses to go over 8 images in all, before storing anything', async () => {
+      const keys = [A, B, A, B, A, B, A].map((id, i) => keyOf(id).replace('.img', `${i}.img`));
+      const { svc, repo, storage } = make(keys);
+      const two = [await file([1, 2, 3]), await file([4, 5, 6])];
+      await expect(svc.analyseMoodboard(ROOM, 'me', two, [], { append: true })).rejects.toThrow(/7 already/);
+      expect(storage.save).not.toHaveBeenCalled();
+      expect(repo.upsert).not.toHaveBeenCalled();
+    });
+
+    it('still replaces the board without it', async () => {
+      const { svc, repo, storage } = make([keyOf(A), keyOf(B)], pinMeta);
+      await svc.analyseMoodboard(ROOM, 'me', [await file([40, 60, 90])], []);
+      expect(repo.findByRoom).not.toHaveBeenCalled();
+      expect(storage.load).not.toHaveBeenCalled();
+      const [, keys, , meta] = repo.upsert.mock.calls[0];
+      expect(keys).toHaveLength(1);
+      expect(keys[0]).not.toBe(keyOf(A));
+      expect(meta).toEqual({});
+    });
+
+    it('reads the flag as 1 or true only', () => {
+      expect([isOn('1'), isOn('true'), isOn(undefined), isOn('0'), isOn('')]).toEqual([true, true, false, false, false]);
+    });
+  });
+
+  describe('PATCH style', () => {
+    it('keeps what the moodboard derived, so the dials can be reset, and marks the source as edited once', async () => {
+      const { svc, repo, storage } = make([]);
+      repo.findByRoom.mockResolvedValue(null);
+      storage.load.mockResolvedValue(undefined);
+      await svc.analyseMoodboard(ROOM, 'me', [{ buffer: await solid([200, 160, 120]), mimetype: 'image/png' }], []);
+      const row = await repo.upsert.mock.results[0].value;
+      let stored = row.profile;
+      const updateProfile = jest.fn().mockImplementation(async (_r, p) => ({ ...row, profile: (stored = p) }));
+      Object.assign(repo, { updateProfile });
+      repo.findByRoom.mockImplementation(async () => ({ ...row, profile: stored }));
+      await svc.update(ROOM, 'me', { dials: { curvature: 0.9 } });
+      const r = await svc.update(ROOM, 'me', { dials: { rug_type: 'jute_sisal' } });
+      expect(r.profile.dials.curvature).toBe(0.9);
+      expect(r.profile.dials.rug_type).toBe('jute_sisal');
+      expect(r.profile.derivedDials).toEqual(row.profile.derivedDials);
+      expect(r.profile.measuredDials).toEqual(row.profile.measuredDials);
+      expect(r.profile.source.match(/edited/g)).toHaveLength(1);
+    });
   });
 });

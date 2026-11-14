@@ -106,7 +106,7 @@ Rugs, curtains, cushions and throws carry most of a room's texture and pattern. 
 
 - **Schema:** `packages/contracts/src/style-dials.ts`: `StyleDials` (zod, every dial with a default in `DIAL_DEFAULTS`), `StyleDialsPatch` (partial, strict). `StyleProfile.dials` holds them; older profiles get the defaults.
 - **Filled by:** `apps/api/src/modules/style/analysis/dials.ts` → `deriveDials(palette, vibe)`: defaults, then a style point from section 4 picked by the vibe (`retro` ≈ between Mid-century and 1970s, `minimal` ≈ Scandi, `garden` ≈ Boho, `moody` ≈ Deco/Maximalist, `warm modern` ≈ between Scandi and Mid-century), then the measured colour and wood dials, then a few rules.
-- **Edited by:** `PATCH /rooms/:roomId/style` with `{ "dials": { … any subset … } }`; `GET` returns all of them.
+- **Edited by:** `PATCH /rooms/:roomId/style` with `{ "dials": { … any subset … } }`; `GET` returns all of them. In the studio: the side panel's **Style** tab (`apps/web/src/sidepanel/StylePanel.tsx`), built from `DIAL_SECTIONS` in `packages/contracts/src/style-dial-meta.ts` (labels, ranges, options; zod-free). The profile keeps `derivedDials` (what the moodboard set, the target of "reset") and `measuredDials` (dials read from the images rather than the vibe's preset).
 - **Used by:** sourcing (`sourcing/matching/dial-words.ts`: one extra IKEA search per slot and half-weight style words in scoring) and the layout engine (`layout/engine/style-dials.ts` → `style_profile`). The *In code* column below says which dial goes where; "stored, not yet used" means the value is saved, editable and passed to the engine as `style_profile.dials`, but nothing acts on it yet.
 
 ### A. Colour (8 dials)

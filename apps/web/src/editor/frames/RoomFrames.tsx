@@ -43,15 +43,16 @@ export function MoodboardFrame({ room, style, palette }: { room: Room; style: St
   const busy = upload.isPending || addPins.isPending;
   const count = style?.imageCount ?? 0;
 
-  function send(files: File[]) {
+  /** Drops and "Add images" add to the board; "Replace board" starts it again from these images. */
+  function send(files: File[], replace = false) {
     const imgs = files.filter((f) => f.type.startsWith('image/')).slice(0, MAX_IMAGES);
     if (!imgs.length) return toast('Drop images (jpg, png, webp…)');
     if (files.length > MAX_IMAGES) toast(`Up to ${MAX_IMAGES} images: using the first ${MAX_IMAGES}`);
     upload.mutate(
-      { files: imgs },
+      { files: imgs, append: !replace },
       {
         onSuccess: (s) => {
-          setPreviews(room.id, imgs.map((f) => URL.createObjectURL(f)));
+          if (replace) setPreviews(room.id, imgs.map((f) => URL.createObjectURL(f)));
           toast(`read ${s.imageCount} images: ${s.profile.vibe.slice(0, 3).join(', ') || s.profile.name}`);
         },
         onError: (e) => toast(errorText(e)),
@@ -82,12 +83,12 @@ export function MoodboardFrame({ room, style, palette }: { room: Room; style: St
     send([...e.dataTransfer.files]);
   }
 
-  const pick = () => {
+  const pick = (replace = false) => {
     const i = document.createElement('input');
     i.type = 'file';
     i.accept = 'image/*';
     i.multiple = true;
-    i.onchange = () => send([...(i.files ?? [])]);
+    i.onchange = () => send([...(i.files ?? [])], replace);
     i.click();
   };
 
@@ -110,9 +111,14 @@ export function MoodboardFrame({ room, style, palette }: { room: Room; style: St
         <button className="pbtn sm" type="button" onClick={openPinterestWindow}>
           Open Pinterest
         </button>
-        <button className="pbtn sm" type="button" disabled={busy} onClick={pick}>
-          {count ? 'Replace images' : 'Upload images'}
+        <button className="pbtn sm" type="button" disabled={busy} onClick={() => pick()}>
+          {count ? 'Add images' : 'Upload images'}
         </button>
+        {count > 0 && (
+          <button className="pbtn sm" type="button" disabled={busy} onClick={() => pick(true)} title="Start the board again from new images">
+            Replace board
+          </button>
+        )}
       </div>
       <div className="mood">
         {MOOD.map(([size, pi, label], n) => {

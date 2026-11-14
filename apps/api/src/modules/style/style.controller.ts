@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Res, StreamableFile, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, Res, StreamableFile, UploadedFiles, UseInterceptors } from '@nestjs/common';
 import type { Response } from 'express';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { AddPinsRequest } from '@hey-jenna/contracts';
@@ -18,6 +18,7 @@ export class StyleController {
    * POST /rooms/:roomId/moodboard  (multipart/form-data)
    *   images:    1-8 image files (≤10 MB each)
    *   imageUrls: optional JSON array of https image links
+   * ?append=1 adds them to the images already on the board (max 8 in all); without it they replace the board.
    */
   @Post('moodboard')
   @UseInterceptors(
@@ -31,9 +32,10 @@ export class StyleController {
     @Param('roomId', ParseUUIDPipe) roomId: string,
     @UploadedFiles() files: Express.Multer.File[] = [],
     @Body('imageUrls') imageUrls?: string,
+    @Query('append') append?: string,
   ) {
     const urls = imageUrls ? new ZodPipe(MoodboardUrlsSchema).transform(safeJson(imageUrls)) : [];
-    return this.style.analyseMoodboard(roomId, user.id, files, urls);
+    return this.style.analyseMoodboard(roomId, user.id, files, urls, { append: isOn(append) });
   }
 
   /** POST /rooms/:roomId/moodboard/pins  { pins: [{ id, imageUrl (i.pinimg.com), link? }] } */
@@ -89,6 +91,11 @@ export class StyleController {
   ) {
     return this.style.update(roomId, user.id, dto);
   }
+}
+
+/** Query flags as elsewhere in the API: `1` or `true` is on; anything else, or no flag, is off. */
+export function isOn(flag: string | undefined): boolean {
+  return flag === '1' || flag === 'true';
 }
 
 function safeJson(text: string): unknown {

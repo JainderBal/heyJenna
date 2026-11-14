@@ -1,6 +1,6 @@
 /**
  * ⌘V / Ctrl+V on a room page (outside text inputs) adds the clipboard to that room's moodboard:
- * image files are uploaded, an i.pinimg.com address (text or HTML) is added as a pin.
+ * image files are added to the board (the upload's append mode keeps what is there), an i.pinimg.com address (text or HTML) is added as a pin.
  * The listener is attached once; the current room and mutations are read through a ref.
  */
 import { useEffect, useRef } from 'react';
@@ -38,10 +38,9 @@ export function useMoodboardPaste(roomId: string | undefined) {
         });
       } else if (files.length) {
         e.preventDefault();
-        // the upload endpoint replaces the board and only re-takes https links, so stored uploads can't be kept
         if (files.length > MAX_IMAGES) toast(`Up to ${MAX_IMAGES} images: using the first ${MAX_IMAGES}`);
         up.mutate(
-          { files: files.slice(0, MAX_IMAGES) },
+          { files: files.slice(0, MAX_IMAGES), append: true },
           {
             onSuccess: (s) => toast(`read ${s.imageCount} images: ${s.profile.vibe.slice(0, 3).join(', ') || s.profile.name}`),
             onError: (er) => toast(errorText(er)),

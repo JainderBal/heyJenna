@@ -6,9 +6,9 @@ import { create } from 'zustand';
 import { desktop } from './desktopBridge';
 
 export type PageId = 'plan' | (string & {});
-export type SideTab = 'chat' | 'shop' | 'pinterest';
+export type SideTab = 'chat' | 'shop' | 'style' | 'pinterest';
 /** Pinterest is a side panel tab only in the desktop app (on the web it's a pop-up window). */
-export const SIDE_TABS: SideTab[] = desktop ? ['chat', 'shop', 'pinterest'] : ['chat', 'shop'];
+export const SIDE_TABS: SideTab[] = desktop ? ['chat', 'shop', 'style', 'pinterest'] : ['chat', 'shop', 'style'];
 
 /** A request for the canvas to animate to a frame (or fit the page). `n` makes repeats distinct. */
 export interface FocusRequest {

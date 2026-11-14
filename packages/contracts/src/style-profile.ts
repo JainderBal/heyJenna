@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { StyleDials } from './style-dials';
+import { StyleDials, StyleDialsShape } from './style-dials';
 
 const Hex = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
 
@@ -26,5 +26,9 @@ export const StyleProfile = z.object({
   lightness: z.number().min(0).max(1),
   /** The 55 style dials (docs/style-dials.md). Missing on older profiles: filled from defaults. */
   dials: StyleDials.default({}),
+  /** The dials as the moodboard alone set them, before any edits: "reset" goes back here. Missing on older profiles. */
+  derivedDials: StyleDialsShape.partial().optional(),
+  /** Dials read from the images (palette maths and the rules on it), as opposed to taken from the vibe's preset point. */
+  measuredDials: z.array(StyleDialsShape.keyof()).optional(),
 });
 export type StyleProfile = z.infer<typeof StyleProfile>;

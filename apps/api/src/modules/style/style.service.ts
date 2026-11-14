@@ -4,7 +4,7 @@ import sharp from 'sharp';
 import { safeFetch } from '../../common/http/safe-fetch';
 import { StorageService } from '../../common/storage/storage.service';
 import { RoomsService } from '../rooms/rooms.service';
-import { DENSITY_VALUE, deriveDials } from './analysis/dials';
+import { DENSITY_VALUE, deriveDialsWithOrigin } from './analysis/dials';
 import { RuleVibeReader } from './analysis/rule-vibe.reader';
 import { extractPalette, PaletteResult } from './analysis/palette';
 import { Vibe, VIBE_READER, VibeReader } from './analysis/vibe';
@@ -19,6 +19,7 @@ export interface MoodboardFile {
 }
 
 const MAX_IMAGES = 8;
+const EDITED = ' + edited';
 const PIN_HOST = 'i.pinimg.com';
 
 /** Moodboard → style profile. Other modules call getProfile() to search and lay out in this style. */
@@ -34,13 +35,23 @@ export class StyleService {
     @Inject(VIBE_READER) private readonly reader: VibeReader,
   ) {}
 
-  async analyseMoodboard(roomId: string, ownerId: string, files: MoodboardFile[], urls: string[]): Promise<StyleResponseDto> {
+  /**
+   * Uploads (and https image links) → style. By default they replace the board; with `append` they are added
+   * after the images already on it (uploads and pins kept, at most 8 in all) and the style is re-derived from all of them.
+   */
+  async analyseMoodboard(roomId: string, ownerId: string, files: MoodboardFile[], urls: string[], opts: { append?: boolean } = {}): Promise<StyleResponseDto> {
     await this.rooms.getOwnedRoom(roomId, ownerId);
     if (!files.length && !urls.length) throw new BadRequestException('Add at least one image or image link');
-    if (files.length + urls.length > MAX_IMAGES) throw new BadRequestException(`At most ${MAX_IMAGES} images`);
+    const current = opts.append ? await this.repo.findByRoom(roomId) : null;
+    const existing = current?.imageKeys ?? [];
+    if (existing.length + files.length + urls.length > MAX_IMAGES)
+      throw new BadRequestException(
+        existing.length ? `A moodboard holds at most ${MAX_IMAGES} images (${existing.length} already); add fewer` : `At most ${MAX_IMAGES} images`,
+      );
 
-    const images = [...files.map((f) => f.buffer), ...(await this.download(urls))];
-    return this.build(roomId, images, []);
+    const fresh = [...files.map((f) => f.buffer), ...(await this.download(urls))];
+    const kept = await Promise.all(existing.map((k) => this.storage.load(k)));
+    return this.build(roomId, [...kept, ...fresh], existing, [], readMeta(current?.imageMeta));
   }
 
   /** Adds pin images (e.g. dragged from Pinterest) to the room's moodboard (kept images + pins), then re-derives style and dials. */
@@ -127,7 +138,7 @@ export class StyleService {
 
   async update(roomId: string, ownerId: string, dto: UpdateStyleDto): Promise<StyleResponseDto> {
     const current = (await this.get(roomId, ownerId)).profile;
-    const next: StyleProfile = StyleProfile.parse({ ...current, ...dto, dials: mergeDials(current, dto), source: `${current.source} + edited` });
+    const next: StyleProfile = StyleProfile.parse({ ...current, ...dto, dials: mergeDials(current, dto), source: current.source.endsWith(EDITED) ? current.source : `${current.source}${EDITED}` });
     if (dto.dials?.styling_density != null) next.stylingDensity = densityBand(next.dials.styling_density);
     return toStyleResponse(await this.repo.updateProfile(roomId, next));
   }
@@ -173,6 +184,7 @@ export class StyleService {
   }
 
   private buildProfile(p: PaletteResult, v: Vibe): StyleProfile {
+    const { dials, measured } = deriveDialsWithOrigin(p, v);
     return StyleProfile.parse({
       name: v.name,
       source: `moodboard (${v.source})`,
@@ -185,7 +197,9 @@ export class StyleService {
       warmth: p.warmth,
       saturation: p.saturation,
       lightness: p.lightness,
-      dials: deriveDials(p, v),
+      dials,
+      derivedDials: dials,
+      measuredDials: measured,
     });
   }
 }

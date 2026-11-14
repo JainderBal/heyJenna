@@ -22,9 +22,29 @@ export interface Solved {
   tried: number;
 }
 
-/** Lower is better: broken rules, then pieces left out, then warnings. */
+type Pt = { x: number; y: number };
+const dist = (a: Pt, b: Pt) => Math.hypot(a.x - b.x, a.y - b.y);
+
+/**
+ * How loose the seating group is: every sofa/armchair should sit within about 1.8 m of the coffee
+ * table (centre to centre) so people can talk and reach it. Metres beyond that, summed.
+ */
+export function seatingSpread(r: EngineResult): number {
+  const table = r.objects.find((o) => o.type === 'coffee_table');
+  if (!table) return 0;
+  return r.objects
+    .filter((o) => o.type === 'sofa' || o.type === 'armchair')
+    .reduce((sum, seat) => sum + Math.max(0, dist(seat.position, table.position) - 1.8), 0);
+}
+
+/** Extras the engine added to fill empty floor (stools, small tables): a few are fine, many read as clutter. */
+export function fillerCount(r: EngineResult): number {
+  return r.objects.filter((o) => o.id.startsWith('fill_') && o.layer !== 'plants').length;
+}
+
+/** Lower is better: broken rules ≫ pieces left out > a loose seating group > warnings > clutter. */
 export function badness(r: EngineResult, dropped: Dropped[]): number {
-  return r.summary.fail * 100 + dropped.length * 10 + r.summary.warn;
+  return r.summary.fail * 100 + dropped.length * 10 + seatingSpread(r) * 15 + r.summary.warn * 3 + fillerCount(r) * 2;
 }
 
 /** Lays the room out every way in VARIANTS (in parallel, each auto-repaired) and keeps the best. */
@@ -33,5 +53,7 @@ export async function solveBestVariant(engine: LayoutEngine, spec: EngineSpec): 
   const ok = runs.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
   if (!ok.length) throw (runs[0] as PromiseRejectedResult).reason; // every variant failed: report the first error
   ok.sort((a, b) => badness(a.result, a.dropped) - badness(b.result, b.dropped));
+  for (const o of ok)
+    console.log(`  variant ${JSON.stringify(o.variant)}: fails ${o.result.summary.fail}, dropped ${o.dropped.length}, seating spread ${seatingSpread(o.result).toFixed(2)} m, warns ${o.result.summary.warn}, fillers ${fillerCount(o.result)} → ${badness(o.result, o.dropped).toFixed(1)}`);
   return { ...ok[0], tried: ok.length };
 }

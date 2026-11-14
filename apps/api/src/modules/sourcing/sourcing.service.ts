@@ -4,7 +4,7 @@ import { Listing, Room } from '@prisma/client';
 import { AppConfig } from '../../common/config/app-config.service';
 import { RoomsService } from '../rooms/rooms.service';
 import { StyleService } from '../style/style.service';
-import { findIkeaModelUrl, parseIkeaMeasurements } from './adapters/ikea-product-page';
+import { findIkeaModelUrl, findIkeaPrice, parseIkeaMeasurements } from './adapters/ikea-product-page';
 import { LinkAdapter } from './adapters/link.adapter';
 import { safeFetch } from '../../common/http/safe-fetch';
 import { Prisma } from '@prisma/client';
@@ -152,7 +152,8 @@ export class SourcingService {
       }
       const modelUrl = findIkeaModelUrl(html) ?? '';
       this.log.log(`IKEA ${listing.title.slice(0, 40)}: size ${size ? `${size.w}×${size.d}×${size.h} m` : 'estimated'}, 3D model ${modelUrl ? 'yes' : 'no'}`);
-      return await this.repo.setDetails(listing.id, { size: size ? (size as unknown as Prisma.InputJsonValue) : undefined, modelUrl });
+      const price = findIkeaPrice(html) ?? undefined;
+      return await this.repo.setDetails(listing.id, { size: size ? (size as unknown as Prisma.InputJsonValue) : undefined, modelUrl, price });
     } catch (e) {
       this.log.warn(`couldn't read IKEA page ${listing.url}: ${(e as Error).message}`);
       return listing;

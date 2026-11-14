@@ -50,10 +50,14 @@ export class ListingsRepository {
   }
 
   /** Details read later from the product page: real size and/or 3D model link ("" = none on the page). */
-  setDetails(id: string, details: { size?: Prisma.InputJsonValue; modelUrl: string }): Promise<Listing> {
+  setDetails(id: string, details: { size?: Prisma.InputJsonValue; modelUrl: string; price?: number }): Promise<Listing> {
     return this.db.listing.update({
       where: { id },
-      data: { modelUrl: details.modelUrl, ...(details.size ? { size: details.size, sizeEstimated: false } : {}) },
+      data: {
+        modelUrl: details.modelUrl,
+        ...(details.size ? { size: details.size, sizeEstimated: false } : {}),
+        ...(details.price ? { price: details.price } : {}),
+      },
     });
   }
 

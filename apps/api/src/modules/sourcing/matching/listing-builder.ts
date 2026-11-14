@@ -16,7 +16,7 @@ export function buildListing(raw: RawListing, type: FurnitureType, style: StyleP
   const text = `${raw.title} ${raw.description ?? ''}`;
   const { size, estimated } = sizeFor(text, type);
   const detail = style
-    ? scoreListing({ type, text, size, sizeEstimated: estimated, price: raw.price }, style, plan)
+    ? scoreListing({ type, text, size, sizeEstimated: estimated, price: raw.price, colourHexes: raw.colourHexes }, style, plan)
     : { style: 0.5, colour: 0.5, fit: 0.5, price: raw.price != null ? 1 : 0.4, total: 0.5, matchedWords: [] };
   return {
     source: raw.source,
@@ -31,7 +31,7 @@ export function buildListing(raw: RawListing, type: FurnitureType, style: StyleP
     location: raw.location,
     size: size as unknown as Prisma.InputJsonValue,
     sizeEstimated: estimated,
-    colours: coloursIn(text),
+    colours: raw.colourHexes?.length ? raw.colourHexes : coloursIn(text),
     score: detail.total,
     scoreDetail: detail as unknown as Prisma.InputJsonValue,
   };

@@ -1,6 +1,7 @@
 import { FloorPlan } from '@hey-jenna/contracts';
 import { LayoutData, MOVABLE_LAYERS, PlacedObject } from '../layout.types';
 import { Footprint, insideRoom, overlaps } from './geometry';
+import { isWallType } from './walls';
 
 export class EditError extends Error {}
 
@@ -43,7 +44,8 @@ export function moveObject(data: LayoutData, plan: FloorPlan, id: string, to: { 
 
 /** Take a piece out (and whatever stands on it). */
 export function removeObject(data: LayoutData, id: string): string[] {
-  movable(data, id);
+  const o = data.objects.find((x) => x.id === id);
+  if (!o || !isWallType(o.type)) movable(data, id); // wall pieces (pictures, mirrors, shelves) can always come down
   const gone = new Set([id, ...onTop(data, id).map((c) => c.id)]);
   data.objects = data.objects.filter((o) => !gone.has(o.id));
   data.edits++;

@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { FloorPlan, ListingSource, Size } from '@hey-jenna/contracts';
 import { Layout, Listing } from '@prisma/client';
 import { RoomsService } from '../rooms/rooms.service';
@@ -8,6 +8,9 @@ import { EditObjectDto } from './dto/move-object.dto';
 import { EditResultDto, LayoutResponseDto, ShoppingListDto } from './dto/layout-response.dto';
 import { EditError, moveObject, overlapWarnings, removeObject } from './editing/edits';
 import { insideRoom } from './editing/geometry';
+import { findWallSpot, hiddenBehind, isWallType, wallClashes, wallLength, wallPose } from './editing/walls';
+import { AddObjectDto } from './dto/add-object.dto';
+import { Wall } from '@hey-jenna/contracts';
 import { EngineFailedError } from './engine/python-layout.engine';
 import { LAYOUT_ENGINE, LayoutEngine } from './engine/layout-engine';
 import { solveBestVariant } from './engine/variants';
@@ -85,6 +88,8 @@ export class LayoutService {
     const warnings: string[] = [];
     try {
       if (dto.listingId) warnings.push(...(await this.swap(data, plan, roomId, ownerId, objectId, dto.listingId)));
+      if (dto.wall !== undefined || dto.position !== undefined || dto.height !== undefined)
+        warnings.push(...this.moveOnWall(data, plan, objectId, dto));
       if (dto.x !== undefined || dto.y !== undefined || dto.rotationDeg !== undefined)
         warnings.push(...moveObject(data, plan, objectId, { x: dto.x, y: dto.y, rotationDeg: dto.rotationDeg }));
     } catch (e) {
@@ -106,6 +111,64 @@ export class LayoutService {
       throw e;
     }
     return { layout: toLayoutResponse(await this.repo.save(layout.id, data)), warnings: removed.length > 1 ? [`also removed ${removed.slice(1).join(', ')}`] : [] };
+  }
+
+  /** Hang one of the room's products on a wall: where the person says, or the best free spot on a visible wall. */
+  async addObject(roomId: string, ownerId: string, layoutId: string, dto: AddObjectDto): Promise<EditResultDto> {
+    const room = await this.rooms.getOwnedRoom(roomId, ownerId);
+    const plan = room.floorPlan as unknown as FloorPlan;
+    const layout = await this.load(roomId, layoutId);
+    const data = layout.data as unknown as LayoutData;
+    const listing = await this.sourcing.getListing(roomId, dto.listingId);
+    if (!listing) throw new NotFoundException('Listing not found in this room');
+    if (!isWallType(listing.type)) throw new BadRequestException(`Only wall pieces (pictures, mirrors, wall shelves) can be added for now; this is a ${listing.type}`);
+    const size = listing.size as unknown as Size;
+    const openWalls = ((data.room as { open_walls_in_render?: Wall[] } | undefined)?.open_walls_in_render ?? ['front', 'right']) as Wall[];
+    const visible = (['back', 'left', 'right', 'front'] as Wall[]).filter((w) => !openWalls.includes(w));
+
+    let wall = dto.wall, u = dto.position, z = dto.height;
+    if (wall === undefined || u === undefined) {
+      const spot = findWallSpot(plan, data, size, wall ? [wall] : visible);
+      if (!spot) throw new ConflictException(`No free wall space for "${listing.title}" (${size.w} m wide)${wall ? ` on the ${wall} wall` : ''}`);
+      wall = spot.wall; u = spot.u; z ??= spot.z;
+    }
+    z ??= Math.max(1.45, size.h / 2 + 0.9);
+    const problems = wallClashes(plan, data, wall, u, z, size);
+    if (problems.length) throw new BadRequestException({ message: `Can't hang it there`, problems });
+
+    const n = 1 + Math.max(0, ...data.objects.filter((o) => o.type === listing.type).map((o) => Number(o.id.split('_').pop()) || 0));
+    const pose = wallPose(plan, wall, u, size.d);
+    const o: PlacedObject = {
+      id: `${listing.type}_${n}`, type: listing.type, name: listing.title, layer: 'art', zone: wall, mount: 'wall',
+      position: { x: pose.x, y: pose.y, z }, rotation_deg: pose.rotation, size: { ...size },
+      wall, arrangement: 'single', colour_role: 'accent', product: productOf(listing), added_by: 'person',
+    };
+    data.objects.push(o);
+    data.edits++;
+    await this.sourcing.setPicked(roomId, ownerId, listing.id, true);
+    const warnings = hiddenBehind(data, plan, wall, u, z, size).map((id) => `partly hidden behind ${id}`);
+    if (openWalls.includes(wall)) warnings.push(`the ${wall} wall is cut away in the picture, so it won't show in renders`);
+    return { layout: toLayoutResponse(await this.repo.save(layout.id, data)), warnings };
+  }
+
+  /** Slide, raise/lower or re-hang a wall piece; refuses spots over windows, doors or other pieces. */
+  private moveOnWall(data: LayoutData, plan: FloorPlan, objectId: string, dto: EditObjectDto): string[] {
+    const o = data.objects.find((x) => x.id === objectId);
+    if (!o) throw new EditError(`No object "${objectId}" in this layout`);
+    if (!isWallType(o.type)) throw new EditError(`"${objectId}" isn't a wall piece: move it with x/y instead`);
+    const wall = (dto.wall ?? o.wall) as Wall;
+    const current = o.wall === 'back' || o.wall === 'front' ? o.position.x : o.position.y;
+    const u = dto.position ?? (dto.wall && dto.wall !== o.wall ? wallLength(plan, wall) / 2 : current);
+    const z = dto.height ?? o.position.z;
+    const problems = wallClashes(plan, data, wall, u, z, o.size, o.id);
+    if (problems.length) throw new EditError(`Can't hang it there: ${problems.join('; ')}`);
+    const pose = wallPose(plan, wall, u, o.size.d);
+    o.position = { x: pose.x, y: pose.y, z };
+    o.rotation_deg = pose.rotation;
+    o.wall = wall;
+    o.zone = wall;
+    data.edits++;
+    return hiddenBehind(data, plan, wall, u, z, o.size).filter((id) => id !== o.id).map((id) => `partly hidden behind ${id}`);
   }
 
   /** Put a different product of the same type in a placed spot; its real size replaces the old one. */

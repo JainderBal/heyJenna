@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Res, StreamableFile, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import type { Response } from 'express';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { AddPinsRequest, SimilarPinsRequest } from '@hey-jenna/contracts';
 import { AuthUser, CurrentUser } from '../../common/auth/auth.decorators';
@@ -43,6 +44,36 @@ export class StyleController {
     @Body(new ZodPipe(AddPinsRequest)) dto: AddPinsRequest,
   ) {
     return this.style.addPins(roomId, user.id, dto.pins);
+  }
+
+  /** GET /rooms/:roomId/moodboard → { images: [{ id, url, source: 'upload' | 'pin', link? }] } */
+  @Get('moodboard')
+  images(@CurrentUser() user: AuthUser, @Param('roomId', ParseUUIDPipe) roomId: string) {
+    return this.style.listImages(roomId, user.id);
+  }
+
+  /** GET /rooms/:roomId/moodboard/images/:imageId → the stored file (private cache only: it sits behind login) */
+  @Get('moodboard/images/:imageId')
+  async imageFile(
+    @CurrentUser() user: AuthUser,
+    @Param('roomId', ParseUUIDPipe) roomId: string,
+    @Param('imageId', ParseUUIDPipe) imageId: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { data, contentType } = await this.style.imageFile(roomId, user.id, imageId);
+    res.setHeader('content-type', contentType);
+    res.setHeader('cache-control', 'private, max-age=86400');
+    return new StreamableFile(data);
+  }
+
+  /** DELETE /rooms/:roomId/moodboard/images/:imageId → { images } left; style is re-derived (cleared when none are left) */
+  @Delete('moodboard/images/:imageId')
+  removeImage(
+    @CurrentUser() user: AuthUser,
+    @Param('roomId', ParseUUIDPipe) roomId: string,
+    @Param('imageId', ParseUUIDPipe) imageId: string,
+  ) {
+    return this.style.removeImage(roomId, user.id, imageId);
   }
 
   /** POST /rooms/:roomId/pins/similar  { pins } → the pins ranked by colour distance to the room's palette */

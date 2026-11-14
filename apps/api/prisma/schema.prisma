@@ -47,6 +47,7 @@ model Style {
   roomId    String   @unique @map("room_id") @db.Uuid
   room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
   imageKeys String[] @map("image_keys")          // where the moodboard images are stored
+  imageMeta Json     @default("{}") @map("image_meta") // storage key -> { url, link? } for pinned images; keys not listed are uploads
   profile   Json                                  // contracts StyleProfile
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

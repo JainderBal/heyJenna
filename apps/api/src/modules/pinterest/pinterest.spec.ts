@@ -93,5 +93,6 @@ describe('StyleService pins', () => {
     await svc.addPins('r', 'me', [{ id: '1', imageUrl: 'https://i.pinimg.com/a.png' }]);
     expect(storage.save).toHaveBeenCalledTimes(1);
     expect(repo.upsert.mock.calls[0][1]).toEqual(['old1', 'new-key']);
+    expect(repo.upsert.mock.calls[0][3]).toEqual({ 'new-key': { url: 'https://i.pinimg.com/a.png' } });
   });
 });

@@ -21,6 +21,7 @@ import { plausibleSize } from './matching/dimensions';
 import { FurnitureType as FType } from '@hey-jenna/contracts';
 import { shoppingList, Slot } from './matching/shopping-list';
 import { chooseSet } from './matching/companions';
+import { glbSize } from './matching/glb-bounds';
 
 /** Pieces whose size has to suit the others: look at more candidates. */
 const KEY_PIECES = ['sofa', 'coffee_table', 'rug', 'armchair', 'side_table', 'shelf'];
@@ -174,6 +175,16 @@ export class SourcingService {
         size = null;
       }
       const modelUrl = findIkeaModelUrl(html) ?? '';
+      // the 3D model is the truest size of all (it's what gets drawn): measure it and let it win
+      if (modelUrl) {
+        try {
+          const { body: glb } = await safeFetch(modelUrl, { accept: 'model/gltf-binary', maxBytes: 40 * 1024 * 1024 });
+          const modelSize = glbSize(glb);
+          if (modelSize && plausibleSize(listing.type as FType, modelSize)) size = modelSize;
+        } catch (e) {
+          this.log.warn(`couldn't measure the 3D model of ${listing.title.slice(0, 40)}: ${(e as Error).message}`);
+        }
+      }
       this.log.log(`IKEA ${listing.title.slice(0, 40)}: size ${size ? `${size.w}×${size.d}×${size.h} m` : 'estimated'}, 3D model ${modelUrl ? 'yes' : 'no'}`);
       const price = findIkeaPrice(html) ?? undefined;
       return await this.repo.setDetails(listing.id, { size: size ? (size as unknown as Prisma.InputJsonValue) : undefined, modelUrl, price });

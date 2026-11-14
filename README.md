@@ -135,6 +135,7 @@ curl $B/rooms/$ROOM/renders/$JOB/model -o room.glb
 | GET | `/rooms/:roomId/events` | live updates (server-sent events): `data: {type, roomId, at, data}` for `listings.search.*`, `layout.generated`, `layout.object.added/moved/removed`, `render.queued/running/done/failed`, `job.queued/running/done/failed`; `: ping` every 20 s. EventSource can't send headers, so this route also takes `?access_token=` (or `?dev_user=` in dev) |
 | GET | `/rooms/:roomId/jobs/:jobId` | a background job's status / result (polling fallback) |
 | GET | `/models?url=<https://web-api.ikea.com/…glb>` | any allowed 3D model (`MODEL_HOSTS`; https, ≤ 40 MB, must be glTF), cached in storage; `model/gltf-binary`, long cache headers, `x-cache: hit/miss` |
+| POST | `/rooms/:roomId/chat` | chat with Jenna: `{message, history?}` → `{reply, actions[]}`. With `ANTHROPIC_API_KEY` Claude uses tools (read style, tweak dials, search listings, lay out, shopping list); without it, rules (palette / fit check / shopping list / find similar). History is not stored: send it back each time |
 | POST | `/internal/render-jobs/claim` · `/:jobId/complete` · `/:jobId/fail` | render workers only (`x-worker-token`) |
 
 ## Tests

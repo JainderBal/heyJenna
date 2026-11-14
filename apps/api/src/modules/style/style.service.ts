@@ -7,7 +7,6 @@ import { RoomsService } from '../rooms/rooms.service';
 import { DENSITY_VALUE, deriveDials } from './analysis/dials';
 import { RuleVibeReader } from './analysis/rule-vibe.reader';
 import { extractPalette, PaletteResult } from './analysis/palette';
-import { paletteDistance } from './analysis/pin-rank';
 import { Vibe, VIBE_READER, VibeReader } from './analysis/vibe';
 import { StyleResponseDto } from './dto/style-response.dto';
 import { UpdateStyleDto } from './dto/update-style.dto';
@@ -44,7 +43,7 @@ export class StyleService {
     return this.build(roomId, images, []);
   }
 
-  /** Adds Pinterest pins to the room's moodboard (kept images + pins), then re-derives style and dials. */
+  /** Adds pin images (e.g. dragged from Pinterest) to the room's moodboard (kept images + pins), then re-derives style and dials. */
   async addPins(roomId: string, ownerId: string, pins: PinRef[]): Promise<StyleResponseDto> {
     await this.rooms.getOwnedRoom(roomId, ownerId);
     const current = await this.repo.findByRoom(roomId);
@@ -91,27 +90,6 @@ export class StyleService {
     const profile = await this.derive(images);
     const saved = await this.repo.upsert(roomId, keys, profile, meta);
     return { images: toImages(roomId, saved.imageKeys, readMeta(saved.imageMeta)) };
-  }
-
-  /** Ranks candidate pins by colour distance to the room's palette, closest first. Unreadable pins are listed apart. */
-  async rankPins(roomId: string, ownerId: string, pins: PinRef[]) {
-    const { profile } = await this.get(roomId, ownerId);
-    const roomHex = [...profile.palette.dominant, ...profile.palette.secondary, ...profile.palette.accent];
-    const ranked: { pin: PinRef; distance: number }[] = [];
-    const unreadable: { id: string; reason: string }[] = [];
-    await Promise.all(
-      pins.map(async (pin) => {
-        try {
-          const [img] = await this.download([this.pinUrl(pin)]);
-          const { clusters } = await extractPalette([img], 4);
-          ranked.push({ pin, distance: Math.round(paletteDistance(clusters, roomHex) * 10) / 10 });
-        } catch (e) {
-          unreadable.push({ id: pin.id, reason: (e as Error).message });
-        }
-      }),
-    );
-    ranked.sort((a, b) => a.distance - b.distance);
-    return { ranked, unreadable };
   }
 
   private pinUrl(pin: PinRef): string {

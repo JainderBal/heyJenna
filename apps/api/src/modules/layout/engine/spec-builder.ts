@@ -3,6 +3,7 @@ import { Listing } from '@prisma/client';
 import { TYPICAL } from '../../sourcing/matching/dimensions';
 import { ChosenSlot } from '../../sourcing/sourcing.service';
 import { wallsWithAccent } from './accent-wall';
+import { engineStyleFromDials } from './style-dials';
 import { EngineItem, EngineSpec } from './layout-engine';
 
 const NEUTRAL_STYLE: Pick<StyleProfile, 'palette' | 'shapeFamily' | 'materials'> = {
@@ -42,6 +43,7 @@ export function buildEngineSpec(name: string, plan: FloorPlan, needs: string[], 
   }
 
   const s = style ?? NEUTRAL_STYLE;
+  const fromDials = style?.dials ? engineStyleFromDials(style.dials, plan, style.materials) : null;
   const spec: EngineSpec = {
     room: {
       name,
@@ -61,8 +63,12 @@ export function buildEngineSpec(name: string, plan: FloorPlan, needs: string[], 
       source: style?.source ?? 'no moodboard yet',
       palette: s.palette,
       shape_family: s.shapeFamily,
-      materials: { wood: s.materials.wood ?? '#B9733A', metal: s.materials.metal ?? 'chrome', fabric: s.materials.fabric ?? 'wool' },
+      materials: {
+        wood: s.materials.wood ?? '#B9733A', metal: s.materials.metal ?? 'chrome', fabric: s.materials.fabric ?? 'wool',
+        ...(fromDials?.wood ?? {}), // wood colours from the wood_tone dial when the board named none
+      },
       ...(style?.stylingDensity ? { styling_density: style.stylingDensity } : {}),
+      ...(fromDials?.profile ?? {}), // dials win: density, plants, art, light, features, fillers
     },
     furniture,
   };

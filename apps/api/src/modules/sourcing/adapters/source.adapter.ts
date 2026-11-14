@@ -22,7 +22,7 @@ export interface SourceQuery {
   text: string;
   limit: number;
   /** The same query in parts, for sources that do better with short searches (IKEA). */
-  parts?: { colour: string; keyword: string; typeText: string };
+  parts?: { colour: string; keyword: string; material?: string; typeText: string };
 }
 
 /** Every product source (eBay, web search, mock…) plugs in through this shape. */

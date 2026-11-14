@@ -1,10 +1,10 @@
-import { StyleProfile } from '@hey-jenna/contracts';
+import { DIAL_DEFAULTS, StyleProfile } from '@hey-jenna/contracts';
 import { scoreListing } from './scoring';
 
 const style: StyleProfile = {
   name: 'retro', source: 'test', keywords: ['mid century', 'teak', 'velvet'], vibe: ['70s', 'warm'],
   palette: { dominant: ['#EFE3C8'], secondary: ['#A0612B'], accent: ['#C8643C'] },
-  shapeFamily: 'retro', materials: {}, warmth: 0.6, saturation: 0.5, lightness: 0.6,
+  shapeFamily: 'retro', materials: {}, warmth: 0.6, saturation: 0.5, lightness: 0.6, dials: DIAL_DEFAULTS,
 };
 const plan = { width: 5, depth: 4.4, wallHeight: 2.6, floor: 'wood', walls: {}, windows: [], doors: [], features: [] };
 const size = { w: 2.1, d: 0.9, h: 0.8 };

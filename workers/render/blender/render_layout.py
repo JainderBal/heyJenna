@@ -417,6 +417,7 @@ def z_zone(o):  # invisible helper box
     e.scale = (o["size"]["w"] / 2, o["size"]["d"] / 2, 0.5); e.hide_render = True
 
 # ---------------------------------------------------------------- real product models (e.g. IKEA's own 3D files)
+FLOOR_TOP = 0.008  # top of the floor slab (0.006) plus a hair, so nothing sinks into it
 MODEL_TYPES = ("sofa", "armchair", "coffee_table", "side_table", "shelf", "desk", "desk_chair", "sideboard", "pouf", "cat_tree", "rug", "plant")
 MODEL_IDS = {o["id"] for o in LAY["objects"] if o.get("model_path") and o["type"] in MODEL_TYPES}
 
@@ -451,7 +452,9 @@ def m_model(o, fallback):
     inner = bpy.data.objects.new(o["name"] + ".model_centre", None); sc.collection.objects.link(inner)
     for x in new:
         if x.parent is None: x.parent = inner
-    inner.location = (-(mn.x + mx.x) / 2, -(mn.y + mx.y) / 2, -mn.z)  # model centred on its footprint, on the floor
+    # centred on its footprint and standing ON the floor surface (the floor slab's top is at +6 mm;
+    # a flat rug placed at 0 would vanish inside it)
+    inner.location = (-(mn.x + mx.x) / 2, -(mn.y + mx.y) / 2, -mn.z + FLOOR_TOP)
     root = bpy.data.objects.new(o["name"] + ".model", None); sc.collection.objects.link(root)
     inner.parent = root
     root.scale = (s, s, s); root.rotation_euler = (0, 0, math.pi / 2 if turn else 0)

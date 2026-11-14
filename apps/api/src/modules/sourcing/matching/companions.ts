@@ -28,6 +28,9 @@ export function companionFit(l: Listing, sofa: Listing | undefined, plan: FloorP
     }
     if (l.type === 'side_table') fit -= Math.min(0.3, Math.abs(s.h - Math.max(0.5, sofaSize.h * 0.75)) * 1.5);
   }
+  // a lone tall, narrow bookcase reads as a pillar; low-and-wide shelving looks intentional
+  if (l.type === 'shelf' && s.h > 1.6 && s.w < 0.6) fit -= 0.3;
+  if (l.type === 'shelf' && s.h <= 1.5 && s.w >= 0.75) fit += 0.08;
   if (l.type === 'rug') {
     const free = Math.min(plan.width, plan.depth) - s.d;
     if (free < 1.2) fit -= 0.3; // a rug almost wall-to-wall

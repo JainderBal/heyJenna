@@ -23,7 +23,7 @@ import { shoppingList, Slot } from './matching/shopping-list';
 import { chooseSet } from './matching/companions';
 
 /** Pieces whose size has to suit the others: look at more candidates. */
-const KEY_PIECES = ['sofa', 'coffee_table', 'rug', 'armchair', 'side_table'];
+const KEY_PIECES = ['sofa', 'coffee_table', 'rug', 'armchair', 'side_table', 'shelf'];
 
 export interface ChosenSlot {
   slot: Slot;
@@ -167,7 +167,8 @@ export class SourcingService {
     try {
       const { body } = await safeFetch(listing.url, { accept: 'text/html', maxBytes: 4 * 1024 * 1024 });
       const html = body.toString('utf8');
-      let size = parseIkeaMeasurements(html);
+      // a size already read from the product title ("40x28x202 cm") is IKEA's own label: keep it
+      let size = listing.sizeEstimated ? parseIkeaMeasurements(html) : null;
       if (size && !plausibleSize(listing.type as FType, size)) {
         this.log.warn(`ignoring odd IKEA size for ${listing.title.slice(0, 40)}: ${size.w}×${size.d}×${size.h} m`);
         size = null;

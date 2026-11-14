@@ -4,7 +4,10 @@ import { Listing, Room } from '@prisma/client';
 import { AppConfig } from '../../common/config/app-config.service';
 import { RoomsService } from '../rooms/rooms.service';
 import { StyleService } from '../style/style.service';
+import { parseIkeaMeasurements } from './adapters/ikea-product-page';
 import { LinkAdapter } from './adapters/link.adapter';
+import { safeFetch } from '../../common/http/safe-fetch';
+import { Prisma } from '@prisma/client';
 import { SOURCE_ADAPTERS, SourceAdapter } from './adapters/source.adapter';
 import { AddLinkDto } from './dto/add-link.dto';
 import { ListingResponseDto, SearchSummaryDto } from './dto/listing-response.dto';
@@ -122,10 +125,28 @@ export class SourcingService {
   /** For the layout module: per slot, the listings to use (picked first, then best score). */
   async chooseForRoom(room: Room): Promise<ChosenSlot[]> {
     const all = await this.repo.listByRoom(room.id);
-    return shoppingList(room.floorPlan as unknown as FloorPlan, room.needs).map((slot) => ({
+    const chosen = shoppingList(room.floorPlan as unknown as FloorPlan, room.needs).map((slot) => ({
       slot,
       listings: all.filter((l) => l.type === slot.type).slice(0, slot.count),
     }));
+    // IKEA search results have no sizes: read the real ones for just the pieces going into the room
+    for (const c of chosen)
+      c.listings = await Promise.all(c.listings.map((l) => (l.source === 'ikea' && l.sizeEstimated ? this.ikeaSize(l) : l)));
+    return chosen;
+  }
+
+  /** Reads width/depth/height from the IKEA product page once and stores it. Keeps the estimate on failure. */
+  private async ikeaSize(listing: Listing): Promise<Listing> {
+    try {
+      const { body } = await safeFetch(listing.url, { accept: 'text/html', maxBytes: 4 * 1024 * 1024 });
+      const size = parseIkeaMeasurements(body.toString('utf8'));
+      if (!size) return listing;
+      this.log.log(`IKEA size for ${listing.title.slice(0, 40)}: ${size.w}×${size.d}×${size.h} m`);
+      return await this.repo.setSize(listing.id, size as unknown as Prisma.InputJsonValue);
+    } catch (e) {
+      this.log.warn(`couldn't read IKEA size for ${listing.url}: ${(e as Error).message}`);
+      return listing;
+    }
   }
 
   /** A slot holds `count` pieces (e.g. 2 armchairs): picking more unpicks the older extras. */

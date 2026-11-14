@@ -49,6 +49,11 @@ export class ListingsRepository {
     return this.db.listing.findFirst({ where: { id, roomId } });
   }
 
+  /** Real size found later (e.g. from an IKEA product page). */
+  setSize(id: string, size: Prisma.InputJsonValue): Promise<Listing> {
+    return this.db.listing.update({ where: { id }, data: { size, sizeEstimated: false } });
+  }
+
   setPicked(id: string, picked: boolean): Promise<Listing> {
     return this.db.listing.update({ where: { id }, data: { picked } });
   }

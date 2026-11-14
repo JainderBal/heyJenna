@@ -38,6 +38,8 @@ interface EditorState {
   planUploads: Record<string, string>;
   /** The project whose Plan frame shows "Add rooms" (upload / draw / sample) instead of the plan. */
   addingRooms: string | null;
+  /** The product search per room this session, from its live events; `thenLayOut` lays the room out when it ends. */
+  searches: Record<string, RoomSearch>;
 
   enterProject(id: string, page: PageId, sel: string | null): void;
   /** Go to a page (and optionally select a frame on it); the canvas fits or focuses. */
@@ -57,6 +59,16 @@ interface EditorState {
   setPlanUpload(projectId: string, url: string): void;
   /** Show (or hide) "Add rooms" in the Plan frame of this project, and focus the frame. */
   setAddingRooms(projectId: string | null): void;
+  setSearch(roomId: string, patch: Partial<RoomSearch> | null): void;
+}
+
+export interface RoomSearch {
+  state: 'running' | 'done' | 'failed';
+  /** Furniture types searched so far, of `total` (from listings.search.progress). */
+  done: number;
+  total: number | null;
+  error?: string;
+  thenLayOut?: boolean;
 }
 
 let focusN = 0;
@@ -76,6 +88,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   renderJobs: {},
   planUploads: {},
   addingRooms: null,
+  searches: {},
 
   enterProject(id, page, sel) {
     if (get().projectId === id) return;
@@ -137,6 +150,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const old = get().planUploads[projectId];
     if (old && old !== url) URL.revokeObjectURL(old);
     set({ planUploads: { ...get().planUploads, [projectId]: url } });
+  },
+  setSearch(roomId, patch) {
+    const rest = { ...get().searches };
+    if (!patch) delete rest[roomId];
+    else {
+      const fresh: RoomSearch = { state: 'running', done: 0, total: null };
+      rest[roomId] = { ...fresh, ...rest[roomId], ...patch };
+    }
+    set({ searches: rest });
   },
 }));
 

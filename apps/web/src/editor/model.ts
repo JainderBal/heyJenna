@@ -42,7 +42,8 @@ export function pagesOf(project: Project | undefined, rooms: Room[]): Page[] {
   const pal = projectPalette(project);
   return [
     { id: 'plan', name: 'Floor plan' },
-    ...rooms.map((r, k) => ({ id: r.id, name: r.name, meta: dims(r), color: pal[k % pal.length], room: r })),
+    // plan-only rooms (closets, laundry…) stay on the floor plan but get no page of their own
+    ...rooms.flatMap((r, k) => (r.furnish ? [{ id: r.id, name: r.name, meta: dims(r), color: pal[k % pal.length], room: r }] : [])),
   ];
 }
 

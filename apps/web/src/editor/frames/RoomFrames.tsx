@@ -1,5 +1,5 @@
 /** Room page frames: Moodboard, Palette, 3D room (live or the render's room), Shopping list. */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAddMoodboardPins, useDeleteMoodboardImage, useMoodboardImages, useCreateLayout, useCreateRender, useProject, useRenderImage, useRenderJob, useRenders, useSearchListingsAsync, useUploadMoodboard } from '../../api/hooks';
 import { errorText } from '../../api/client';
 import type { Layout, Listing, PinRef, RenderJob, Room, StyleResponse } from '../../api/types';
@@ -241,12 +241,98 @@ export function Room3DFrame({ room, layout, palette }: { room: Room; layout: Lay
   );
 }
 
-export function ShoppingListFrame({ room, projectId, rooms, layout, listings }: { room: Room; projectId: string; rooms: Room[]; layout: Layout | null | undefined; listings: Listing[] | undefined }) {
+/** What the room still needs before it has a shopping list, as a checklist with the next step as the button. */
+function NextSteps({ hasMoodboard, found, running, onFind, onLayOut, laying }: {
+  hasMoodboard: boolean; found: number; running: boolean; onFind(): void; onLayOut(): void; laying: boolean;
+}) {
+  const select = useEditorStore((s) => s.select);
+  const steps = [
+    { label: 'Add images to the moodboard', done: hasMoodboard, hint: 'jenna reads their colours and style' },
+    { label: 'Find products', done: found > 0, hint: running ? 'searching…' : found ? `${found} found` : 'in your moodboard’s style' },
+    { label: 'Lay out the room', done: false, hint: 'jenna places the best match for each spot' },
+  ];
+  const next = steps.findIndex((s) => !s.done);
+  return (
+    <div className="steps">
+      <ol>
+        {steps.map((s, i) => (
+          <li key={s.label} className={s.done ? 'done' : i === next ? 'next' : undefined}>
+            <span className="dot">{s.done ? '✓' : i + 1}</span>
+            <span>
+              {s.label}
+              <small>{s.hint}</small>
+            </span>
+          </li>
+        ))}
+      </ol>
+      {next === 0 ? (
+        <button className="pbtn dark pvbtn" type="button" onClick={() => select('mood', true)}>
+          Go to the moodboard
+        </button>
+      ) : next === 1 ? (
+        <button className="pbtn dark pvbtn" type="button" disabled={running} onClick={onFind}>
+          {running ? 'Finding products…' : 'Find products and lay out'}
+        </button>
+      ) : (
+        <button className="pbtn dark pvbtn" type="button" disabled={laying} onClick={onLayOut}>
+          {laying ? 'Laying out…' : 'Lay out the room'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** "Searching IKEA… 6 of 11" with a bar, while the room's product search runs. */
+function SearchProgress({ done, total }: { done: number; total: number | null }) {
+  return (
+    <div className="search-prog" role="status">
+      <span>{total ? `Finding products… ${done} of ${total} kinds` : 'Starting the search…'}</span>
+      <div className="bar">
+        <i style={{ width: `${total ? Math.max(6, (done / total) * 100) : 6}%` }} />
+      </div>
+    </div>
+  );
+}
+
+export function ShoppingListFrame({ room, projectId, rooms, layout, listings, hasMoodboard }: {
+  room: Room; projectId: string; rooms: Room[]; layout: Layout | null | undefined; listings: Listing[] | undefined; hasMoodboard: boolean;
+}) {
   const search = useSearchListingsAsync(room.id);
   const lay = useCreateLayout(room.id);
   const budgetCad = useProject(projectId).data?.budgetCad ?? null;
   const share = budgetCad != null ? Math.round(roomShare(budgetCad, room.id, rooms)) : null;
   const spOpen = useEditorStore((s) => s.spOpen);
+  const running = useEditorStore((s) => s.searches[room.id]?.state === 'running');
+  const progress = useEditorStore((s) => s.searches[room.id]);
+  const setSearch = useEditorStore((s) => s.setSearch);
+
+  const layOut = () =>
+    lay.mutate(undefined, {
+      onSuccess: (l) => toast(`placed ${l.objects.length} pieces · ${l.summary.pass} checks pass${l.summary.fail ? `, ${l.summary.fail} fail` : ''}`),
+      onError: (e) => toast(errorText(e)),
+    });
+  /** Search every shop; with `thenLayOut` the room is laid out as soon as the search ends. */
+  const find = (thenLayOut: boolean) => {
+    setSearch(room.id, { state: 'running', done: 0, total: null, error: undefined, thenLayOut });
+    search.mutate(
+      {},
+      {
+        onSuccess: () => toast(thenLayOut ? 'Searching every shop… jenna lays out the room when it’s done' : 'Searching every shop… results land here'),
+        onError: (e) => {
+          setSearch(room.id, { state: 'failed', error: errorText(e), thenLayOut: false });
+          toast(errorText(e));
+        },
+      },
+    );
+  };
+  // the search ended (live event): lay the room out if that was asked for
+  useEffect(() => {
+    if (progress?.state === 'done' && progress.thenLayOut && !lay.isPending) {
+      setSearch(room.id, { thenLayOut: false });
+      layOut();
+    }
+  }, [progress?.state, progress?.thenLayOut]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const rows = listRows({ layout, listings });
   const total = layout ? layout.shoppingList.total : rows.reduce((a, r) => a + (r.price ?? 0), 0);
   const currency = layout?.shoppingList.currency ?? rows[0]?.currency ?? 'CAD';
@@ -257,12 +343,9 @@ export function ShoppingListFrame({ room, projectId, rooms, layout, listings }: 
     // the frame is sized to the list; while a swap is open the list scrolls inside it (wheel included)
     <div className={`list${swapping ? ' scroll' : ''}`} data-own-wheel={swapping ? '' : undefined}>
       <h4>Shopping list</h4>
-      {!rows.length && (
-        <p className="empty">
-          {found
-            ? `${found} products found. Pick some, or lay out the room and jenna picks the best match for each spot.`
-            : 'Nothing yet. Find products in your moodboard’s style, then lay out the room.'}
-        </p>
+      {running && <SearchProgress done={progress?.done ?? 0} total={progress?.total ?? null} />}
+      {!rows.length && !layout && (
+        <NextSteps hasMoodboard={hasMoodboard} found={found} running={running} onFind={() => find(true)} onLayOut={layOut} laying={lay.isPending} />
       )}
       {rows.map((r) => (
         <div key={r.id}>
@@ -301,35 +384,22 @@ export function ShoppingListFrame({ room, projectId, rooms, layout, listings }: 
           <span>{share != null ? `${money(total, currency)} of this room’s ${money(share, 'CAD')}` : money(total, currency)}</span>
         </div>
       )}
-      <button className="pbtn dark pvbtn" type="button" onClick={() => spOpen('shop')}>
-        Open live preview
-      </button>
+      {rows.length > 0 && (
+        <button className="pbtn dark pvbtn" type="button" onClick={() => spOpen('shop')} title="Keep the shopping list open beside the canvas while you work">
+          Pin to side panel
+        </button>
+      )}
       <BudgetSlider projectId={projectId} rooms={rooms} roomId={room.id} />
-      <div className="list-acts">
-        <button
-          className="pbtn sm"
-          type="button"
-          disabled={search.isPending}
-          onClick={() =>
-            search.mutate({}, { onSuccess: () => toast('Searching every shop… results land here'), onError: (e) => toast(errorText(e)) })
-          }
-        >
-          {search.isPending ? 'Starting…' : 'Find products'}
-        </button>
-        <button
-          className="pbtn sm"
-          type="button"
-          disabled={lay.isPending}
-          onClick={() =>
-            lay.mutate(undefined, {
-              onSuccess: (l) => toast(`placed ${l.objects.length} pieces · ${l.summary.pass} checks pass${l.summary.fail ? `, ${l.summary.fail} fail` : ''}`),
-              onError: (e) => toast(errorText(e)),
-            })
-          }
-        >
-          {lay.isPending ? 'Laying out…' : layout ? 'Lay out again' : 'Lay out the room'}
-        </button>
-      </div>
+      {(rows.length > 0 || layout) && (
+        <div className="list-acts">
+          <button className="pbtn sm" type="button" disabled={search.isPending || running} onClick={() => find(false)}>
+            {search.isPending || running ? 'Searching…' : 'Find products'}
+          </button>
+          <button className="pbtn sm" type="button" disabled={lay.isPending} onClick={layOut}>
+            {lay.isPending ? 'Laying out…' : layout ? 'Lay out again' : 'Lay out the room'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

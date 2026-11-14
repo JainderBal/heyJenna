@@ -1,4 +1,4 @@
-import { FloorPlan, FurnitureType, Size, StyleProfile } from '@hey-jenna/contracts';
+import { FloorPlan, FurnitureType, Size, StyleProfile, Wall, openWalls } from '@hey-jenna/contracts';
 import { Listing } from '@prisma/client';
 import { TYPICAL } from '../../sourcing/matching/dimensions';
 import { ChosenSlot } from '../../sourcing/sourcing.service';
@@ -53,9 +53,10 @@ export function buildEngineSpec(name: string, plan: FloorPlan, needs: string[], 
       floor: plan.floor,
       walls: wallsWithAccent(plan, style), // accent wall coloured from the moodboard
       windows: plan.windows,
-      doors: plan.doors,
+      doors: [...plan.doors, ...walkThroughs(plan)],
       features: plan.features,
-      open_walls_in_render: ['front', 'right'],
+      // the two cut-away walls the render looks through, plus walls that open onto the next room
+      open_walls_in_render: [...new Set<Wall>(['front', 'right', ...openWalls(plan)])],
     },
     needs,
     style_profile: {
@@ -73,6 +74,24 @@ export function buildEngineSpec(name: string, plan: FloorPlan, needs: string[], 
     furniture,
   };
   return { spec, index };
+}
+
+/** Id prefix of the virtual doorways below; the renderer draws nothing for them. */
+export const WALK_THROUGH_PREFIX = 'open_';
+
+/** Width of the way through an open wall the engine keeps clear: a walking path, not the whole wall. */
+const WALK_THROUGH_WIDTH = 1.0;
+
+/**
+ * An open wall is how people walk in from the next room (an open-plan dining room may have no door at all), so the
+ * engine gets a doorway in the middle of it and keeps the walkways to it clear. Clearing the whole wall would leave a
+ * small open-plan room no space for its seating.
+ */
+function walkThroughs(plan: FloorPlan): FloorPlan['doors'] {
+  return openWalls(plan).map((wall) => {
+    const L = wall === 'back' || wall === 'front' ? plan.width : plan.depth;
+    return { id: `${WALK_THROUGH_PREFIX}${wall}`, wall, position: L / 2, width: Math.min(WALK_THROUGH_WIDTH, L), swing: 'none' as const };
+  });
 }
 
 /** Small hints the engine uses to place things well. */

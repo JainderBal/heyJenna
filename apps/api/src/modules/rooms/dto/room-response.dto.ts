@@ -1,4 +1,4 @@
-import { FloorPlan, PlanPosition } from '@hey-jenna/contracts';
+import { FloorPlan, PlanPosition, RoomKind } from '@hey-jenna/contracts';
 
 /** What the API sends back for a room (never the raw database row). */
 export interface RoomResponseDto {
@@ -6,6 +6,8 @@ export interface RoomResponseDto {
   name: string;
   floorPlan: FloorPlan;
   needs: string[];
+  kind: RoomKind | null;
+  furnish: boolean;
   projectId: string | null;
   /** Where the room sits on its project's plan (metres from the top-left), or null when not placed. */
   planPosition: PlanPosition | null;

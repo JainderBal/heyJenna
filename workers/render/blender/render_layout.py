@@ -155,7 +155,9 @@ edge, fr = mat(P["edge"], 0.9), mat("#F7F1E6", 0.5)
 WINS = {w["id"]: (w["position"] - w["width"] / 2 - W / 2, w["position"] + w["width"] / 2 - W / 2, w["sill"], w["head"]) for w in RM["windows"]}
 SKIPPED = [o["id"] for o in RM["windows"] + RM["doors"] if o["wall"] != "back"]
 if SKIPPED: print("renderer cuts openings in the back wall only; skipping", SKIPPED)
-RM["windows"] = [w for w in RM["windows"] if w["wall"] == "back"]; RM["doors"] = [d for d in RM["doors"] if d["wall"] == "back"]
+RM["windows"] = [w for w in RM["windows"] if w["wall"] == "back"]
+# "open_*" doors are walk-throughs onto the next room (an open wall), not doors to draw
+RM["doors"] = [d for d in RM["doors"] if d["wall"] == "back" and not d["id"].startswith("open_")]
 
 # ---------------------------------------------------------------- architecture
 def a_floor(o):

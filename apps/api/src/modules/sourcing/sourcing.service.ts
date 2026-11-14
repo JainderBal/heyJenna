@@ -68,7 +68,7 @@ export class SourcingService implements OnModuleInit {
 
   /** Same search, run by the jobs runner; the result is announced on the room's live-update stream. */
   async searchInBackground(roomId: string, ownerId: string, dto: SearchListingsDto): Promise<{ jobId: string; status: string }> {
-    await this.rooms.getOwnedRoom(roomId, ownerId);
+    await this.rooms.getFurnishableRoom(roomId, ownerId);
     const payload: ListingSearchPayload = { ownerId, dto };
     const job = await this.jobs.enqueue({ kind: LISTING_SEARCH, roomId, payload: payload as never, maxAttempts: 2 });
     return { jobId: job.id, status: job.status };
@@ -76,7 +76,7 @@ export class SourcingService implements OnModuleInit {
 
   /** Search and tell the room's live-update streams when it starts and ends (jobId set when run as a background job). */
   async search(roomId: string, ownerId: string, dto: SearchListingsDto, jobId?: string): Promise<SearchSummaryDto> {
-    const room = await this.rooms.getOwnedRoom(roomId, ownerId);
+    const room = await this.rooms.getFurnishableRoom(roomId, ownerId);
     const ref = jobId ? { jobId } : {};
     this.events.publish(roomId, 'listings.search.started', { ...ref, types: dto.types ?? null });
     try {
@@ -108,6 +108,7 @@ export class SourcingService implements OnModuleInit {
     };
 
     const keep: NewListing[] = [];
+    let done = 0;
     await Promise.all(
       slots.map(async (slot) => {
         const query = buildQuery(slot.type, style);
@@ -133,6 +134,8 @@ export class SourcingService implements OnModuleInit {
           .slice(0, perSlot);
         summary.searched.push({ type: slot.type, query, found: results.flat().length, kept: built.length });
         keep.push(...built);
+        // one furniture type done: the studio shows "6 of 11"
+        this.events.publish(roomId, 'listings.search.progress', { type: slot.type, kept: built.length, done: ++done, total: slots.length });
       }),
     );
 

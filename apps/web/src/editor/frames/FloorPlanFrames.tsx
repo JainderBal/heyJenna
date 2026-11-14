@@ -6,20 +6,25 @@
  *    ANTHROPIC_API_KEY on the API, or no rooms found) → "Draw rooms" by hand, or the sample plan.
  *  - plan3d: the whole plan as an isometric clay model (the prototype's planShot).
  *  - found: one row per room → its page, and "+ Add rooms".
+ * Plan-only rooms (closets, laundry, balcony: furnish = false) are drawn on the plan but get no page.
  */
 import { useMemo, useRef, useState } from 'react';
-import type { PlanPosition } from '@hey-jenna/contracts';
-import type { BulkRoomInput } from '@hey-jenna/contracts';
+import type { BulkRoomInput, FloorPlan, PlanPosition } from '@hey-jenna/contracts';
 import { useBulkCreateRooms, usePlanPositionSaver, useReadFloorPlan } from '../../api/hooks';
 import { errorText, isApiError } from '../../api/client';
 import type { DetectedRoom, Room } from '../../api/types';
+import { PlanReview } from './PlanReview';
 import { toast, useEditorStore } from '../../app/useEditorStore';
 import { PlanDrop } from '../icons';
 import { PLANS, floorPlanOf, placeRooms, sampleRooms, snapPlan, type PlacedRoom } from '../plans';
 import { useMoveLegacyPlanSpots } from '../useLegacyPlanSpots';
 import { shade } from '../colour';
-import { planShot, roomKind } from '../../viewer/three-kit';
+import { planShot, planShotMap, shotKind } from '../../viewer/three-kit';
 import { BudgetSlider } from '../BudgetSlider';
+import { shortName } from './PlanReview';
+
+/** Walls that open onto the next room (open-plan). */
+const openOf = (plan: FloorPlan) => Object.entries(plan.walls ?? {}).filter(([, f]) => f?.open).map(([w]) => w);
 
 type Mode =
   | { kind: 'idle' }
@@ -42,6 +47,7 @@ function RoomsIntake({ projectId, empty, onClose }: { projectId: string; empty: 
   const read = useReadFloorPlan(projectId);
   const bulk = useBulkCreateRooms(projectId);
   const setPlanUpload = useEditorStore((s) => s.setPlanUpload);
+  const upload = useEditorStore((s) => s.planUploads[projectId]);
   const goPage = useEditorStore((s) => s.goPage);
 
   function readPlan(f: File | undefined) {
@@ -96,39 +102,22 @@ function RoomsIntake({ projectId, empty, onClose }: { projectId: string; empty: 
 
   if (mode.kind === 'preview') {
     return (
-      <div className="addf">
-        <h3>{mode.rooms.length} rooms found</h3>
-        <ul>
-          {mode.rooms.map((r, i) => (
-            <li key={i}>
-              <span>{r.name}</span>
-              <small>
-                {r.floorPlan.width} × {r.floorPlan.depth} m{r.confidence < 0.6 ? ' · unsure' : ''}
-              </small>
-            </li>
-          ))}
-        </ul>
-        {mode.warnings.map((w, i) => (
-          <p key={i} className="warn">
-            {w}
-          </p>
-        ))}
-        <div className="acts">
-          <button
-            className="pbtn dark"
-            type="button"
-            disabled={busy}
-            onClick={() =>
-              create(mode.rooms.map((r) => ({ name: r.name, floorPlan: r.floorPlan, needs: [], planPosition: { x: r.position.x, y: r.position.y } })))
-            }
-          >
-            {bulk.isPending ? 'Creating…' : 'Create these rooms'}
-          </button>
-          <button className="pbtn" type="button" disabled={busy} onClick={() => setMode({ kind: 'idle' })}>
-            Cancel
-          </button>
-        </div>
-      </div>
+      <PlanReview
+        image={upload}
+        rooms={mode.rooms}
+        warnings={mode.warnings}
+        busy={busy}
+        creating={bulk.isPending}
+        onToggle={(i) => setMode({ ...mode, rooms: mode.rooms.map((x, j) => (j === i ? { ...x, furnish: !x.furnish } : x)) })}
+        onCancel={() => setMode({ kind: 'idle' })}
+        onCreate={() =>
+          create(
+            mode.rooms.map((r) => ({
+              name: r.name, floorPlan: r.floorPlan, needs: [], planPosition: { x: r.position.x, y: r.position.y }, kind: r.kind, furnish: r.furnish,
+            })),
+          )
+        }
+      />
     );
   }
 
@@ -300,7 +289,7 @@ interface Drag {
 }
 
 function PlanDrawing({ projectId, rooms, palette, upload }: { projectId: string; rooms: Room[]; palette: string[]; upload?: string }) {
-  const goPage = useEditorStore((s) => s.goPage);
+  const openRoom = useOpenRoom();
   useMoveLegacyPlanSpots(projectId, rooms);
   const savePosition = usePlanPositionSaver(projectId, (e) => toast(`Couldn't save where the room sits: ${errorText(e)}`));
   const svg = useRef<SVGSVGElement>(null);
@@ -340,6 +329,10 @@ function PlanDrawing({ projectId, rooms, palette, upload }: { projectId: string;
       const pos: PlanPosition = { x: drag.x, y: drag.z };
       savePosition(drag.id, pos);
     }
+    if (!drag.moved) {
+      const room = rooms.find((r) => r.id === drag.id);
+      if (room) openRoom(room); // a click, not a drag
+    }
     setDrag(null);
   }
 
@@ -361,19 +354,50 @@ function PlanDrawing({ projectId, rooms, palette, upload }: { projectId: string;
             <g
               key={p.room.id}
               data-own-pointer
-              style={{ cursor: dragging ? 'grabbing' : 'grab' }}
+              className={`p2room${p.room.furnish ? ' on' : ''}`}
+              style={{ cursor: dragging ? 'grabbing' : 'pointer' }}
               opacity={dragging ? 0.85 : 1}
               onPointerDown={(e) => down(e, p)}
-              onDoubleClick={() => goPage(p.room.id)}
             >
-              <title>{`${p.room.name}: drag to move, double-click to open`}</title>
-              <rect x={x} y={y} width={w} height={h} fill={shade(palette[i % palette.length], 0.6)} stroke={dragging ? 'var(--select)' : '#1E1E1E'} strokeWidth="3.5" />
-              <text x={x + w / 2} y={y + h / 2 - 2} textAnchor="middle" fontFamily="Inter,sans-serif" fontWeight="600" fontSize={w < 80 ? 10 : 13} fill="#1E1E1E" pointerEvents="none">
-                {p.room.name}
-              </text>
-              <text x={x + w / 2} y={y + h / 2 + 14} textAnchor="middle" fontFamily="JetBrains Mono,monospace" fontSize="10" fill="#7A7A7A" pointerEvents="none">
-                {p.w}×{p.d}
-              </text>
+              <title>{p.room.furnish ? `${p.room.name} · ${p.w} × ${p.d} m: click to open, drag to move` : `${p.room.name} · ${p.w} × ${p.d} m (plan only): drag to move`}</title>
+              <rect
+                x={x}
+                y={y}
+                width={w}
+                height={h}
+                fill={p.room.furnish ? shade(palette[i % palette.length], 0.6) : '#F1EFEC'}
+                stroke={dragging ? 'var(--select)' : p.room.furnish ? '#1E1E1E' : '#8A8A8A'}
+                strokeWidth={p.room.furnish ? 3 : 1}
+              />
+              {(() => {
+                // furnished rooms: name and size; plan-only rooms: a small name, only where it fits
+                const size = p.room.furnish ? (w < 80 ? 10 : 12) : 8.5;
+                const label = labelFor(p.room.name, size, w - 6);
+                const showDims = p.room.furnish && label && h > 34;
+                if (!label || h < size + 4) return null;
+                return (
+                  <>
+                    <text
+                      x={x + w / 2}
+                      y={y + h / 2 - (showDims ? 5 : 0)}
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      fontFamily="Inter,sans-serif"
+                      fontWeight={p.room.furnish ? 600 : 500}
+                      fontSize={size}
+                      fill={p.room.furnish ? '#1E1E1E' : '#8A8A8A'}
+                      pointerEvents="none"
+                    >
+                      {label}
+                    </text>
+                    {showDims && (
+                      <text x={x + w / 2} y={y + h / 2 + 10} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono,monospace" fontSize="9.5" fill="#7A7A7A" pointerEvents="none">
+                        {p.w} × {p.d} m
+                      </text>
+                    )}
+                  </>
+                );
+              })()}
             </g>
           );
         })}
@@ -387,22 +411,91 @@ function PlanDrawing({ projectId, rooms, palette, upload }: { projectId: string;
   );
 }
 
-/** The prototype's "3D floor plan": every room at its plan position, as an isometric clay model with labels. */
+/** Whether a label fits a box this wide, roughly (Inter at this size averages ~0.56 em per character). */
+const fits = (text: string, size: number, width: number) => text.length * size * 0.56 <= width;
+/** The longest of the room's names that fits, or null. */
+const labelFor = (name: string, size: number, width: number) =>
+  fits(name, size, width) ? name : fits(shortName(name), size, width) ? shortName(name) : null;
+
+/** Clicking a room on the plan: its page, or why it has none. */
+function useOpenRoom() {
+  const goPage = useEditorStore((s) => s.goPage);
+  return (room: Room) =>
+    room.furnish ? goPage(room.id) : toast(`${room.name} stays on the plan only: jenna doesn't furnish ${room.kind ?? 'this kind of'} rooms yet`);
+}
+
+const SHOT_W = 1040;
+const SHOT_H = 840;
+
+/**
+ * The "3D floor plan": every room at its plan position as an isometric clay model. The picture is rendered once
+ * per view; rooms are hit areas over it (hover to highlight, click to open the page) with HTML labels, and the
+ * view turns in quarter turns.
+ */
 export function Plan3DFrame({ projectId, rooms, palette }: { projectId: string; rooms: Room[]; palette: string[] }) {
   useMoveLegacyPlanSpots(projectId, rooms);
+  const openRoom = useOpenRoom();
+  const [turn, setTurn] = useState(0);
+  const [hover, setHover] = useState<string | null>(null);
   const R = placeRooms(projectId, rooms);
-  const key = JSON.stringify([R.map((p) => [p.room.name, p.x, p.z, p.w, p.d]), palette]);
-  const src = useMemo(() => {
-    if (!R.length) return '';
+  const shotRooms = R.map((p) => ({ name: p.room.name, x: p.x, z: p.z, w: p.w, d: p.d, kind: shotKind(p.room), open: openOf(p.room.floorPlan) }));
+  const key = JSON.stringify([shotRooms, palette, turn]);
+  const { src, map } = useMemo(() => {
+    if (!R.length) return { src: '', map: [] };
     try {
-      // 2× the frame for a crisp image, as the prototype's 1040 × 840
-      return planShot(R.map((p) => ({ name: p.room.name, x: p.x, z: p.z, w: p.w, d: p.d, kind: roomKind(p.room.name) })), palette, 1040, 840).toDataURL('image/jpeg', 0.9);
+      return { src: planShot(shotRooms, palette, SHOT_W, SHOT_H, turn, false).toDataURL('image/jpeg', 0.9), map: planShotMap(shotRooms, SHOT_W, SHOT_H, turn) };
     } catch {
-      return ''; // no WebGL
+      return { src: '', map: [] }; // no WebGL
     }
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!src) return <p className="muted" style={{ padding: 16 }}>{R.length ? '3D needs WebGL.' : 'Add rooms to see them in 3D.'}</p>;
-  return <img className="shot" alt="3D render of the whole floor plan" src={src} />;
+
+  // labels: furnished rooms always, other rooms when their floor is big enough on screen to carry one
+  const LABEL = 22;
+  return (
+    <div className="plan3d">
+      <img className="shot" alt="3D model of the whole floor plan" src={src} draggable={false} />
+      <svg className="plan3d-map" viewBox={`0 0 ${SHOT_W} ${SHOT_H}`} preserveAspectRatio="xMidYMid slice">
+        {R.map((p, i) => {
+          const m = map[i];
+          if (!m) return null;
+          const xs = m.floor.map(([x]) => x);
+          const span = Math.max(...xs) - Math.min(...xs);
+          const text = hover === p.room.id || p.room.furnish ? labelFor(p.room.name, LABEL, span * 0.9) ?? shortName(p.room.name) : labelFor(p.room.name, LABEL * 0.85, span * 0.55);
+          const tw = text ? text.length * (p.room.furnish ? LABEL : LABEL * 0.85) * 0.56 + 26 : 0;
+          return (
+            <g
+              key={p.room.id}
+              data-own-pointer
+              className={`p3room${p.room.furnish ? ' on' : ''}${hover === p.room.id ? ' hot' : ''}`}
+              onMouseEnter={() => setHover(p.room.id)}
+              onMouseLeave={() => setHover((h) => (h === p.room.id ? null : h))}
+              onClick={() => openRoom(p.room)}
+            >
+              <title>{p.room.furnish ? `${p.room.name}: click to open` : `${p.room.name} (plan only)`}</title>
+              <polygon points={m.floor.map((q) => q.join(',')).join(' ')} />
+              {text && (
+                <g transform={`translate(${m.centre[0]} ${m.centre[1]})`} className="p3label">
+                  <rect x={-tw / 2} y={-19} width={tw} height={38} rx={19} />
+                  <text textAnchor="middle" dominantBaseline="central" fontSize={p.room.furnish ? LABEL : LABEL * 0.85}>
+                    {text}
+                  </text>
+                </g>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+      <div className="plan3d-turn" data-own-pointer>
+        <button type="button" className="pbtn sm" aria-label="Turn the view left" onClick={() => setTurn((t) => (t + 3) % 4)}>
+          ⟲
+        </button>
+        <button type="button" className="pbtn sm" aria-label="Turn the view right" onClick={() => setTurn((t) => (t + 1) % 4)}>
+          ⟳
+        </button>
+      </div>
+    </div>
+  );
 }
 
 /** "N rooms found": one row per room → its page; "+ Add rooms" opens the intake in the Plan frame. */
@@ -424,14 +517,23 @@ export function FoundFrame({ projectId, rooms, palette }: { projectId: string; r
           + Add rooms
         </button>
       </div>
-      {rooms.map((r, i) => (
-        <button key={r.id} className="frow" type="button" onClick={() => goPage(r.id)}>
-          <span className="sw" style={{ background: palette[i % palette.length] }} />
-          <span>{r.name}</span>
-          <small>{r.areaM2.toFixed(1)} m²</small>
-          <span className="muted">→</span>
-        </button>
-      ))}
+      {rooms.map((r, i) =>
+        r.furnish ? (
+          <button key={r.id} className="frow" type="button" onClick={() => goPage(r.id)}>
+            <span className="sw" style={{ background: palette[i % palette.length] }} />
+            <span>{r.name}</span>
+            <small>{r.areaM2.toFixed(1)} m²</small>
+            <span className="muted">→</span>
+          </button>
+        ) : (
+          <div key={r.id} className="frow planonly" title="On the plan only: not furnished">
+            <span className="sw" />
+            <span>{r.name}</span>
+            <small>{r.areaM2.toFixed(1)} m² · plan only</small>
+            <span />
+          </div>
+        ),
+      )}
     </div>
   );
 }

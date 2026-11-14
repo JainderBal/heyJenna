@@ -426,7 +426,8 @@ export function createViewer(host: HTMLElement, hooks: ViewerHooks): Viewer | nu
       ['left', d, new THREE.Vector3(-1, 0, 0)],
       ['right', d, new THREE.Vector3(1, 0, 0)],
     ];
-    stage.walls = specs.map(([wall, len, n]) => {
+    // a wall open to the next room (open-plan) is not built
+    stage.walls = specs.filter(([wall]) => !plan.walls?.[wall]?.open).map(([wall, len, n]) => {
       const wg = new THREE.Group();
       wg.userData.n = n;
       wg.userData.owned = true;

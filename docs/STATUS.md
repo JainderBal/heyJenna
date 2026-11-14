@@ -12,7 +12,7 @@ A moodboard plus a floor plan → every room laid out in 3D with real, buyable f
 **Studio web app (`apps/web`)**, a React port of the studio prototype:
 - Home: WebGL curved project carousel, 3D jenna, "+" new project.
 - Editor: Floor plan page + one page per room, each with layers (Moodboard, Palette, 3D room, Shopping list); Figma-like pan, zoom and focus.
-- Floor plan: read a plan photo (needs `ANTHROPIC_API_KEY`), or draw rooms / use the sample plan; isometric 3D floor plan of the whole home.
+- Floor plan: read a plan photo (needs `ANTHROPIC_API_KEY`), or draw rooms / use the sample plan; isometric 3D floor plan of the whole home. The reader handles real plans (feet and inches or metric, French or bilingual labels, dimension arrows, plans drawn sideways): every space becomes a room with a kind (bedroom, closet, laundry, balcony…), open-plan sides become open walls, and rooms jenna can't furnish yet stay on the plan only (no page). Tested on two plans in `apps/api/test/fixtures/floor-plans/`.
 - Moodboard: upload images, drag or paste pins from Pinterest (a separate window on the web, a side panel tab in the desktop app), remove an image. Pasting or dropping image files adds them to the board (`?append=1`); "Replace board" starts it again.
 - Find products → Lay out the room → live 360° 3D room with real IKEA models → Render (Blender) → the rendered room as a 360° 3D model (Render 3D / Live / Re-render).
 - Side panel tabs: jenna chat, live shopping list (photos, prices, seller links, 3D badge, "not for sale" built-ins and props), Style (the room's 55 dials by section: sliders, selects, chips, a measured / preset / edited hint, reset per dial and all, filter; saved with a debounced `PATCH /rooms/:roomId/style`).
@@ -33,14 +33,15 @@ Style dials: shape dials steer sourcing, materials/lighting/palette dials steer 
 
 ## Not built yet (roughly in priority order)
 
+0. **Furnish more than living rooms.** The layout engine only knows living-room and office furniture (sofa group, desk, shelves). Bedrooms, dining rooms, kitchens and bathrooms are plan-only until it learns beds, nightstands, dressers, dining tables and chairs (`FURNISHABLE_KINDS` in contracts). Then: a floor-plan review screen (detected rooms drawn over the upload, editable).
 1. **Login in the desktop app:** the magic link and Google return to a web URL, not the app's `hj://studio/` page.
 
-Not checked with real keys yet: Claude chat and floor-plan reading, Supabase login.
+Not checked with real keys yet: Claude chat, Supabase login. Floor-plan reading is checked with a real key (Claude Opus 5.5; Sonnet and Haiku read sizes as well but place rooms worse). `apps/api/scripts/read-plan.ts <image> [model]` reads a plan from the command line.
 
 ## How we work
 
 - **Branches and PRs:** every change goes on a feature branch and a PR into `main`. Agents work in their own git worktree (`git worktree add -b feat/x ~/repos/hey-jenna-x origin/main`) so parallel work doesn't collide.
-- **Before merging:** `npm test` (API ~190 tests with jest, web with vitest), `npx tsc -p apps/api --noEmit`, `npx tsc -p apps/web --noEmit`, `npm run build -w @hey-jenna/web`. New migrations: apply them to a scratch database and check `prisma migrate diff` shows no drift.
+- **Before merging:** `npm test` (API ~210 tests with jest, web with vitest), `npx tsc -p apps/api --noEmit`, `npx tsc -p apps/web --noEmit`, `npm run build -w @hey-jenna/web`. New migrations: apply them to a scratch database and check `prisma migrate diff` shows no drift.
 - **After pulling:** `npm install`, `npm run build -w @hey-jenna/contracts`, `cd apps/api && npx prisma generate && npx prisma migrate deploy`.
 - **Contracts:** request and response shapes live in `packages/contracts` (zod). The web app mirrors some response types by hand in `apps/web/src/api/types.ts`; move them into contracts when you touch them.
 - **No scraping:** sources use official APIs, IKEA's own public search, or search-engine results.

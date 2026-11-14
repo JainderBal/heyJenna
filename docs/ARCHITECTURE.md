@@ -83,7 +83,7 @@ stripped. More in [`apps/web/README.md`](../apps/web/README.md).
 | `app/` | `App.tsx`, `useEditorStore.ts` (zustand: page, selection, side-panel tabs, toast, focus), `openPinterest.ts` (docked window on the web), `desktopBridge.ts` (`window.heyJennaDesktop` typing) | |
 | `home/` | `Home.tsx`, `HomeCarousel.tsx` + `carousel3d.ts` (WebGL curved carousel), `plusCard.ts` (animated "+" card texture) | plain three.js driven from React refs |
 | `jenna/` | `JennaCube.tsx` + `jenna3d.ts` | the 3D terrazzo jenna |
-| `editor/` | `Editor.tsx` (shell), `Canvas.tsx` (pan/zoom/focus), `LeftPanel`, `Rail`, `Dock`, `Toast`, `icons.tsx`, `model.ts` (pages → frames → layers from API data), `plans.ts` (sample plan, placement), `colour.ts`, `useMoodboardPaste.ts`, `frames/FloorPlanFrames.tsx`, `frames/RoomFrames.tsx` | Frames are pure views over hooks |
+| `editor/` | `Editor.tsx` (shell), `Canvas.tsx` (pan/zoom/focus), `LeftPanel`, `Rail`, `Dock`, `Toast`, `icons.tsx`, `model.ts` (pages → frames → layers from API data), `plans.ts` (sample plan, placement), `colour.ts`, `useMoodboardPaste.ts`, `SwapPicker.tsx` (swap a shopping-list piece's product), `frames/FloorPlanFrames.tsx`, `frames/RoomFrames.tsx` | Frames are pure views over hooks |
 | `viewer/` | `RoomViewer.tsx` + `viewer3d.ts` (live 360° room / rendered `room.glb`), `models.ts` (GLB cache via `/api`), `pieces.ts` (clay stand-ins), `three-kit.ts` (shared terrazzo, environment, furnish set, plan shots) | |
 | `sidepanel/` | `SidePanel.tsx` (tabs), `ChatPanel.tsx`, `ShopPreview.tsx`, `PinterestPanel.tsx` (desktop only), `types.ts` | |
 | `styles/` | `studio.css`: one global sheet ported from the prototype | class names, no CSS modules |

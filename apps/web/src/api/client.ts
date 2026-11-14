@@ -91,9 +91,11 @@ export async function apiBlob(path: string, signal?: AbortSignal): Promise<Blob>
 function messageOf(data: unknown): string | null {
   if (typeof data === 'string') return data.trim() ? data.slice(0, 300) : null;
   if (data && typeof data === 'object' && 'message' in data) {
-    const m = (data as { message: unknown }).message;
+    const { message: m, problems } = data as { message: unknown; problems?: unknown };
+    // layout edits refuse a spot with {message, problems: [...]}
+    const why = Array.isArray(problems) && problems.length ? `: ${problems.join('; ')}` : '';
     if (Array.isArray(m)) return m.join('; ');
-    if (typeof m === 'string') return m;
+    if (typeof m === 'string') return m + why;
   }
   return null;
 }

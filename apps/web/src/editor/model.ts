@@ -96,20 +96,22 @@ export function shortTitle(title: string): string {
 /** Rows on the shopping list: the layout's list, else the picked listings. */
 export function listRows(d: Pick<RoomData, 'layout' | 'listings'>) {
   if (d.layout) {
-    const img = new Map(d.layout.objects.map((o) => [o.id, o.product?.imageUrl ?? null]));
+    const objs = new Map(d.layout.objects.map((o) => [o.id, o]));
     return d.layout.shoppingList.items.map((i) => ({
       id: i.objectId,
+      type: i.type,
+      listingId: objs.get(i.objectId)?.product?.listingId,
       title: i.title,
       sub: i.suggested ? 'no product yet' : sellerOf(i.source, i.url),
       price: i.price,
       currency: i.currency,
       url: i.url,
-      imageUrl: img.get(i.objectId) ?? null,
+      imageUrl: objs.get(i.objectId)?.product?.imageUrl ?? null,
     }));
   }
   return (d.listings ?? [])
     .filter((l) => l.picked)
-    .map((l) => ({ id: l.id, title: l.title, sub: sellerOf(l.source, l.url), price: l.price, currency: l.currency, url: l.url, imageUrl: l.imageUrl }));
+    .map((l) => ({ id: l.id, type: l.type as string, listingId: l.id, title: l.title, sub: sellerOf(l.source, l.url), price: l.price, currency: l.currency, url: l.url, imageUrl: l.imageUrl }));
 }
 
 /** The Floor plan page, as the prototype: Plan, 3D floor plan, Rooms found. With no rooms yet, the Plan frame is where they are added. */
@@ -179,4 +181,15 @@ export function roomFrames(room: Room, d: RoomData, palette: string[]): Frame[] 
       children: rows.map((r) => ({ id: `list/${r.id}`, name: shortTitle(r.title), icon: 'img' })),
     },
   ];
+}
+
+/** $180 / $34.50; a currency code Intl doesn't know falls back to "180 XYZ". */
+export function money(v: number | null, currency = 'CAD'): string {
+  if (v === null) return '—';
+  const digits = v % 1 ? 2 : 0;
+  try {
+    return new Intl.NumberFormat('en-CA', { style: 'currency', currency, currencyDisplay: 'narrowSymbol', minimumFractionDigits: digits, maximumFractionDigits: digits }).format(v);
+  } catch {
+    return `${v.toFixed(digits)} ${currency}`;
+  }
 }

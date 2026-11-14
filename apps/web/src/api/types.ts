@@ -128,6 +128,8 @@ export interface PlacedObject {
   colour_role?: string;
   product?: PlacedProduct;
   suggested?: boolean;
+  /** The piece this one stands on (it moves with it). */
+  on?: string;
   [extra: string]: unknown;
 }
 

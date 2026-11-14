@@ -2,17 +2,20 @@
  * The Shopping list tab (prototype: preview(), `.pv*` styles): one card per piece with photo, seller,
  * price, where it is and a link to the seller, then the room total. Data: the newest layout's
  * shopping list (photos and 3D models from layout.objects[].product); before there is a layout, the
- * room's picked listings.
+ * room's picked listings. With a layout, each card can "Swap" its product for another of the same type.
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useLatestLayout, useListings, useProjectRooms } from '../api/hooks';
 import type { Listing } from '../api/types';
 import { Bag, ExternalLink } from '../editor/icons';
 import { sellerOf, shortTitle } from '../editor/model';
+import { SwapPicker } from '../editor/SwapPicker';
 import type { SidePanelBodyProps } from './types';
 
 interface Card {
   key: string;
+  type: string;
+  listingId?: string;
   title: string;
   seller: string;
   url: string | null;
@@ -45,6 +48,7 @@ export function ShopPreview({ roomId, projectId }: SidePanelBodyProps) {
   const listingsQ = useListings(roomId);
   const layout = layoutQ.data;
   const listings = listingsQ.data;
+  const [swapping, setSwapping] = useState<string | null>(null);
 
   const { cards, total, currency, missing, fromLayout } = useMemo(() => {
     const byId = new Map((listings ?? []).map((l) => [l.id, l]));
@@ -55,6 +59,8 @@ export function ShopPreview({ roomId, projectId }: SidePanelBodyProps) {
         const l = prod ? byId.get(prod.listingId) : undefined;
         return {
           key: it.objectId,
+          type: it.type,
+          listingId: prod?.listingId,
           title: it.title,
           seller: sellerOf(it.source, it.url),
           url: it.url,
@@ -71,6 +77,8 @@ export function ShopPreview({ roomId, projectId }: SidePanelBodyProps) {
     const picked = (listings ?? []).filter((l) => l.picked);
     const cards: Card[] = picked.map((l) => ({
       key: l.id,
+      type: l.type,
+      listingId: l.id,
       title: l.title,
       seller: sellerOf(l.source, l.url),
       url: l.url,
@@ -153,10 +161,20 @@ export function ShopPreview({ roomId, projectId }: SidePanelBodyProps) {
                   {c.note}
                   {c.suggested ? ' · suggested' : ''}
                 </small>
-                {c.url && (
-                  <a className="plink" href={c.url} target="_blank" rel="noopener noreferrer">
-                    View on {c.seller} <ExternalLink />
-                  </a>
+                <div className="pacts">
+                  {c.url && (
+                    <a className="plink" href={c.url} target="_blank" rel="noopener noreferrer">
+                      View on {c.seller} <ExternalLink />
+                    </a>
+                  )}
+                  {fromLayout && (
+                    <button type="button" className="swap-btn" aria-expanded={swapping === c.key} onClick={() => setSwapping(swapping === c.key ? null : c.key)}>
+                      {c.suggested ? 'Pick a product' : 'Swap'}
+                    </button>
+                  )}
+                </div>
+                {fromLayout && layout && roomId && swapping === c.key && (
+                  <SwapPicker roomId={roomId} layoutId={layout.id} objectId={c.key} type={c.type} listingId={c.listingId} onClose={() => setSwapping(null)} />
                 )}
               </div>
             </article>

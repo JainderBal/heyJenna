@@ -272,17 +272,39 @@ export type ObjectEdit =
   | { listingId: string }
   | { wall?: Wall; position?: number; height?: number };
 
+const objectPath = (roomId: string, layoutId: string, objectId: string) => `/rooms/${roomId}/layouts/${layoutId}/objects/${encodeURIComponent(objectId)}`;
+
+/** An edit answers the whole layout: put it in both caches and refresh its shopping list. */
+function useStoreEdit(roomId: string, layoutId: string) {
+  const qc = useQueryClient();
+  return (r: EditResult) => {
+    qc.setQueryData(qk.layout(roomId, layoutId), r.layout);
+    qc.setQueryData<Layout[]>(qk.layouts(roomId), (old) => old?.map((l) => (l.id === layoutId ? r.layout : l)));
+    qc.invalidateQueries({ queryKey: qk.shoppingList(roomId, layoutId) });
+  };
+}
+
 /** Move / turn / swap / re-hang one piece. Answers the whole layout plus warnings. */
 export function usePatchLayoutObject(roomId: string, layoutId: string) {
   const qc = useQueryClient();
+  const store = useStoreEdit(roomId, layoutId);
   return useMutation({
     mutationFn: ({ objectId, edit }: { objectId: string; edit: ObjectEdit }) =>
-      api<EditResult>(`/rooms/${roomId}/layouts/${layoutId}/objects/${encodeURIComponent(objectId)}`, { method: 'PATCH', body: edit }),
-    onSuccess: (r) => {
-      qc.setQueryData(qk.layout(roomId, layoutId), r.layout);
-      qc.setQueryData<Layout[]>(qk.layouts(roomId), (old) => old?.map((l) => (l.id === layoutId ? r.layout : l)));
-      qc.invalidateQueries({ queryKey: qk.shoppingList(roomId, layoutId) });
+      api<EditResult>(objectPath(roomId, layoutId, objectId), { method: 'PATCH', body: edit }),
+    onSuccess: (r, { edit }) => {
+      store(r);
+      // a swap marks the new product picked
+      if ('listingId' in edit) qc.invalidateQueries({ queryKey: qk.listings(roomId) });
     },
+  });
+}
+
+/** Take a piece out (and whatever stands on it). */
+export function useDeleteLayoutObject(roomId: string, layoutId: string) {
+  const store = useStoreEdit(roomId, layoutId);
+  return useMutation({
+    mutationFn: (objectId: string) => api<EditResult>(objectPath(roomId, layoutId, objectId), { method: 'DELETE' }),
+    onSuccess: store,
   });
 }
 

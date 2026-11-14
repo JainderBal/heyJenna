@@ -16,6 +16,8 @@ A moodboard plus a floor plan → every room laid out in 3D with real, buyable f
 - Moodboard: upload images, drag or paste pins from Pinterest (a separate window on the web, a side panel tab in the desktop app), remove an image.
 - Find products → Lay out the room → live 360° 3D room with real IKEA models → Render (Blender) → the rendered room as a 360° 3D model (Render 3D / Live / Re-render).
 - Side panel tabs: jenna chat, live shopping list (photos, prices, seller links, 3D badge, "not for sale" built-ins and props).
+- Edit furniture in the live 3D room: click a piece to pick it, drag it over the floor (5 cm snap), turn it (±15°, 90°, R / Shift+R), remove it (button or Delete). Saved through `PATCH/DELETE …/layouts/:layoutId/objects/:objectId`; the API's refusals and warnings show in the viewer. Live mode only.
+- Swap a product: "Swap" on each shopping-list piece (frame and side panel) lists the room's other listings of the same type, or takes a pasted product link as a candidate (`PATCH …/objects/:objectId {listingId}`).
 
 **Desktop app (`apps/desktop`)**: Electron shell for Mac: the studio, with pinterest.com as a side panel tab (persistent login, "+ Add to moodboard" on pins), unsigned `.dmg` via `npm run dist -w @hey-jenna/desktop`.
 
@@ -25,8 +27,6 @@ Style dials: shape dials steer sourcing, materials/lighting/palette dials steer 
 
 ## Not built yet (roughly in priority order)
 
-1. **Edit furniture in the 3D room:** move, rotate, swap a product, remove. The API supports all of it (`PATCH/POST /rooms/:roomId/layouts/:layoutId/objects`); the UI doesn't.
-2. **Swap a product** from the search results in the shopping list.
 3. **Save room positions on the plan** in the API (today they're in the browser's localStorage).
 4. **Layout and props style dials** (symmetry, furniture float, rug shape, curtains, art and textile amounts…): unfinished work on branch `feat/dials-layout` (all tests pass, not reviewed).
 5. **Style dial editing UI** (the API already accepts `PATCH /rooms/:roomId/style`).

@@ -7,7 +7,8 @@ import { openPinterestWindow } from '../../app/openPinterest';
 import { toast, useEditorStore } from '../../app/useEditorStore';
 import { RoomViewer, type RenderModelState } from '../../viewer/RoomViewer';
 import { shade } from '../colour';
-import { listRows, shortTitle } from '../model';
+import { listRows, money, shortTitle } from '../model';
+import { SwapPicker } from '../SwapPicker';
 
 /** The prototype's tile layout: [size, palette index, label]. */
 const MOOD: [string, number, string][] = [
@@ -205,6 +206,7 @@ export function Room3DFrame({ room, layout, palette }: { room: Room; layout: Lay
         render={shown?.modelUrl ? { jobId: shown.id, path: shown.modelUrl } : null}
         mode={mode}
         onRenderState={setModelState}
+        editable
       />
       <div className="vbtns" style={{ left: 'auto', right: 12, top: 12, bottom: 'auto', transform: 'none' }}>
         {shown && (
@@ -236,9 +238,11 @@ export function ShoppingListFrame({ room, layout, listings }: { room: Room; layo
   const total = layout ? layout.shoppingList.total : rows.reduce((a, r) => a + (r.price ?? 0), 0);
   const currency = layout?.shoppingList.currency ?? rows[0]?.currency ?? 'CAD';
   const found = listings?.length ?? 0;
+  const [swapping, setSwapping] = useState<string | null>(null);
 
   return (
-    <div className="list">
+    // the frame is sized to the list; while a swap is open the list scrolls inside it (wheel included)
+    <div className={`list${swapping ? ' scroll' : ''}`} data-own-wheel={swapping ? '' : undefined}>
       <h4>Shopping list</h4>
       {!rows.length && (
         <p className="empty">
@@ -248,19 +252,34 @@ export function ShoppingListFrame({ room, layout, listings }: { room: Room; layo
         </p>
       )}
       {rows.map((r) => (
-        <div key={r.id} className="row2">
-          {r.imageUrl ? <img alt="" src={r.imageUrl} loading="lazy" referrerPolicy="no-referrer" /> : <span className="ph" />}
-          <div>
-            {r.url ? (
-              <a href={r.url} target="_blank" rel="noopener noreferrer" title={r.title}>
-                <b>{shortTitle(r.title)}</b>
-              </a>
-            ) : (
-              <b title={r.title}>{shortTitle(r.title)}</b>
-            )}
-            <small>{r.sub}</small>
+        <div key={r.id}>
+          <div className="row2">
+            {r.imageUrl ? <img alt="" src={r.imageUrl} loading="lazy" referrerPolicy="no-referrer" /> : <span className="ph" />}
+            <div>
+              {r.url ? (
+                <a href={r.url} target="_blank" rel="noopener noreferrer" title={r.title}>
+                  <b>{shortTitle(r.title)}</b>
+                </a>
+              ) : (
+                <b title={r.title}>{shortTitle(r.title)}</b>
+              )}
+              <small>
+                {r.sub}
+                {layout && (
+                  <>
+                    {' · '}
+                    <button type="button" className="swap-btn" onPointerDown={(e) => e.stopPropagation()} onClick={() => setSwapping(swapping === r.id ? null : r.id)}>
+                      Swap
+                    </button>
+                  </>
+                )}
+              </small>
+            </div>
+            <div className="p">{money(r.price, r.currency)}</div>
           </div>
-          <div className="p">{money(r.price, r.currency)}</div>
+          {layout && swapping === r.id && (
+            <SwapPicker roomId={room.id} layoutId={layout.id} objectId={r.id} type={r.type} listingId={r.listingId} onClose={() => setSwapping(null)} />
+          )}
         </div>
       ))}
       {rows.length > 0 && (
@@ -299,15 +318,4 @@ export function ShoppingListFrame({ room, layout, listings }: { room: Room; layo
       </div>
     </div>
   );
-}
-
-/** $180 / $34.50; a currency code Intl doesn't know falls back to "180 XYZ". */
-function money(v: number | null, currency = 'CAD'): string {
-  if (v === null) return '—';
-  const digits = v % 1 ? 2 : 0;
-  try {
-    return new Intl.NumberFormat('en-CA', { style: 'currency', currency, currencyDisplay: 'narrowSymbol', minimumFractionDigits: digits, maximumFractionDigits: digits }).format(v);
-  } catch {
-    return `${v.toFixed(digits)} ${currency}`;
-  }
 }

@@ -5,6 +5,11 @@
  * doors); each layout object is drawn where the layout engine put it, as the real product model
  * when it has one, else as a procedural clay piece in the palette.
  *
+ * Editing (live room only, `setEditable(true)`): a click on a piece picks it (`onPick`, outlined in
+ * the selection blue), dragging a floor piece slides it over the floor in 5 cm steps instead of
+ * orbiting, and letting go reports the new spot (`onDrop`, plan metres). `pose()` shows a turn
+ * before the API answers; the next `build()` is the truth.
+ *
  * It can also show a finished Blender render's room (`room.glb`) in the same orbit: `setRender()`
  * loads it, `setMode('render' | 'live')` picks which room is on screen. Both share the prototype's soft,
  * bright light rig (see LOOK and `rig()`).
@@ -32,8 +37,22 @@ export interface ViewerScene {
   palette: string[];
 }
 
+export interface ViewerHooks {
+  onAuto(on: boolean): void;
+  /** A piece was clicked (its layout object id), or empty space (null). */
+  onPick?(id: string | null): void;
+  /** A dragged floor piece was let go at (x, y) in plan metres. */
+  onDrop?(id: string, x: number, y: number): void;
+}
+
 export interface Viewer {
   build(s: ViewerScene): void;
+  /** Let the live room's pieces be picked and dragged. */
+  setEditable(on: boolean): void;
+  /** Outline one piece (null: none). Kept across rebuilds while the piece exists. */
+  select(id: string | null): void;
+  /** Show a piece turned to `rotationDeg` straight away (the API's answer rebuilds the room). */
+  pose(id: string, rotationDeg: number): void;
   /** Load (or drop, with null) the render's room; resolves once it is ready to show. */
   setRender(r: RenderModel | null): Promise<void>;
   setMode(m: ViewMode): void;
@@ -57,6 +76,22 @@ const FLOORS: Record<string, string> = {
   carpet: '#C8B9A6', vinyl: '#BFA585', laminate: '#B88A5F',
 };
 const DOOR_H = 2.05;
+/** Drag snap: 5 cm. */
+const SNAP = 0.05;
+const snap = (v: number) => Math.round(Math.round(v / SNAP) * SNAP * 1000) / 1000;
+const SELECT = new THREE.Color('#0D99FF');
+/** Layers a person may move (the API's MOVABLE_LAYERS); built-ins and the shell stay put. */
+const MOVABLE = new Set(['furniture', 'soft_furnishings', 'lighting', 'plants', 'decor']);
+/** Pickable: anything movable, and wall pieces (they can be swapped or taken down). */
+const pickable = (o: PlacedObject) => MOVABLE.has(o.layer) || o.mount === 'wall';
+/** Draggable over the floor: a movable floor piece that doesn't stand on another. */
+export const draggable = (o: PlacedObject) => MOVABLE.has(o.layer) && (o.mount ?? 'floor') === 'floor' && !o.on;
+
+/** A placed piece in the live room: its slot (moved and turned as a whole) and its layout object. */
+interface Piece {
+  slot: THREE.Group;
+  o: PlacedObject;
+}
 
 /**
  * The prototype's viewer look (viewerFor in saas-ui/hey-jenna-app.html), for both rooms:
@@ -81,7 +116,7 @@ const LOOK = {
 const LIGHT_WALL = lc('#F6F0E4');
 const LIGHT_FLOOR = lc('#B88A5F');
 
-export function createViewer(host: HTMLElement, onAuto: (on: boolean) => void): Viewer | null {
+export function createViewer(host: HTMLElement, hooks: ViewerHooks): Viewer | null {
   let renderer: THREE.WebGLRenderer;
   try {
     renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -119,29 +154,96 @@ export function createViewer(host: HTMLElement, onAuto: (on: boolean) => void): 
   let modelsRoom = '';
   const setAuto = (on: boolean) => {
     V.auto = on;
-    onAuto(on);
+    hooks.onAuto(on);
   };
 
-  // orbit: drag to turn, wheel to zoom
-  let drag: { x: number; y: number } | null = null;
+  // editing state: the live room's pieces by object id, its floor group and size
+  const pieces = new Map<string, Piece>();
+  let floorG: THREE.Group | null = null;
+  let roomW = 0;
+  let roomD = 0;
+  let editable = false;
+  let selected: string | null = null;
+  let outline: THREE.Object3D | null = null;
+  const ray = new THREE.Raycaster();
+  const ndc = new THREE.Vector2();
+  const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const hitV = new THREE.Vector3();
+
+  function aim(e: PointerEvent) {
+    const r = cv.getBoundingClientRect();
+    ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, cam);
+  }
+  /** The piece under the pointer, if any. */
+  function pieceAt(e: PointerEvent): Piece | null {
+    aim(e);
+    const hit = ray.intersectObjects([...pieces.values()].filter((p) => pickable(p.o)).map((p) => p.slot), true)[0];
+    for (let o: THREE.Object3D | null = hit?.object ?? null; o; o = o.parent) {
+      const id = o.userData.objectId as string | undefined;
+      if (id) return pieces.get(id) ?? null;
+    }
+    return null;
+  }
+  /** Where the pointer meets the floor, in plan metres (x, y); null if it misses. */
+  function floorAt(e: PointerEvent): { x: number; y: number } | null {
+    aim(e);
+    if (!floorG || !ray.ray.intersectPlane(floorPlane, hitV)) return null;
+    const p = floorG.worldToLocal(hitV.clone());
+    return { x: p.x, y: p.z };
+  }
+
+  // orbit: drag to turn, wheel to zoom; in edit mode a drag that starts on a floor piece moves it instead
+  let drag: { x: number; y: number; sx: number; sy: number } | null = null;
+  let move: { p: Piece; ox: number; oy: number; kids: { slot: THREE.Group; x: number; z: number }[]; x0: number; z0: number; moved: boolean } | null = null;
   const onDown = (e: PointerEvent) => {
     e.stopPropagation();
-    drag = { x: e.clientX, y: e.clientY };
     setAuto(false);
     try {
       cv.setPointerCapture(e.pointerId);
     } catch {
       /* ignore */
     }
+    const p = editable && mode === 'live' ? pieceAt(e) : null;
+    if (p) {
+      hooks.onPick?.(p.o.id);
+      const at = floorAt(e);
+      if (at && draggable(p.o)) {
+        const { slot } = p;
+        const kids = [...pieces.values()].filter((k) => k.o.on === p.o.id).map((k) => ({ slot: k.slot, x: k.slot.position.x, z: k.slot.position.z }));
+        move = { p, ox: slot.position.x - at.x, oy: slot.position.z - at.y, kids, x0: slot.position.x, z0: slot.position.z, moved: false };
+        cv.classList.add('grab');
+      }
+      return;
+    }
+    drag = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY };
     cv.classList.add('grab');
   };
   const onMove = (e: PointerEvent) => {
+    if (move) {
+      const at = floorAt(e);
+      if (!at) return;
+      const { slot } = move.p;
+      const x = snap(Math.max(0, Math.min(roomW, at.x + move.ox)));
+      const z = snap(Math.max(0, Math.min(roomD, at.y + move.oy)));
+      if (x === slot.position.x && z === slot.position.z) return;
+      move.moved = true;
+      slot.position.x = x;
+      slot.position.z = z;
+      for (const k of move.kids) k.slot.position.set(k.x + x - move.x0, k.slot.position.y, k.z + z - move.z0);
+      return;
+    }
     if (!drag) return;
     V.taz -= (e.clientX - drag.x) * 0.01;
     V.tel = Math.max(0.08, Math.min(1.45, V.tel + (e.clientY - drag.y) * 0.008));
-    drag = { x: e.clientX, y: e.clientY };
+    drag.x = e.clientX;
+    drag.y = e.clientY;
   };
-  const onUp = () => {
+  const onUp = (e: PointerEvent) => {
+    if (move?.moved) hooks.onDrop?.(move.p.o.id, move.p.slot.position.x, move.p.slot.position.z);
+    // a click (not an orbit) on empty space drops the selection
+    if (drag && editable && e.type === 'pointerup' && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 4) hooks.onPick?.(null);
+    move = null;
     drag = null;
     cv.classList.remove('grab');
   };
@@ -218,6 +320,31 @@ export function createViewer(host: HTMLElement, onAuto: (on: boolean) => void): 
       if (o.userData.owned) disposeTree(o);
     });
     live = null;
+    pieces.clear();
+    outline = null;
+    floorG = null;
+    move = null;
+  }
+
+  /** Outline the selected piece: its layout box in the selection blue, drawn over everything. */
+  function select(id: string | null) {
+    selected = id;
+    if (outline) {
+      outline.removeFromParent();
+      disposeTree(outline);
+      outline = null;
+    }
+    const p = id ? pieces.get(id) : undefined;
+    if (!p) return;
+    const { w, d, h } = p.o.size;
+    const box = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(w + 0.04, h + 0.04, d + 0.04)),
+      new THREE.LineBasicMaterial({ color: SELECT, depthTest: false, transparent: true }),
+    );
+    box.position.y = h / 2;
+    box.renderOrder = 10;
+    p.slot.add(box);
+    outline = box;
   }
 
   function clearRendered() {
@@ -266,6 +393,9 @@ export function createViewer(host: HTMLElement, onAuto: (on: boolean) => void): 
     const TH = 0.1;
     const g = new THREE.Group();
     g.position.set(-w / 2, 0, -d / 2);
+    floorG = g;
+    roomW = w;
+    roomD = d;
     const root = new THREE.Group();
     root.add(g);
     const stage: Stage = { group: root, walls: [], base: Math.max(w, d) * 1.8 + 2.2, half: Math.max(w, d) / 2 + 1.5 };
@@ -347,6 +477,8 @@ export function createViewer(host: HTMLElement, onAuto: (on: boolean) => void): 
     // already builds from the floor plan or which aren't physical, so skip them
     const SHELL = new Set(['floor', 'wall', 'ceiling', 'zone', 'window', 'door', 'opening']);
     for (const o of layout?.objects ?? []) if (!SHELL.has(o.type)) placeObject(g, o, P, H, my);
+    root.updateMatrixWorld(true);
+    select(selected);
 
     // light and camera for this room size (a new room starts from the default view)
     const key = `${roomId}|${w}|${d}`;
@@ -363,6 +495,8 @@ export function createViewer(host: HTMLElement, onAuto: (on: boolean) => void): 
     const slot = new THREE.Group();
     slot.position.set(o.position.x, Math.max(0, base), o.position.y);
     slot.rotation.y = THREE.MathUtils.degToRad(o.rotation_deg ?? 0);
+    slot.userData.objectId = o.id;
+    pieces.set(o.id, { slot, o });
     g.add(slot);
     const clay = clayPiece(kind, w, h, d, pieceColour(kind, P, o.colour), P);
     clay.userData.owned = true;
@@ -396,6 +530,15 @@ export function createViewer(host: HTMLElement, onAuto: (on: boolean) => void): 
   return {
     build,
     setRender,
+    setEditable(on) {
+      editable = on;
+      if (!on) move = null;
+    },
+    select,
+    pose(id, rotationDeg) {
+      const p = pieces.get(id);
+      if (p) p.slot.rotation.y = THREE.MathUtils.degToRad(rotationDeg);
+    },
     setMode(m) {
       if (m === mode) return;
       mode = m;

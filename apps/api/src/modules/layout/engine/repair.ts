@@ -57,9 +57,11 @@ export async function solveWithRepairs(engine: LayoutEngine, spec: EngineSpec, r
 
     const why = [...fails.map((c) => `${c.rule}: ${c.detail}`), ...missing.map((m) => `no room for ${m.id}: ${m.why}`)].join('; ');
     const named = new Set(fails.flatMap((c) => [...c.detail.matchAll(/[a-z_]+_\d+/g)].map((m) => m[0])));
+    // a rule that names the piece in trouble ("blocked: armchair_1") points at the fix: drop that piece first;
+    // only when nothing optional is named (e.g. no room for the desk) do the least important extras go
     const victim =
-      DROP_ORDER.map((test) => [...current.furniture].reverse().find(test)).find(Boolean) ??
-      current.furniture.filter((f) => named.has(f.id) && !KEEP.has(f.type)).sort((a, b) => rank(a) - rank(b))[0];
+      current.furniture.filter((f) => named.has(f.id) && !KEEP.has(f.type)).sort((a, b) => rank(a) - rank(b))[0] ??
+      DROP_ORDER.map((test) => [...current.furniture].reverse().find(test)).find(Boolean);
     if (!victim) return finish(best, spec);
 
     dropped.push({ id: victim.id, name: victim.name, why: `room too full (${why})` });

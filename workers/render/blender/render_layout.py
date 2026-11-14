@@ -395,7 +395,7 @@ def p_plant(o):
             if ob not in before and ob.parent is None: ob.location.z += y0
 
 def a_art(o):
-    arr = (PROF.get("art", {}) or {}).get("arrangement", "gallery")
+    arr = o.get("arrangement") or (PROF.get("art", {}) or {}).get("arrangement", "gallery")
     frames = {"gallery": [(-1.6, 1.75, 0.42, 0.56), (-1.05, 1.95, 0.5, 0.4), (-1.05, 1.5, 0.5, 0.3), (-0.45, 1.8, 0.4, 0.62), (0.05, 2.05, 0.36, 0.36),
                           (0.05, 1.55, 0.36, 0.46), (0.55, 1.85, 0.3, 0.4), (-1.6, 2.25, 0.3, 0.25), (-0.45, 2.3, 0.4, 0.22)],
               "pair": [(-0.33, 1.8, 0.6, 0.8), (0.33, 1.8, 0.6, 0.8)], "single": [(0.0, 1.8, 1.0, 0.75)]}[arr]
@@ -412,13 +412,33 @@ def a_art(o):
         put(0.01, 0.035, h_ - 0.07, w_ - 0.07, mat("#F4ECDD", 0.8))
         put(0.01, 0.042, (h_ - 0.07) * 0.55, (w_ - 0.07) * 0.6, mat(ARTS[k % len(ARTS)], 0.8), dy=0.04 if k % 2 else -0.03)
 
+def on_wall(o, t, dd, hh, ww, m, u=0.0, dy=0.0, r=0.005):
+    """A flat box on the piece's wall: t thick, dd out from the wall, ww along it, hh tall, centred at its height."""
+    x, yc, z = at(o); wall = o.get("wall", "left")
+    if wall == "left": box(t, hh, ww, m, (-W / 2 + dd, yc + dy, z + u), r=r)
+    elif wall == "back": box(ww, hh, t, m, (x + u, yc + dy, -D / 2 + dd), r=r)
+
+def w_mirror(o):  # stand-in: thin frame and a glossy pale-blue glass
+    w, h = o["size"]["w"], o["size"]["h"]
+    on_wall(o, 0.03, 0.017, h, w, mat(col(o, "#C9A15A"), 0.4))
+    on_wall(o, 0.01, 0.035, h - 0.06, w - 0.06, gloss("#DCE6EC", 0.04))
+
+def w_shelf(o):  # stand-in: a plank with a few books and a small pot
+    w = o["size"]["w"]; m = mat(col(o, MAT.get("wood", "#B9733A")), 0.6)
+    on_wall(o, o["size"]["d"], o["size"]["d"] / 2, 0.025, w, m, r=0.004)
+    for k, (bu, bw, bh) in enumerate(((-0.3, 0.05, 0.22), (-0.24, 0.04, 0.19), (-0.19, 0.05, 0.24), (0.22, 0.12, 0.1))):
+        if abs(bu) * 2 + bw > w: continue
+        on_wall(o, 0.16 if k < 3 else 0.12, 0.1, bh, bw, mat(ARTS[k % len(ARTS)], 0.8), u=bu * w / 0.8, dy=0.0125 + bh / 2)
+
 def z_zone(o):  # invisible helper box
     x, _, z = at(o); e = grp(x, 0.5, z, 0, o["name"]); e.empty_display_type = "CUBE"
     e.scale = (o["size"]["w"] / 2, o["size"]["d"] / 2, 0.5); e.hide_render = True
 
 # ---------------------------------------------------------------- real product models (e.g. IKEA's own 3D files)
 FLOOR_TOP = 0.008  # top of the floor slab (0.006) plus a hair, so nothing sinks into it
-MODEL_TYPES = ("sofa", "armchair", "coffee_table", "side_table", "shelf", "desk", "desk_chair", "sideboard", "pouf", "cat_tree", "rug", "plant")
+MODEL_TYPES = ("sofa", "armchair", "coffee_table", "side_table", "shelf", "desk", "desk_chair", "sideboard", "pouf", "cat_tree", "rug", "plant",
+               "art", "mirror", "wall_shelf")
+WALL_TYPES = ("art", "mirror", "wall_shelf")
 MODEL_IDS = {o["id"] for o in LAY["objects"] if o.get("model_path") and o["type"] in MODEL_TYPES}
 
 def m_model(o, fallback):
@@ -436,9 +456,19 @@ def m_model(o, fallback):
     if not meshes:
         for x in new: bpy.data.objects.remove(x, do_unlink=True)
         return fallback(o) if fallback else None
-    bpy.context.view_layer.update()
-    pts = [x.matrix_world @ Vector(c) for x in meshes for c in x.bound_box]
-    mn = Vector([min(p[i] for p in pts) for i in range(3)]); mx = Vector([max(p[i] for p in pts) for i in range(3)]); dims = mx - mn
+    def bounds():
+        bpy.context.view_layer.update()
+        pts = [x.matrix_world @ Vector(c) for x in meshes for c in x.bound_box]
+        lo = Vector([min(p[i] for p in pts) for i in range(3)]); hi = Vector([max(p[i] for p in pts) for i in range(3)])
+        return lo, hi, hi - lo
+    mn, mx, dims = bounds()
+    if o["type"] in WALL_TYPES and dims.z < 0.5 * min(dims.x, dims.y):
+        # some pictures are modelled lying flat, face up: stand them up (+90° about X turns the face from +Z to -Y, the front)
+        flat = bpy.data.objects.new(o["name"] + ".upright", None); sc.collection.objects.link(flat)
+        for x in new:
+            if x.parent is None: x.parent = flat
+        flat.rotation_euler = (math.pi / 2, 0, 0); new.append(flat)
+        mn, mx, dims = bounds()
     want = (o["size"]["w"], o["size"]["d"], o["size"]["h"])
     # the plan's long side runs along the wall (x); if the model's long side runs the other way, turn it 90°
     turn = abs(want[0] - want[1]) > 0.15 and abs(dims.x - dims.y) > 0.15 and (want[0] > want[1]) != (dims.x > dims.y)
@@ -454,7 +484,10 @@ def m_model(o, fallback):
         if x.parent is None: x.parent = inner
     # centred on its footprint and standing ON the floor surface (the floor slab's top is at +6 mm;
     # a flat rug placed at 0 would vanish inside it)
-    inner.location = (-(mn.x + mx.x) / 2, -(mn.y + mx.y) / 2, -mn.z + FLOOR_TOP)
+    if o["type"] in WALL_TYPES:  # hung: centred on its height, its back flat against the wall
+        inner.location = (-(mn.x + mx.x) / 2, o["size"]["d"] / 2 - mx.y, -(mn.z + mx.z) / 2)  # wall is behind (+Y local)
+    else:
+        inner.location = (-(mn.x + mx.x) / 2, -(mn.y + mx.y) / 2, -mn.z + FLOOR_TOP)
     root = bpy.data.objects.new(o["name"] + ".model", None); sc.collection.objects.link(root)
     inner.parent = root
     root.scale = (s, s, s); root.rotation_euler = (0, 0, math.pi / 2 if turn else 0)
@@ -467,6 +500,7 @@ BUILD = dict(floor=a_floor, wall=a_wall, window=a_window, door=a_door,
              sofa=b_sofa, coffee_table=b_coffee, sideboard=b_sideboard, desk=b_desk, desk_chair=b_deskchair, shelf=b_spiral,
              pouf=b_pouf, cat_tree=b_cattree, rug=s_rug, curtain=s_curtain, throw=s_throw, cushion=s_cushion,
              ceiling_light=l_pendant, floor_lamp=l_floor, table_lamp=l_table, plant=p_plant, art=a_art, zone=z_zone,
+             mirror=w_mirror, wall_shelf=w_shelf,
              armchair=lambda o: (b_tube if o.get("style") == "tube" else b_lounge)(o),
              side_table=lambda o: (b_stool if o.get("style") == "stool" else b_drum)(o))
 for o in LAY["objects"]:

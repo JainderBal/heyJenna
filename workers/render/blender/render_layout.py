@@ -411,6 +411,39 @@ def z_zone(o):  # invisible helper box
     x, _, z = at(o); e = grp(x, 0.5, z, 0, o["name"]); e.empty_display_type = "CUBE"
     e.scale = (o["size"]["w"] / 2, o["size"]["d"] / 2, 0.5); e.hide_render = True
 
+# ---------------------------------------------------------------- real product models (e.g. IKEA's own 3D files)
+MODEL_TYPES = ("sofa", "armchair", "coffee_table", "side_table", "shelf", "desk", "desk_chair", "sideboard", "pouf", "cat_tree", "rug", "plant")
+MODEL_IDS = {o["id"] for o in LAY["objects"] if o.get("model_path") and o["type"] in MODEL_TYPES}
+
+def m_model(o, fallback):
+    """Import the product's GLB, sit it on the floor centred on its spot, turned like the plan says.
+    IKEA models are true to size and face -Y like our own pieces; scale only if they disagree with the plan by >25 %."""
+    before = set(bpy.data.objects)
+    try:
+        bpy.ops.import_scene.gltf(filepath=o["model_path"])
+    except Exception as e:
+        print("model import failed for", o["id"], e)
+        for x in set(bpy.data.objects) - before: bpy.data.objects.remove(x, do_unlink=True)
+        return fallback(o) if fallback else None
+    new = [x for x in bpy.data.objects if x not in before]
+    meshes = [x for x in new if x.type == "MESH"]
+    if not meshes:
+        for x in new: bpy.data.objects.remove(x, do_unlink=True)
+        return fallback(o) if fallback else None
+    bpy.context.view_layer.update()
+    pts = [x.matrix_world @ Vector(c) for x in meshes for c in x.bound_box]
+    mn = Vector([min(p[i] for p in pts) for i in range(3)]); mx = Vector([max(p[i] for p in pts) for i in range(3)]); dims = mx - mn
+    want = (o["size"]["w"], o["size"]["d"], o["size"]["h"])
+    ratios = sorted(w / max(d, 1e-3) for w, d in zip(want, dims) if w > 0.05)
+    s = 1.0 if all(0.75 <= r <= 1.33 for r in ratios) else max(0.5, min(2.0, ratios[len(ratios) // 2]))
+    g = place(o)
+    root = bpy.data.objects.new(o["name"] + ".model", None); sc.collection.objects.link(root)
+    for x in new:
+        if x.parent is None: x.parent = root
+    root.scale = (s, s, s); root.location = (-(mn.x + mx.x) / 2 * s, -(mn.y + mx.y) / 2 * s, -mn.z * s)
+    root.parent = g
+    print(f"model {o['id']}: {dims.x:.2f}x{dims.y:.2f}x{dims.z:.2f} m, scale {s:.2f}")
+
 BUILD = dict(floor=a_floor, wall=a_wall, window=a_window, door=a_door,
              platform=f_platform, niche=f_niche, window_seat=f_window_seat, ceiling_beam=f_beam, half_wall=f_half_wall,
              built_in_shelf=f_built_in, feature_wall=f_wall_finish, wainscoting=f_wall_finish,
@@ -421,8 +454,11 @@ BUILD = dict(floor=a_floor, wall=a_wall, window=a_window, door=a_door,
              side_table=lambda o: (b_stool if o.get("style") == "stool" else b_drum)(o))
 for o in LAY["objects"]:
     if o["id"] in SKIPPED: continue
+    # cushions/throws were shaped for our stand-in sofa: leave them off a real product model
+    if o["type"] in ("cushion", "throw") and o.get("on") in MODEL_IDS: continue
     fn = BUILD.get(o["type"], d_prop if o["layer"] == "decor" else None)
-    if fn: build(o["name"], o["layer"], fn, o)
+    if o["id"] in MODEL_IDS: build(o["name"], o["layer"], m_model, o, fn)
+    elif fn: build(o["name"], o["layer"], fn, o)
     else: print("no builder for", o["type"])
 
 # ---------------------------------------------------------------- daylight: v6 sun + sky, a soft area light per window

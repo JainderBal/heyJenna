@@ -48,10 +48,6 @@ export const Bag = () => (
   </svg>
 );
 
-export const Close = () => (
-  <svg width="12" height="12" viewBox="0 0 12 12" stroke="currentColor" strokeWidth="1.4"><path d="M2 2l8 8M10 2l-8 8" /></svg>
-);
-
 export const Plus = () => (
   <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3"><path d="M7 2v10M2 7h10" /></svg>
 );

@@ -25,7 +25,7 @@ export function lc(c: THREE.ColorRepresentation): THREE.Color {
 
 export const reduceMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-export const TERRAZZO_CHIPS = ['#2E8B7A', '#3E7D55', '#E8A0B8', '#B9A4D9', '#E8955A', '#7FB7C9', '#C9B48A', '#D96C6C'];
+const TERRAZZO_CHIPS = ['#2E8B7A', '#3E7D55', '#E8A0B8', '#B9A4D9', '#E8955A', '#7FB7C9', '#C9B48A', '#D96C6C'];
 
 /** Terrazzo canvas texture: a base colour with random stone chips. `speckle` adds jenna's fine grain. */
 export function terrazzo(base = '#F4EEE7', cols = TERRAZZO_CHIPS, speckle = false): THREE.CanvasTexture {
@@ -139,7 +139,7 @@ export const lightest = (P: string[]) => [...P].sort((a, b) => lum(b) - lum(a))[
 type MatFn = (c: THREE.ColorRepresentation) => THREE.Material;
 
 /** The prototype's room set by room kind (bed, kitchen, dining, bath, desk, else a living room). */
-export function furnish(g: THREE.Group, kind: string, x: number, z: number, w: number, d: number, P: string[], mat: MatFn) {
+function furnish(g: THREE.Group, kind: string, x: number, z: number, w: number, d: number, P: string[], mat: MatFn) {
   const box = (bw: number, bh: number, bd: number, c: string, px: number, py: number, pz: number) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), mat(c));
     m.position.set(x + px, py + bh / 2, z + pz);

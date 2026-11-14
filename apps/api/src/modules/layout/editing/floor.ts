@@ -33,11 +33,11 @@ function against(plan: FloorPlan, wall: Wall, u: number, w: number, d: number): 
 }
 
 /** In front of each door: its width + 20 cm, 90 cm deep (or the leaf, if wider and swinging in), as the engine checks. */
-export const doorZones = (plan: FloorPlan) =>
+const doorZones = (plan: FloorPlan) =>
   plan.doors.map((d) => ({ id: d.id, zone: against(plan, d.wall, d.position, d.width + 0.2, Math.max(DOOR_DEPTH, d.swing === 'in' ? d.width : 0)) }));
 
 /** A 45 cm band in front of each window (its width + 30 cm) that tall pieces keep out of. */
-export const windowZones = (plan: FloorPlan) =>
+const windowZones = (plan: FloorPlan) =>
   plan.windows.map((w) => ({ id: w.id, sill: w.sill, zone: against(plan, w.wall, w.position, w.width + 0.3, WINDOW_BAND) }));
 
 /** Floor pieces that get in each other's way (rugs lie under things; walls, zones and wall art don't count). */

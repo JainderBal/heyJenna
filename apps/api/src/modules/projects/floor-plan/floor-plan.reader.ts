@@ -37,7 +37,7 @@ export interface FloorPlanReader {
 export const FLOOR_PLAN_READER = Symbol('FLOOR_PLAN_READER');
 
 /** Throws when Claude's reply is not a usable plan. */
-export class FloorPlanReadError extends Error {}
+class FloorPlanReadError extends Error {}
 
 const SYSTEM = `You are an architect reading a photo or scan of a residential floor plan.
 Find every room and measure it in metres. Use the printed dimensions when present (convert feet/inches to metres).

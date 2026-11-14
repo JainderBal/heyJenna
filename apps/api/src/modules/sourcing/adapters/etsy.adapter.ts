@@ -20,7 +20,7 @@ interface EtsyListing {
 }
 
 const API = 'https://openapi.etsy.com/v3/application';
-export const ETSY_SITE: SiteSpec = { source: 'etsy', site: 'etsy.com/listing', isItem: /etsy\.com\/([a-z]{2}(-[a-z]{2})?\/)?listing\/\d+/ };
+const ETSY_SITE: SiteSpec = { source: 'etsy', site: 'etsy.com/listing', isItem: /etsy\.com\/([a-z]{2}(-[a-z]{2})?\/)?listing\/\d+/ };
 
 /**
  * Etsy's official Open API v3 (active listings, with images). Needs ETSY_API_KEY.

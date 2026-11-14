@@ -13,11 +13,12 @@ import type {
   JobAccepted,
   Layout,
   Listing,
+  MoodboardImage,
+  MoodboardImagesResponse,
   PinRef,
   Project,
   RenderJob,
   Room,
-  SearchSummary,
   ShoppingList,
   StyleProfile,
   StyleResponse,
@@ -27,7 +28,6 @@ export const qk = {
   projects: ['projects'] as const,
   project: (id: string) => ['projects', id] as const,
   projectRooms: (id: string) => ['projects', id, 'rooms'] as const,
-  room: (roomId: string) => ['rooms', roomId] as const,
   style: (roomId: string) => ['rooms', roomId, 'style'] as const,
   moodboard: (roomId: string) => ['rooms', roomId, 'moodboard'] as const,
   listings: (roomId: string, type?: FurnitureType) => (type ? (['rooms', roomId, 'listings', type] as const) : (['rooms', roomId, 'listings'] as const)),
@@ -176,7 +176,7 @@ export function useAddMoodboardPins(roomId: string) {
   });
 }
 
-export type MoodboardImage = { id: string; url: string; source: 'upload' | 'pin'; link?: string };
+export type { MoodboardImage };
 /** Upload urls are API paths ("/rooms/…"); in dev the default user can load them straight through the /api proxy. */
 const moodSrc = (u: string) => (u.startsWith('/') ? `/api${u}` : u);
 
@@ -185,7 +185,7 @@ export const useMoodboardImages = (roomId: string) =>
   useQuery({
     queryKey: qk.moodboard(roomId),
     queryFn: async () => {
-      const r = await api<{ images: MoodboardImage[] }>(`/rooms/${roomId}/moodboard`);
+      const r = await api<MoodboardImagesResponse>(`/rooms/${roomId}/moodboard`);
       return r.images.map((i) => ({ ...i, src: moodSrc(i.url) }));
     },
   });
@@ -217,15 +217,6 @@ export interface SearchInput {
 export function useSearchListingsAsync(roomId: string) {
   return useMutation({
     mutationFn: (input: SearchInput = {}) => api<JobAccepted>(`/rooms/${roomId}/listings/search`, { method: 'POST', body: input, query: { async: 1 } }),
-  });
-}
-
-/** Search and wait for the result (can take a while). */
-export function useSearchListings(roomId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: SearchInput = {}) => api<SearchSummary>(`/rooms/${roomId}/listings/search`, { method: 'POST', body: input }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.listings(roomId) }),
   });
 }
 

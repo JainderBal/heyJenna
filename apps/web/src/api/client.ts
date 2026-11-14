@@ -2,7 +2,7 @@
  * Thin fetch wrapper for the hey jenna API. In dev, Vite proxies /api → http://localhost:3000
  * (prefix stripped), so every path here is the API path with /api in front.
  */
-export const API_BASE = '/api';
+const API_BASE = '/api';
 
 /** AUTH_MODE=dev on the API: who we are. Override with localStorage `hj-dev-user` to test as someone else. */
 export function devUser(): string {

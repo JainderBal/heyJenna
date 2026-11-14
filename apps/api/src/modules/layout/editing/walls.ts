@@ -1,7 +1,7 @@
 import { FloorPlan, Size, Wall } from '@hey-jenna/contracts';
 import { LayoutData, PlacedObject } from '../layout.types';
 
-export const WALL_TYPES = ['art', 'mirror', 'wall_shelf'] as const;
+const WALL_TYPES = ['art', 'mirror', 'wall_shelf'] as const;
 export const isWallType = (t: string) => (WALL_TYPES as readonly string[]).includes(t);
 
 /** Which way a piece on each wall faces (degrees, 0 = +y), as the engine uses. */
@@ -25,7 +25,7 @@ interface Extent { a: number; b: number; lo: number; hi: number; what: string }
 const along = (wall: Wall, o: { position: { x: number; y: number } }) => (wall === 'back' || wall === 'front' ? o.position.x : o.position.y);
 
 /** Everything already taking up a wall: windows, doors, and wall pieces (art centred on its height, shelves too). */
-export function wallObstacles(plan: FloorPlan, data: LayoutData, wall: Wall, ignoreId?: string): Extent[] {
+function wallObstacles(plan: FloorPlan, data: LayoutData, wall: Wall, ignoreId?: string): Extent[] {
   const out: Extent[] = [];
   for (const w of plan.windows.filter((w) => w.wall === wall))
     out.push({ a: w.position - w.width / 2, b: w.position + w.width / 2, lo: w.sill, hi: w.head, what: `window ${w.id}` });

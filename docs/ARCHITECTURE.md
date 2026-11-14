@@ -276,7 +276,12 @@ that matches every class selector in `studio.css` against the string literals in
 `apps/desktop/src` (then a hand check of generated names like `lv${lvl + 1}`), `git grep` for each
 export / route / env var / asset, a scan of service and repository methods for callers, a scan of Python
 `def`s (none dead), `git worktree list`, `git branch --merged origin/main` and `git branch -r --merged`.
-Nothing was deleted.
+
+**2026-11-14:** every row marked "yes" below was removed (PR `chore/remove-unused`): the `pins/`
+images, the `test:e2e` scripts and `include: ["test"]`, the unused CSS, `useSearchListings`, `qk.room`,
+`Close`, `isFurnitureType`, the `export` keywords listed, `supertest` / `@types/supertest` /
+`@nestjs/testing`, and the web copies of `PinRef` and `MoodboardImage` (now from contracts). The merged
+worktrees and branches were removed too. Rows marked "keep" or "check first" are unchanged.
 
 ### Files and stale scripts
 

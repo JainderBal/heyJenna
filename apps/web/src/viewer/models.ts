@@ -13,7 +13,7 @@ import { disposeTree as disposeModel } from './three-kit';
 
 const BYTES = new Map<string, Promise<ArrayBuffer>>();
 
-export function modelPath(roomId: string, listingId: string) {
+function modelPath(roomId: string, listingId: string) {
   return `/rooms/${roomId}/listings/${listingId}/model`;
 }
 
@@ -76,7 +76,7 @@ const RENDER_BYTES = new Map<string, Promise<ArrayBuffer>>();
  * The Blender render's whole room (`room.glb`, GET /rooms/:roomId/renders/:jobId/model). A job's model
  * never changes, so its bytes are cached per job for the session; the viewer parses its own copy.
  */
-export function renderModelBytes(jobId: string, path: string): Promise<ArrayBuffer> {
+function renderModelBytes(jobId: string, path: string): Promise<ArrayBuffer> {
   let p = RENDER_BYTES.get(jobId);
   if (!p) {
     p = fetch(apiUrl(path), { headers: { 'x-dev-user': devUser() } }).then((res) => {

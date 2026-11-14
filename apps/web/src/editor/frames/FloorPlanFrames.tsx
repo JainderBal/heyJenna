@@ -30,7 +30,7 @@ interface DraftRoom {
 }
 
 /** The Plan frame's intake: the empty page's "Drop your floor plan", or "Add rooms" (closed with `onClose`). */
-export function RoomsIntake({ projectId, empty, onClose }: { projectId: string; empty: boolean; onClose?: () => void }) {
+function RoomsIntake({ projectId, empty, onClose }: { projectId: string; empty: boolean; onClose?: () => void }) {
   const [mode, setMode] = useState<Mode>({ kind: 'idle' });
   const [drafts, setDrafts] = useState<DraftRoom[]>([]);
   const [over, setOver] = useState(false);

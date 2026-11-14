@@ -21,7 +21,7 @@ const MOOD: [string, number, string][] = [
 const MAX_IMAGES = 8;
 
 /** Drag type for a Pinterest pin dropped on a moodboard: JSON PinRef `{id, imageUrl, link?}`. */
-export const PIN_DRAG_TYPE = 'application/x-hj-pin';
+const PIN_DRAG_TYPE = 'application/x-hj-pin';
 
 /** First i.pinimg.com image address in dragged text or HTML, upgraded to the 736px size. */
 export function pinimgFrom(text: string): string | null {
@@ -302,7 +302,7 @@ export function ShoppingListFrame({ room, layout, listings }: { room: Room; layo
 }
 
 /** $180 / $34.50; a currency code Intl doesn't know falls back to "180 XYZ". */
-export function money(v: number | null, currency = 'CAD'): string {
+function money(v: number | null, currency = 'CAD'): string {
   if (v === null) return '—';
   const digits = v % 1 ? 2 : 0;
   try {

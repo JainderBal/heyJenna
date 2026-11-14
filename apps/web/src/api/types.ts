@@ -8,18 +8,14 @@ import type {
   FloorPlan,
   FurnitureType,
   ListingSource,
+  MoodboardImage,
+  MoodboardImagesResponse,
+  PinRef,
   Size,
   StyleProfile,
 } from '@hey-jenna/contracts';
 
-export type { ChatResponse, FloorPlan, FurnitureType, StyleProfile };
-
-/** A pin as POST /rooms/:roomId/moodboard/pins takes it (imageUrl on i.pinimg.com). */
-export interface PinRef {
-  id: string;
-  imageUrl: string;
-  link?: string;
-}
+export type { ChatResponse, FloorPlan, FurnitureType, MoodboardImage, MoodboardImagesResponse, PinRef, StyleProfile };
 
 /** GET /projects, /projects/:id */
 export interface Project {

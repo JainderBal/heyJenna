@@ -6,7 +6,7 @@ import { Dropped, solveWithRepairs } from './repair';
  * where the seating group sits (facing the focal wall or framing it), whether the armchair makes a
  * reading spot or joins the sofa, sofa against the wall or floating, which side people walk past.
  */
-export const VARIANTS: Record<string, unknown>[] = [
+const VARIANTS: Record<string, unknown>[] = [
   {},
   { orient: 'frames' },
   { lounge: 'conversation' },
@@ -29,7 +29,7 @@ const dist = (a: Pt, b: Pt) => Math.hypot(a.x - b.x, a.y - b.y);
  * How loose the seating group is: every sofa/armchair should sit within about 1.8 m of the coffee
  * table (centre to centre) so people can talk and reach it. Metres beyond that, summed.
  */
-export function seatingSpread(r: EngineResult): number {
+function seatingSpread(r: EngineResult): number {
   const table = r.objects.find((o) => o.type === 'coffee_table');
   if (!table) return 0;
   return r.objects
@@ -38,12 +38,12 @@ export function seatingSpread(r: EngineResult): number {
 }
 
 /** Extras the engine added to fill empty floor (stools, small tables): a few are fine, many read as clutter. */
-export function fillerCount(r: EngineResult): number {
+function fillerCount(r: EngineResult): number {
   return r.objects.filter((o) => o.id.startsWith('fill_') && o.layer !== 'plants').length;
 }
 
 /** Lower is better: broken rules and pieces left out (5 pieces cost more than one broken rule) > a loose seating group > warnings > clutter. */
-export function badness(r: EngineResult, dropped: Dropped[]): number {
+function badness(r: EngineResult, dropped: Dropped[]): number {
   return r.summary.fail * 100 + dropped.length * 25 + seatingSpread(r) * 15 + r.summary.warn * 3 + fillerCount(r) * 2;
 }
 

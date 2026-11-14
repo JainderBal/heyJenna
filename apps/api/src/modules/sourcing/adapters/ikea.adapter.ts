@@ -129,7 +129,7 @@ export class IkeaAdapter implements SourceAdapter {
   }
 }
 
-export const USER_AGENT = 'hey-jenna/0.1 (hackathon prototype; furniture matching)';
+const USER_AGENT = 'hey-jenna/0.1 (hackathon prototype; furniture matching)';
 
 /** A colour word's reference colour as #RRGGBB. */
 function wordHex(word: string): string {

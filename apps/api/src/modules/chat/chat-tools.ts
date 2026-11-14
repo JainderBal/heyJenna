@@ -76,5 +76,3 @@ function fitSummary(l: Awaited<ReturnType<LayoutService['generate']>>) {
     pieces: l.objects.length,
   };
 }
-
-export const isFurnitureType = (s: string): s is FurnitureType => FurnitureType.safeParse(s).success;

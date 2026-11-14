@@ -34,7 +34,7 @@ function toMetres(v: number, unit: string | undefined, guess: 'cm' | 'in'): numb
 const guessUnit = (nums: number[]): 'cm' | 'in' => (Math.max(...nums) > 130 ? 'cm' : 'in');
 
 /** Reads "84"W x 36"D x 32"H", "200 x 90 x 80 cm" or "W 200 cm, D 90 cm, H 80 cm" from listing text. */
-export function parseSize(text: string, type: FurnitureType): Size | null {
+function parseSize(text: string, type: FurnitureType): Size | null {
   let w: number | undefined, d: number | undefined, h: number | undefined;
   const t = TRIPLE.exec(text);
   if (t) {
@@ -62,7 +62,7 @@ export function parseSize(text: string, type: FurnitureType): Size | null {
 }
 
 /** Rugs are usually "160x230 cm" (two numbers). */
-export function parseFlatSize(text: string, type: 'rug' | 'art' | 'mirror'): Size | null {
+function parseFlatSize(text: string, type: 'rug' | 'art' | 'mirror'): Size | null {
   const m = new RegExp(`${NUM}${UNIT}\\s*[x×X*]\\s*${NUM}${UNIT}`).exec(text);
   if (!m) return null;
   const nums = [Number(m[1]), Number(m[3])];

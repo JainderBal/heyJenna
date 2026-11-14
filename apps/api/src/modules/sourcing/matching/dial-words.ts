@@ -24,7 +24,7 @@ const FIXTURE_WORD: Partial<Record<StyleDialValues['fixture_style'], string>> = 
   pleated_fringed: 'pleated', brass_geometric: 'brass', minimal_tube: 'led',
 };
 
-export function woodWord(tone: number): string {
+function woodWord(tone: number): string {
   return tone < 0.3 ? 'birch' : tone < 0.65 ? 'oak' : 'walnut';
 }
 

@@ -2,6 +2,7 @@ import { FloorPlan, FurnitureType, Size, StyleProfile } from '@hey-jenna/contrac
 import { Listing } from '@prisma/client';
 import { TYPICAL } from '../../sourcing/matching/dimensions';
 import { ChosenSlot } from '../../sourcing/sourcing.service';
+import { wallsWithAccent } from './accent-wall';
 import { EngineItem, EngineSpec } from './layout-engine';
 
 const NEUTRAL_STYLE: Pick<StyleProfile, 'palette' | 'shapeFamily' | 'materials'> = {
@@ -48,7 +49,7 @@ export function buildEngineSpec(name: string, plan: FloorPlan, needs: string[], 
       depth: plan.depth,
       wall_height: plan.wallHeight,
       floor: plan.floor,
-      walls: plan.walls,
+      walls: wallsWithAccent(plan, style), // accent wall coloured from the moodboard
       windows: plan.windows,
       doors: plan.doors,
       features: plan.features,

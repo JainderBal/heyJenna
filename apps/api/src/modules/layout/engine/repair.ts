@@ -18,6 +18,18 @@ const DROP_ORDER: ((f: EngineItem) => boolean)[] = [
   (f) => f.type === 'side_table' && !f.id.endsWith('_1'),
 ];
 
+/** Pieces the person asked for (or the room can't work without): leaving one out counts as a problem to fix. */
+const NEEDED = new Set(['sofa', 'coffee_table', 'desk', 'desk_chair', 'cat_tree']);
+
+/** Needed pieces the engine couldn't place ("placed desk_1: no wall with room…" warnings). */
+function missingNeeded(result: EngineResult, spec: EngineSpec): { id: string; why: string }[] {
+  const types = new Map(spec.furniture.map((f) => [f.id, f.type]));
+  return result.checks
+    .filter((c) => c.status !== 'pass' && c.rule.startsWith('placed '))
+    .map((c) => ({ id: c.rule.slice('placed '.length), why: c.detail }))
+    .filter((m) => NEEDED.has(types.get(m.id) ?? ''));
+}
+
 /** Among pieces a failing rule names, drop the least important first; need-driven ones (cat tree…) last. */
 const NAMED_ORDER = ['pouf', 'sideboard', 'plant', 'side_table', 'armchair', 'art', 'shelf', 'table_lamp', 'cat_tree'];
 const rank = (f: EngineItem) => {
@@ -34,22 +46,32 @@ export async function solveWithRepairs(engine: LayoutEngine, spec: EngineSpec, r
   const dropped: Dropped[] = [];
   let current: EngineSpec = { ...spec, furniture: [...spec.furniture] };
   // the best attempt so far, together with what had been dropped for it
-  let best: { result: EngineResult; dropped: Dropped[] } | undefined;
+  let best: { result: EngineResult; dropped: Dropped[]; problems: number } | undefined;
   for (let round = 0; ; round++) {
     const result = await engine.run(current);
-    if (!best || result.summary.fail < best.result.summary.fail) best = { result, dropped: [...dropped] };
     const fails = result.checks.filter((c) => c.status === 'fail');
-    if (!fails.length || round >= rounds) return best;
+    const missing = missingNeeded(result, current);
+    const problems = fails.length * 2 + missing.length; // a missing desk is bad; a broken rule is worse
+    if (!best || problems < best.problems) best = { result, dropped: [...dropped], problems };
+    if (!problems || round >= rounds) return finish(best, spec);
 
-    const why = fails.map((c) => `${c.rule}: ${c.detail}`).join('; ');
+    const why = [...fails.map((c) => `${c.rule}: ${c.detail}`), ...missing.map((m) => `no room for ${m.id}: ${m.why}`)].join('; ');
     const named = new Set(fails.flatMap((c) => [...c.detail.matchAll(/[a-z_]+_\d+/g)].map((m) => m[0])));
     const victim =
       DROP_ORDER.map((test) => [...current.furniture].reverse().find(test)).find(Boolean) ??
       current.furniture.filter((f) => named.has(f.id) && !KEEP.has(f.type)).sort((a, b) => rank(a) - rank(b))[0];
-    if (!victim) return best;
+    if (!victim) return finish(best, spec);
 
     dropped.push({ id: victim.id, name: victim.name, why: `room too full (${why})` });
     // also drop anything that sat on it (a lamp on a removed desk)
     current = { ...current, furniture: current.furniture.filter((f) => f.id !== victim.id && f.on !== victim.id) };
   }
+}
+
+/** Needed pieces still missing at the end are reported as dropped too, never silently. */
+function finish(best: { result: EngineResult; dropped: Dropped[] }, spec: EngineSpec) {
+  const extra = missingNeeded(best.result, spec)
+    .filter((m) => !best.dropped.some((d) => d.id === m.id))
+    .map((m) => ({ id: m.id, name: spec.furniture.find((f) => f.id === m.id)?.name ?? m.id, why: `couldn't place it: ${m.why}` }));
+  return { result: best.result, dropped: [...best.dropped, ...extra] };
 }

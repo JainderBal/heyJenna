@@ -9,7 +9,7 @@ export function shoppingListOf(data: LayoutData): ShoppingListDto {
     .map((o) => ({
       objectId: o.id,
       type: o.type,
-      title: o.product?.title ?? o.name,
+      title: o.product?.title ?? (o.name.includes('.') ? `suggested ${o.type.replace('_', ' ')}` : o.name),
       url: o.product?.url ?? null,
       source: o.product?.source ?? null,
       price: o.product?.price ?? null,

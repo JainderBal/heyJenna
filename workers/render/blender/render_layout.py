@@ -82,10 +82,16 @@ def concrete():  # v6 mottled concrete
         L.new(lt.outputs[0], mx.inputs["Factor"]); L.new(col, mx.inputs["A"]); col = mx.outputs["Result"]
     L.new(col, b.inputs["Base Color"]); return m
 
-def brick_xz():
+def brick_xz(hexc=None):
+    """Brick in the wall's colour (from the moodboard): bricks, slightly darker bricks, light mortar."""
     m = H_["brick"](); N = m.node_tree.nodes; L = m.node_tree.links
     sep = next(n for n in N if n.type == "SEPXYZ"); comb = next(n for n in N if n.type == "COMBXYZ")
-    L.new(sep.outputs["X"], comb.inputs["X"]); return m
+    L.new(sep.outputs["X"], comb.inputs["X"])
+    if hexc:
+        br = next(n for n in N if n.type == "TEX_BRICK")
+        br.inputs["Color1"].default_value = lin(hexc); br.inputs["Color2"].default_value = lin(shade(hexc, 0.86))
+        br.inputs["Mortar"].default_value = lin(shade(hexc, 1.45))
+    return m
 
 def curtain(x0, x1, z, m, top):
     bm = bmesh.new(); nx = 48; h = top - 0.05
@@ -159,7 +165,7 @@ def a_wall(o):
         box(TH, H, D + TH, mat(o.get("colour") or "#F1E7DA", 0.92), (-W / 2 - TH / 2, H / 2, -TH / 2))
         box(TH + 0.004, 0.025, D + TH + 0.004, edge, (-W / 2 - TH / 2, H + 0.012, -TH / 2))
     elif o["zone"] == "back":
-        m = brick_xz() if o.get("finish") == "brick" else mat(o.get("colour") or "#F1E7DA", 0.92); zb = -D / 2 - TH / 2
+        m = brick_xz(o.get("colour")) if o.get("finish") == "brick" else mat(o.get("colour") or "#F1E7DA", 0.92); zb = -D / 2 - TH / 2
         xs = [-W / 2 - TH] + [v for a, b, _, _ in sorted(WINS.values()) for v in (a, b)] + [W / 2]
         for a, b in zip(xs[0::2], xs[1::2]): box(b - a, H, TH, m, ((a + b) / 2, H / 2, zb))
         for a, b, sill, head in WINS.values():

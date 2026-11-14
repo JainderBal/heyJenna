@@ -79,7 +79,7 @@ function extrasFor(type: FurnitureType, n: number, size: Size, title: string, ha
     case 'table_lamp':
       return hasDesk ? { on: 'desk_1' } : {};
     case 'art':
-      return { placement: 'over_sofa' };
+      return n === 1 ? { placement: 'over_sofa' } : {}; // the rest dress the other walls
     case 'ceiling_light':
       return { hang_height: 2.15 };
     case 'side_table':

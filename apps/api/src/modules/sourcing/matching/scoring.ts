@@ -13,7 +13,7 @@ export interface ScoreDetail {
 
 const WEIGHTS = { style: 0.3, colour: 0.4, fit: 0.2, price: 0.1 };
 /** Pieces that carry the 10 % accent colour. */
-const SMALL_PIECES: FurnitureType[] = ['side_table', 'floor_lamp', 'table_lamp', 'ceiling_light', 'pouf', 'art', 'desk_chair'];
+const SMALL_PIECES: FurnitureType[] = ['side_table', 'floor_lamp', 'table_lamp', 'ceiling_light', 'pouf', 'art', 'desk_chair', 'mirror', 'wall_shelf'];
 
 /** Colour words a seller used, e.g. "rust velvet sofa" → ["rust"]. */
 export function coloursIn(text: string): string[] {

@@ -54,7 +54,7 @@ TYPE_LAYER = {
     **{t: "soft_furnishings" for t in ("rug", "curtain", "throw", "cushion")},
     **{t: "lighting" for t in ("ceiling_light", "floor_lamp", "table_lamp")},
     **{t: "decor" for t in ("vase", "books", "book", "computer", "paper", "mug", "cup")},
-    "plant": "plants", "art": "art",
+    "plant": "plants", "art": "art", "mirror": "art", "wall_shelf": "art",
 }
 
 # ---------------------------------------------------------------- style profile (filled from the moodboard)
@@ -1340,6 +1340,83 @@ def art_over(L, art, host, wall, focal=False):
     o["h"] = ah; return o
 
 
+# ---------------------------------------------------------------- 2h. dress the walls
+WALL_ITEMS = ("art", "mirror", "wall_shelf")
+
+
+def wall_free_spans(L, wall, margin=0.15):
+    """Stretches of a wall with nothing on it at eye level: no window/door, no wall piece, no tall furniture in front."""
+    room = L.room
+    along = lambda c: c[0] if wall in ("back", "front") else c[1]
+    off_wall = lambda c: {"back": c[1], "front": room.D - c[1], "left": c[0], "right": room.W - c[0]}[wall]
+    blocks = []
+    for o in L.objs:
+        cs = o["box"].corners()
+        near = min(off_wall(c) for c in cs)
+        if (o["mount"] == "wall" and near < 0.12) or (o["mount"] == "floor" and o["h"] > 1.2 and near < 0.5):
+            blocks.append((min(along(c) for c in cs) - margin, max(along(c) for c in cs) + margin))
+    spans = []
+    for a, b in room.blank_runs(wall):
+        cur = [(a + margin, b - margin)]
+        for x0, x1 in blocks:
+            cur = [seg for s0, s1 in cur for seg in ((s0, min(s1, x0)), (max(s0, x1), s1)) if seg[1] - seg[0] > 0.05]
+        spans += cur
+    return sorted(spans, key=lambda s: s[0] - s[1])  # widest first
+
+
+def dress_walls(L, items):
+    """Walls shouldn't be bare: art above low pieces (sideboard, desk…), then a mirror near the way in,
+    a gallery on long stretches and single pieces elsewhere — on the walls you can see."""
+    room = L.room
+    pending = [i for i in items if i["type"] in WALL_ITEMS and not L.get(i["id"])]
+    if not pending: return
+    take = lambda *types: next((i for t in types for i in pending if i["type"] == t), None)
+    closed = [w for w in WALLS if w not in room.open_walls]
+    hung_over = {o["meta"].get("above") for o in L.objs if o["type"] in WALL_ITEMS}
+    # 1. above low pieces that back onto a visible wall
+    for host in sorted([o for o in L.objs if o["type"] in ("sideboard", "desk", "shelf", "sofa") and o["h"] < 1.2], key=lambda o: -o["box"].w):
+        wall = WALL_OF_ROT.get(round(host["box"].rot) % 360)
+        if wall not in closed or host["id"] in hung_over: continue
+        cs = host["box"].corners(); off = {"back": min(c[1] for c in cs), "front": room.D - max(c[1] for c in cs),
+                                           "left": min(c[0] for c in cs), "right": room.W - max(c[0] for c in cs)}[wall]
+        if off > 0.35: continue  # floating piece: nothing to hang above it
+        u = host["box"].cx if wall in ("back", "front") else host["box"].cy
+        if not any(a <= u - 0.3 and u + 0.3 <= b for a, b in wall_free_spans(L, wall, margin=0.05)): continue  # e.g. a desk under a window
+        it = take("wall_shelf", "art") if host["type"] == "desk" else take("art", "mirror")
+        if not it: break
+        if it["type"] == "art": art_over(L, it, host, wall)
+        else: hang(L, it, wall, u, host["box"].w * 0.9, above=host)
+        pending.remove(it)
+    # 2. blank stretches, widest first
+    doors = [(d["wall"], d["position"]) for d in room.doors]
+    for wall in closed:
+        for a, b in wall_free_spans(L, wall):
+            if not pending: return
+            span = b - a
+            if span < 0.8: continue
+            near_door = any(w == wall and a - 1.2 <= p <= b + 1.2 for w, p in doors)
+            it = take("mirror", "art") if near_door else take("art", "mirror", "wall_shelf")
+            if not it: continue
+            hang(L, it, wall, (a + b) / 2, min(span * 0.6, 1.4 if it["type"] == "art" else it["size"]["w"]),
+                 arrangement="gallery" if it["type"] == "art" and span >= 1.6 else "single")
+            pending.remove(it)
+    for it in pending: L.notes.append(f"{it['id']}: no free wall left for it")  # extra wall pieces are optional
+
+
+def hang(L, it, wall, u, width, above=None, arrangement="single"):
+    """Put a wall piece on `wall` at position u: art/mirror centred ~145 cm high (above any piece below), shelves at ~150 cm."""
+    room, s = L.room, it["size"]
+    w = max(0.3, min(width, s["w"])) if it["type"] != "art" else max(0.4, width)
+    h = s["h"] * (w / s["w"]) if it["type"] != "wall_shelf" else s["h"]
+    d = max(0.03, s["d"])
+    base = above["h"] + R["art_gap"][0] if above else 0
+    cz = 1.5 if it["type"] == "wall_shelf" else max(R["art_centre"], base + h / 2)
+    o = L.add(it, room.against(wall, u, w, d, 0.005), wall, mount="wall", elev=cz, wall=wall,
+              above=above["id"] if above else None, arrangement=arrangement, content=L.prof["art"])
+    o["h"] = h
+    return o
+
+
 def focal_corridor(L):
     """The strip between the sofa and the focal wall that should stay visually open."""
     so = next((o for o in L.objs if o["type"] == "sofa"), None); f = getattr(L, "focal", None)
@@ -1451,6 +1528,7 @@ def solve(spec, taste_override=None, profile_override=None, V=None):
     place_plants(L, items, taste, needs)
     fill_empty(L, "after plants")
     add_soft_and_props(L, taste)
+    dress_walls(L, items)
     split, shell = assign_colours(L, taste["statement_piece"])
     walk = walk_check(L); checks = run_checks(L, split, walk)
     return L, focal, taste, split, shell, checks, walk

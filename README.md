@@ -123,6 +123,7 @@ curl $B/rooms/$ROOM/renders/$JOB/model -o room.glb
 | GET / PATCH / DELETE | `/projects/:id` | one project (delete keeps its rooms) |
 | GET | `/projects/:id/rooms` | rooms in a project |
 | POST | `/projects/:id/rooms/bulk` | create several rooms at once `{rooms: [{name, floorPlan, needs?}]}` (all or nothing) |
+| POST | `/projects/:id/floor-plan` | one floor-plan photo → every room found and measured (multipart `image`, or `imageUrl`). Returns a preview `{rooms[{name, kind, confidence, position, floorPlan}], scaleSource, warnings[], imageKey}`; `?create=1` also creates the rooms (all or nothing, adds `created`). Needs `ANTHROPIC_API_KEY` (422 without) |
 | POST | `/rooms/:roomId/moodboard` | upload moodboard (multipart `images`, optional `imageUrls` JSON) |
 | POST | `/rooms/:roomId/moodboard/pins` | add Pinterest pins to the moodboard `{pins: [{id, imageUrl (i.pinimg.com), link?}]}` (max 8 images in total); style and dials are re-derived |
 | POST | `/rooms/:roomId/pins/similar` | `{pins}` (max 30) → `{ranked: [{pin, distance}], unreadable}`, closest to the room palette first (CIELAB distance) |

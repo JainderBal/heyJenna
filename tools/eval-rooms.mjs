@@ -28,6 +28,7 @@ for (const id of process.argv.slice(2)) {
     dropped: layout.dropped.length,
     placed: placed.length,
     models: placed.filter((o) => o.product.modelUrl).length,
+    missing: layout.shoppingList.missing.join(", ") || "-",
     odd: placed.filter((o) => ODD.test(o.product.title)).map((o) => o.product.title.split(',')[0]).join('; ') || '-',
     colour: colour.length ? (colour.reduce((a, b) => a + b, 0) / colour.length).toFixed(2) : '-',
     'table/sofa': sofa && table ? (table.size.w / sofa.size.w).toFixed(2) : '-',
@@ -36,6 +37,6 @@ for (const id of process.argv.slice(2)) {
     price: layout.shoppingList.total,
     secs: `${((t1 - t0) / 1000).toFixed(0)}+${((t2 - t1) / 1000).toFixed(0)}`,
   });
-  console.error(`${room.name}: ${search.listings?.length ?? 0} listings; fails: ${layout.checks.filter((c) => c.status === 'fail').map((c) => c.detail).join(' | ') || 'none'}; dropped: ${layout.dropped.map((d) => d.id).join(', ') || 'none'}`);
+  console.error(`${room.name}: ${search.listings?.length ?? 0} listings; search errors: ${(search.errors ?? []).join(" | ") || "none"}; fails: ${layout.checks.filter((c) => c.status === 'fail').map((c) => c.detail).join(' | ') || 'none'}; dropped: ${layout.dropped.map((d) => d.id).join(', ') || 'none'}`);
 }
 console.table(rows);

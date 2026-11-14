@@ -1,6 +1,6 @@
 import { FurnitureType, StyleProfile } from '@hey-jenna/contracts';
 import { nearestColourName } from '../../style/analysis/colour-names';
-import { materialWord } from './dial-words';
+import { materialWord, shapeWords } from './dial-words';
 
 const TYPE_WORDS: Record<FurnitureType, string> = {
   sofa: 'sofa', armchair: 'armchair', coffee_table: 'coffee table', side_table: 'side table', shelf: 'bookshelf',
@@ -19,12 +19,12 @@ const SIMPLE_COLOUR: Record<string, string> = {
   mustard: 'yellow', burgundy: 'red', blush: 'pink', lilac: 'purple', chrome: 'grey', gold: 'yellow',
 };
 
-/** The parts of a search: the board's signature colour, its top style word, a dial material word, the furniture words. */
+/** The parts of a search: the board's signature colour, its top style word, a dial material word, a dial shape word, the furniture words. */
 export function queryParts(type: FurnitureType, style: StyleProfile) {
   const signature = style.palette.secondary.find((h) => !['black', 'white', 'grey', 'beige', 'charcoal', 'cream'].includes(nearestColourName(h)))
     ?? style.palette.secondary[0] ?? style.palette.dominant[0];
   const name = nearestColourName(signature);
-  return { colour: SIMPLE_COLOUR[name] ?? name, keyword: style.keywords[0] ?? '', material: materialWord(type, style.dials), typeText: TYPE_WORDS[type] };
+  return { colour: SIMPLE_COLOUR[name] ?? name, keyword: style.keywords[0] ?? '', material: materialWord(type, style.dials), shape: shapeWords(type, style.dials)[0], typeText: TYPE_WORDS[type] };
 }
 
 /** Moodboard style → what we type into a shop's search box, e.g. "mid century teak rust sofa". */

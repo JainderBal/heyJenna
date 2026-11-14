@@ -102,111 +102,118 @@ Rugs, curtains, cushions and throws carry most of a room's texture and pattern. 
 
 ## 3. The dials
 
+### In code (backend, no AI yet)
+
+- **Schema:** `packages/contracts/src/style-dials.ts`: `StyleDials` (zod, every dial with a default in `DIAL_DEFAULTS`), `StyleDialsPatch` (partial, strict). `StyleProfile.dials` holds them; older profiles get the defaults.
+- **Filled by:** `apps/api/src/modules/style/analysis/dials.ts` → `deriveDials(palette, vibe)`: defaults, then a style point from section 4 picked by the vibe (`retro` ≈ between Mid-century and 1970s, `minimal` ≈ Scandi, `garden` ≈ Boho, `moody` ≈ Deco/Maximalist, `warm modern` ≈ between Scandi and Mid-century), then the measured colour and wood dials, then a few rules.
+- **Edited by:** `PATCH /rooms/:roomId/style` with `{ "dials": { … any subset … } }`; `GET` returns all of them.
+- **Used by:** sourcing (`sourcing/matching/dial-words.ts`: one extra IKEA search per slot and half-weight style words in scoring) and the layout engine (`layout/engine/style-dials.ts` → `style_profile`). The *In code* column below says which dial goes where; "stored, not yet used" means the value is saved, editable and passed to the engine as `style_profile.dials`, but nothing acts on it yet.
+
 ### A. Colour (8 dials)
 
-| Dial | Meaning | Range | Judge it from a photo | Drives | AI |
-|---|---|---|---|---|---|
-| `colour_roles` | The actual colours, split into dominant / secondary / accent (60/30/10). This is the parameter the other colour dials describe. | hex lists | Cluster the image colours by area. Walls, floor and big upholstery are dominant, mid-size furniture is secondary, small bright bits are accent. | palette | ●●● |
-| `palette_temperature` | Overall warm vs cool | 0 cool (blue-grey, cool white) … 1 warm (terracotta, cream, ochre) | Average hue of the big surfaces, ignoring the light's colour cast (see `light_warmth_k`). | palette | ●●○ |
-| `palette_value` | How light the room's colours are (the "key") | 0 dark and moody … 1 light and airy | Average lightness of walls and floor. | palette | ●●● |
-| `palette_saturation` | How strong the colours are (Munsell chroma) | 0 muted, greyed … 1 vivid, pure | Do the colours look "dusty" or like paint straight from the tin? | palette | ●●● |
-| `value_contrast` | Spread between the darkest and lightest areas | 0 tonal, everything similar … 1 graphic (black on white) | Squint at the photo: do you see blocks of dark and light, or one soft wash? | palette, materials | ●●● |
-| `hue_spread` | How many colour families appear | 0 monochrome … 0.3 analogous … 0.6 complementary … 1 rainbow/eclectic | Count clearly different hues outside the neutrals. | palette | ●●● |
-| `accent_share` | Share of area given to accent colours | 0.05 … 0.25 (default 0.10) | Area of the boldest colours vs the whole image. | palette (`R["split"]` target) | ●●○ |
-| `wall_treatment` | What the walls do | *enum*: `plain_paint`, `colour_drenched` (walls and trim one colour), `two_tone`, `limewash_plaster`, `wallpaper`, `panelling`, `exposed_brick`, `concrete`, `tile` | Look at the walls directly. | materials, features | ●●● |
+| Dial | Meaning | Range | Judge it from a photo | Drives | AI | In code |
+|---|---|---|---|---|---|---|
+| `colour_roles` | The actual colours, split into dominant / secondary / accent (60/30/10). This is the parameter the other colour dials describe. | hex lists | Cluster the image colours by area. Walls, floor and big upholstery are dominant, mid-size furniture is secondary, small bright bits are accent. | palette | ●●● | is `StyleProfile.palette`: search colour words, colour-by-role scoring, engine palette, accent wall |
+| `palette_temperature` | Overall warm vs cool | 0 cool (blue-grey, cool white) … 1 warm (terracotta, cream, ochre) | Average hue of the big surfaces, ignoring the light's colour cast (see `light_warmth_k`). | palette | ●●○ | measured (`dials.ts` → `measuredDials`); stored, not yet used (warmth still drives the rules) |
+| `palette_value` | How light the room's colours are (the "key") | 0 dark and moody … 1 light and airy | Average lightness of walls and floor. | palette | ●●● | measured (`dials.ts` → `measuredDials`); stored, not yet used |
+| `palette_saturation` | How strong the colours are (Munsell chroma) | 0 muted, greyed … 1 vivid, pure | Do the colours look "dusty" or like paint straight from the tin? | palette | ●●● | measured (`dials.ts` → `measuredDials`); stored, not yet used |
+| `value_contrast` | Spread between the darkest and lightest areas | 0 tonal, everything similar … 1 graphic (black on white) | Squint at the photo: do you see blocks of dark and light, or one soft wash? | palette, materials | ●●● | measured (`dials.ts` → `measuredDials`); stored, not yet used |
+| `hue_spread` | How many colour families appear | 0 monochrome … 0.3 analogous … 0.6 complementary … 1 rainbow/eclectic | Count clearly different hues outside the neutrals. | palette | ●●● | measured (`dials.ts` → `measuredDials`); stored, not yet used |
+| `accent_share` | Share of area given to accent colours | 0.05 … 0.25 (default 0.10) | Area of the boldest colours vs the whole image. | palette (`R["split"]` target) | ●●○ | measured (`dials.ts` → `measuredDials`); stored, not yet used |
+| `wall_treatment` | What the walls do | *enum*: `plain_paint`, `colour_drenched` (walls and trim one colour), `two_tone`, `limewash_plaster`, `wallpaper`, `panelling`, `exposed_brick`, `concrete`, `tile` | Look at the walls directly. | materials, features | ●●● | preset/default; engine `features.prefer` (panelling → wainscoting; drenched/two-tone/wallpaper → feature_wall) |
 
 ### B. Line and form (8 dials)
 
 These feed the **parametric furniture generators**. One set of form dials should shape every piece, so a sofa, a side table and a lamp read as one family.
 
-| Dial | Meaning | Range | Judge it from a photo | Drives | AI |
-|---|---|---|---|---|---|
-| `curvature` | Rectilinear vs rounded or organic | 0 square, hard corners … 0.5 softened corners … 1 blobby, organic, arched | Corner radius on sofas and tables, round vs rectangular tabletops and rugs, arches. | shape (corner radius, round/oval variants), props | ●●● |
-| `line_direction` | Is the room low and horizontal or tall and vertical? | 0 tall and vertical (high backs, tall shelving, Deco) … 1 low-slung and horizontal (floor seating, long low sideboards) | Seat and back heights relative to the windows. Is the silhouette stretched sideways or upwards? | shape (height/length ratios), layout (tall items) | ●●○ |
-| `leg_lift` | How much floor shows under the furniture (visual weight) | 0 skirted, plinth or sits on the floor … 1 high on slim legs, lots of floor visible | Can you see floor under the sofa and cabinets? | shape (leg height vs body), affects the balance weight | ●●● |
-| `leg_style` | The kind of leg | *enum*: `tapered_splayed`, `straight_square`, `turned`, `cabriole`, `hairpin`, `tubular_chrome` (incl. cantilever), `sled_frame`, `block`, `bun`, `plinth`, `none` | Look at the legs. | shape | ●●○ (small in photos) |
-| `mass` | How thick and heavy the pieces are | 0 slender frames, thin tops … 1 chunky, overstuffed, thick slabs | Thickness of arms, cushions and tabletops relative to the overall size. | shape (member thickness, cushion depth) | ●●● |
-| `arm_style` | Sofa and armchair arms | *enum*: `none`, `track` (square), `slope`, `rolled`, `flared`, `rounded_wrap`, `wood_frame` | Look at the sofa ends. | shape | ●●○ |
-| `ornament` | Decoration on the furniture itself | 0 plain … 0.5 piping, fluting, tufting … 1 carving, inlay, gilding, fringe | Count the decorative details on frames and upholstery. | shape (detail modifiers), materials | ●●○ |
-| `modularity` | One-piece vs modular, segmented forms | 0 single classic pieces … 1 modular blocks, sectional, stacked cushions (70s) | Is the sofa made of repeated blocks or channel tufting? | shape (sofa builder) | ●●● |
+| Dial | Meaning | Range | Judge it from a photo | Drives | AI | In code |
+|---|---|---|---|---|---|---|
+| `curvature` | Rectilinear vs rounded or organic | 0 square, hard corners … 0.5 softened corners … 1 blobby, organic, arched | Corner radius on sofas and tables, round vs rectangular tabletops and rugs, arches. | shape (corner radius, round/oval variants), props | ●●● | preset; stored, not yet used (Blender builders) |
+| `line_direction` | Is the room low and horizontal or tall and vertical? | 0 tall and vertical (high backs, tall shelving, Deco) … 1 low-slung and horizontal (floor seating, long low sideboards) | Seat and back heights relative to the windows. Is the silhouette stretched sideways or upwards? | shape (height/length ratios), layout (tall items) | ●●○ | preset; stored, not yet used |
+| `leg_lift` | How much floor shows under the furniture (visual weight) | 0 skirted, plinth or sits on the floor … 1 high on slim legs, lots of floor visible | Can you see floor under the sofa and cabinets? | shape (leg height vs body), affects the balance weight | ●●● | preset; stored, not yet used |
+| `leg_style` | The kind of leg | *enum*: `tapered_splayed`, `straight_square`, `turned`, `cabriole`, `hairpin`, `tubular_chrome` (incl. cantilever), `sled_frame`, `block`, `bun`, `plinth`, `none` | Look at the legs. | shape | ●●○ (small in photos) | preset; stored, not yet used |
+| `mass` | How thick and heavy the pieces are | 0 slender frames, thin tops … 1 chunky, overstuffed, thick slabs | Thickness of arms, cushions and tabletops relative to the overall size. | shape (member thickness, cushion depth) | ●●● | preset; stored, not yet used |
+| `arm_style` | Sofa and armchair arms | *enum*: `none`, `track` (square), `slope`, `rolled`, `flared`, `rounded_wrap`, `wood_frame` | Look at the sofa ends. | shape | ●●○ | default; stored, not yet used |
+| `ornament` | Decoration on the furniture itself | 0 plain … 0.5 piping, fluting, tufting … 1 carving, inlay, gilding, fringe | Count the decorative details on frames and upholstery. | shape (detail modifiers), materials | ●●○ | preset; sourcing score (carved/tufted/fringed pieces −/+ by ornament) |
+| `modularity` | One-piece vs modular, segmented forms | 0 single classic pieces … 1 modular blocks, sectional, stacked cushions (70s) | Is the sofa made of repeated blocks or channel tufting? | shape (sofa builder) | ●●● | preset; stored, not yet used |
 
 ### C. Materials and texture (8 dials)
 
-| Dial | Meaning | Range | Judge it from a photo | Drives | AI |
-|---|---|---|---|---|---|
-| `wood_tone` | Colour of the main wood | 0 pale (ash, birch, whitewash) … 0.5 oak, honey … 1 dark (walnut, ebony, wenge) | Sample the wood surfaces. Mixed woods → take the dominant one and note the second. | materials (`wood`, `wood_light`) | ●●● |
-| `wood_amount` | How much of the room is wood | 0 none … 1 wood everywhere (floors, panelling, furniture) | Area share of wood. | materials, shape (which pieces get wood) | ●●● |
-| `metal_finish` | The main metal | *enum*: `none`, `black_iron`, `chrome`, `brushed_steel`, `brass`, `bronze_copper`, `white_powder` | Colour and reflection of legs, frames and lamps. | materials (`metal`) | ●●○ |
-| `metal_amount` | How visible metal is | 0 hidden … 1 structural and everywhere (industrial, Deco) | Area and number of metal parts. | materials, shape (metal frames vs wood) | ●●○ |
-| `sheen` | Matte vs glossy surfaces | 0 chalky and matte … 1 lacquer, mirror, high gloss | Highlights and reflections on furniture and walls. | materials (roughness value in Blender) | ●●○ |
-| `texture` | How tactile the surfaces are | 0 sleek and smooth … 1 rough (bouclé, shag, jute, rattan, raw plaster) | Visible weave, pile and grain in close-ups. | materials (fabric, bump strength), props | ●●○ |
-| `rawness` | How finished vs raw, aged or imperfect | 0 pristine and new … 1 weathered, patina, exposed structure, handmade wobble | Exposed brick or concrete, distressed wood, hand-thrown ceramics. | materials, features (beams, exposed brick) | ●●○ |
-| `natural_materials` | Natural vs synthetic materials | 0 plastic, glass, chrome, laminate … 1 rattan, linen, wool, jute, stone, clay | Count natural vs synthetic materials. | materials (`fabric`), props (baskets, ceramics), plant pots | ●●○ |
+| Dial | Meaning | Range | Judge it from a photo | Drives | AI | In code |
+|---|---|---|---|---|---|---|
+| `wood_tone` | Colour of the main wood | 0 pale (ash, birch, whitewash) … 0.5 oak, honey … 1 dark (walnut, ebony, wenge) | Sample the wood surfaces. Mixed woods → take the dominant one and note the second. | materials (`wood`, `wood_light`) | ●●● | measured (`dials.ts` → `measuredDials`) or preset; search word birch/oak/walnut for tables and storage, engine `materials.wood`/`wood_light` when the board names no wood |
+| `wood_amount` | How much of the room is wood | 0 none … 1 wood everywhere (floors, panelling, furniture) | Area share of wood. | materials, shape (which pieces get wood) | ●●● | measured (`dials.ts` → `measuredDials`) or preset; picks wood vs metal search word |
+| `metal_finish` | The main metal | *enum*: `none`, `black_iron`, `chrome`, `brushed_steel`, `brass`, `bronze_copper`, `white_powder` | Colour and reflection of legs, frames and lamps. | materials (`metal`) | ●●○ | preset; search word for tables/storage when metal-heavy |
+| `metal_amount` | How visible metal is | 0 hidden … 1 structural and everywhere (industrial, Deco) | Area and number of metal parts. | materials, shape (metal frames vs wood) | ●●○ | preset; wood vs metal search word, metal word in scoring |
+| `sheen` | Matte vs glossy surfaces | 0 chalky and matte … 1 lacquer, mirror, high gloss | Highlights and reflections on furniture and walls. | materials (roughness value in Blender) | ●●○ | preset; stored, not yet used (Blender roughness) |
+| `texture` | How tactile the surfaces are | 0 sleek and smooth … 1 rough (bouclé, shag, jute, rattan, raw plaster) | Visible weave, pile and grain in close-ups. | materials (fabric, bump strength), props | ●●○ | preset; stored, not yet used |
+| `rawness` | How finished vs raw, aged or imperfect | 0 pristine and new … 1 weathered, patina, exposed structure, handmade wobble | Exposed brick or concrete, distressed wood, hand-thrown ceramics. | materials, features (beams, exposed brick) | ●●○ | preset; scoring words (reclaimed, solid wood), engine prefers `ceiling_beam` above .6 |
+| `natural_materials` | Natural vs synthetic materials | 0 plastic, glass, chrome, laminate … 1 rattan, linen, wool, jute, stone, clay | Count natural vs synthetic materials. | materials (`fabric`), props (baskets, ceramics), plant pots | ●●○ | preset; scoring words (rattan, jute, linen, cane) above .75 |
 
-Plus one list parameter, `fabric` (*enum*, ranked): `linen`, `cotton`, `boucle`, `velvet`, `leather`, `wool`, `corduroy`, `shag`, `sheepskin`. It feeds `materials.fabric`.
+Plus one list parameter, `fabric` (*enum*, ranked): `linen`, `cotton`, `boucle`, `velvet`, `leather`, `wool`, `corduroy`, `shag`, `sheepskin`. It feeds `materials.fabric`. *In code:* the vibe's fabric first, then the preset's; `fabric[0]` is the extra IKEA search word for sofas, armchairs and poufs, and every listed fabric counts in scoring.
 
 ### D. Pattern (3 dials)
 
-| Dial | Meaning | Range | Judge it from a photo | Drives | AI |
-|---|---|---|---|---|---|
-| `pattern_amount` | How much patterned surface there is | 0 all solids … 1 pattern on pattern | Share of area that is patterned (rug, cushions, wallpaper, curtains). | props, materials (textures) | ●●● |
-| `pattern_scale` | The dominant print size | 0 small, fine … 1 large, bold | Repeat size relative to a cushion. The rule is one large, one medium, the rest small. | props | ●●○ |
-| `pattern_motif` | What the patterns are | *enum list*: `stripe`, `check`, `geometric` (Deco chevron, fan, 70s supergraphic), `organic_abstract`, `floral_botanical`, `handmade_global` (kilim, block print, mudcloth), `damask_traditional`, `none` | Name the motifs you see. | props (rug, cushion, curtain textures), art | ●●● |
+| Dial | Meaning | Range | Judge it from a photo | Drives | AI | In code |
+|---|---|---|---|---|---|---|
+| `pattern_amount` | How much patterned surface there is | 0 all solids … 1 pattern on pattern | Share of area that is patterned (rug, cushions, wallpaper, curtains). | props, materials (textures) | ●●● | preset; stored, not yet used |
+| `pattern_scale` | The dominant print size | 0 small, fine … 1 large, bold | Repeat size relative to a cushion. The rule is one large, one medium, the rest small. | props | ●●○ | default; stored, not yet used |
+| `pattern_motif` | What the patterns are | *enum list*: `stripe`, `check`, `geometric` (Deco chevron, fan, 70s supergraphic), `organic_abstract`, `floral_botanical`, `handmade_global` (kilim, block print, mudcloth), `damask_traditional`, `none` | Name the motifs you see. | props (rug, cushion, curtain textures), art | ●●● | preset; stored, not yet used |
 
 ### E. Composition (5 dials, from the principles)
 
-| Dial | Meaning | Range | Judge it from a photo | Drives | AI |
-|---|---|---|---|---|---|
-| `symmetry` | Formal vs relaxed balance | 0 asymmetric, off-centre … 1 mirror symmetry (pairs of lamps, chairs either side) | Does the room mirror across the focal point? | layout (pairing, centring), props (pairs) | ●●○ |
-| `repetition` | Rhythm through matching repeated elements | 0 everything different … 1 sets, pairs, repeated shapes and colours | Count matching items and repeated motifs. | props, shape (reuse one generator variant) | ●●○ |
-| `statement_strength` | How hard one hero piece stands out | 0 quiet, nothing dominates … 1 one bold piece (colour, size or shape) owns the room | Is there one piece your eye goes to first? | palette (accent goes on it), layout (focal). Sets `taste.statement_piece`. | ●●○ |
-| `eclecticism` | Matched set vs collected mix of eras and styles | 0 everything from one family … 1 vintage + modern + global mix | Do the pieces look bought together or collected over years? | shape (allow mixed form dials per piece), props | ●●○ |
-| `furniture_scale` | Size of the pieces relative to the room | 0 small, apartment-scale … 1 generous, oversized | Seat depth and sofa length vs door and window size. | shape (size options), layout | ●○○ (moodboard rooms are a different size from the user's) |
+| Dial | Meaning | Range | Judge it from a photo | Drives | AI | In code |
+|---|---|---|---|---|---|---|
+| `symmetry` | Formal vs relaxed balance | 0 asymmetric, off-centre … 1 mirror symmetry (pairs of lamps, chairs either side) | Does the room mirror across the focal point? | layout (pairing, centring), props (pairs) | ●●○ | preset; stored, not yet used (engine has no pairing score yet) |
+| `repetition` | Rhythm through matching repeated elements | 0 everything different … 1 sets, pairs, repeated shapes and colours | Count matching items and repeated motifs. | props, shape (reuse one generator variant) | ●●○ | default; stored, not yet used |
+| `statement_strength` | How hard one hero piece stands out | 0 quiet, nothing dominates … 1 one bold piece (colour, size or shape) owns the room | Is there one piece your eye goes to first? | palette (accent goes on it), layout (focal). Sets `taste.statement_piece`. | ●●○ | preset; stored, not yet used (engine taste step picks the statement) |
+| `eclecticism` | Matched set vs collected mix of eras and styles | 0 everything from one family … 1 vintage + modern + global mix | Do the pieces look bought together or collected over years? | shape (allow mixed form dials per piece), props | ●●○ | preset; stored, not yet used |
+| `furniture_scale` | Size of the pieces relative to the room | 0 small, apartment-scale … 1 generous, oversized | Seat depth and sofa length vs door and window size. | shape (size options), layout | ●○○ (moodboard rooms are a different size from the user's) | default; stored, not yet used |
 
 ### F. Space and layout (6 dials)
 
 These change **preferences** inside the fixed rules. They never change `R`.
 
-| Dial | Meaning | Range | Judge it from a photo | Drives | AI |
-|---|---|---|---|---|---|
-| `negative_space` | How much empty floor and wall | 0 full, every corner used … 1 airy, gallery-like | Share of floor and wall left empty. | layout (`fill_empty` stop point, filler count) | ●●○ |
-| `furniture_float` | Pieces against the walls vs floated in the room | 0 everything against the walls … 1 conversation groups floated in the middle, anchored on a rug | Is there floor visible behind the sofa? Is the group in the middle of the room? | layout (anchor scoring) | ●●○ |
-| `grouping` | Loose and spread out vs tight clusters | 0 pieces spread evenly … 1 tight groups with clear gaps between them | Do the objects form clusters (plants together, chair + lamp + table) or a row along the walls? | layout (zone padding, filler and plant placement) | ●●○ |
-| `focal_point` | What the room is arranged around | *enum*: `window_view`, `fireplace`, `feature_wall`, `art`, `tv`, `statement_furniture`, `shelving` | What the seating faces. | layout (`choose_focal`), features | ●○○ (depends on the user's room and habits) |
-| `zone_definition` | Open, blended zones vs clearly separate ones | 0 one open space … 1 each zone marked with its own rug, platform or half wall | Do rugs, levels or screens divide the room? | features (platform, half_wall), props (rugs per zone) | ●●○ |
-| `architectural_detail` | Plain box vs detailed shell | 0 plain flat walls … 1 mouldings, beams, panelling, arches, niches | Look at walls, ceiling and windows. | features (`allow`, `prefer`, `max`) | ●●● (but ask renters whether they can build) |
+| Dial | Meaning | Range | Judge it from a photo | Drives | AI | In code |
+|---|---|---|---|---|---|---|
+| `negative_space` | How much empty floor and wall | 0 full, every corner used … 1 airy, gallery-like | Share of floor and wall left empty. | layout (`fill_empty` stop point, filler count) | ●●○ | preset; engine `fillers` (> .7 drops pouf + side table, > .85 drops lounge chair) |
+| `furniture_float` | Pieces against the walls vs floated in the room | 0 everything against the walls … 1 conversation groups floated in the middle, anchored on a rug | Is there floor visible behind the sofa? Is the group in the middle of the room? | layout (anchor scoring) | ●●○ | preset; stored, not yet used (no float score in the engine yet) |
+| `grouping` | Loose and spread out vs tight clusters | 0 pieces spread evenly … 1 tight groups with clear gaps between them | Do the objects form clusters (plants together, chair + lamp + table) or a row along the walls? | layout (zone padding, filler and plant placement) | ●●○ | preset; engine `fillers` (< .4 drops plant_group) |
+| `focal_point` | What the room is arranged around | *enum*: `window_view`, `fireplace`, `feature_wall`, `art`, `tv`, `statement_furniture`, `shelving` | What the seating faces. | layout (`choose_focal`), features | ●○○ (depends on the user's room and habits) | default `auto`; stored, not yet used (engine `choose_focal` decides) |
+| `zone_definition` | Open, blended zones vs clearly separate ones | 0 one open space … 1 each zone marked with its own rug, platform or half wall | Do rugs, levels or screens divide the room? | features (platform, half_wall), props (rugs per zone) | ●●○ | preset; engine `features.prefer` platform + half_wall above .6 |
+| `architectural_detail` | Plain box vs detailed shell | 0 plain flat walls … 1 mouldings, beams, panelling, arches, niches | Look at walls, ceiling and windows. | features (`allow`, `prefer`, `max`) | ●●● (but ask renters whether they can build) | default; engine `features.max` = round(dial × 3) |
 
 ### G. Density and styling (4 dials)
 
-| Dial | Meaning | Range | Judge it from a photo | Drives | AI |
-|---|---|---|---|---|---|
-| `styling_density` | How many objects and accessories | 0 bare … 0.33 sparse … 0.66 balanced … 1 layered and full | Count objects on surfaces, cushions and wall items. | props (`DENSITY` table). Maps to sparse / balanced / layered. | ●●● |
-| `styling_order` | Precise and styled vs relaxed and lived-in | 0 casual (books in piles, throw tossed) … 1 composed (odd-number groupings, objects spaced out, aligned) | Do the vignettes look arranged? | props (jitter, rotation, grouping rules) | ●●○ |
-| `textile_layers` | How much soft layering | 0 none … 1 rug on rug, throws, many cushions, layered curtains | Count the textiles on the sofa and floor. | props (cushion count, throw, double rug) | ●●● |
-| `books_and_objects` | How much personal collection shows | 0 hidden … 1 full shelves, collections on display | Look at the shelves. | props (`books`, `vase`, shelf fill) | ●●● |
+| Dial | Meaning | Range | Judge it from a photo | Drives | AI | In code |
+|---|---|---|---|---|---|---|
+| `styling_density` | How many objects and accessories | 0 bare … 0.33 sparse … 0.66 balanced … 1 layered and full | Count objects on surfaces, cushions and wall items. | props (`DENSITY` table). Maps to sparse / balanced / layered. | ●●● | rule from the vibe (sparse .3 / balanced .55 / layered .8); engine `styling_density` band, kept in sync with `stylingDensity` |
+| `styling_order` | Precise and styled vs relaxed and lived-in | 0 casual (books in piles, throw tossed) … 1 composed (odd-number groupings, objects spaced out, aligned) | Do the vignettes look arranged? | props (jitter, rotation, grouping rules) | ●●○ | preset; stored, not yet used |
+| `textile_layers` | How much soft layering | 0 none … 1 rug on rug, throws, many cushions, layered curtains | Count the textiles on the sofa and floor. | props (cushion count, throw, double rug) | ●●● | preset; stored, not yet used |
+| `books_and_objects` | How much personal collection shows | 0 hidden … 1 full shelves, collections on display | Look at the shelves. | props (`books`, `vase`, shelf fill) | ●●● | default; engine prefers `built_in_shelf` above .7 |
 
 ### H. Soft furnishings, art and plants (8 dials)
 
-| Dial | Meaning | Range | Judge it from a photo | Drives | AI |
-|---|---|---|---|---|---|
-| `rug_type` | The main rug | *enum*: `none`, `flatweave_solid`, `jute_sisal`, `shag`, `persian_vintage`, `geometric`, `kilim_handmade`, `sheepskin` | Look at the floor. | props | ●●● |
-| `rug_shape` | Rug outline | *enum*: `rect`, `round`, `organic` | Look at the floor. | props | ●●● |
-| `window_treatment` | Curtains or blinds | *enum*: `none`, `sheer`, `linen_drape`, `heavy_drape`, `roman_blind`, `venetian`, `shutters`, `bead_or_fringe` | Look at the windows. | props (`curtain`), materials | ●●● |
-| `art_amount` | How much wall art | 0 bare walls … 1 walls covered | Count framed pieces relative to wall area. | props (art count) | ●●● |
-| `art_arrangement` | How art is hung | *enum*: `single_statement`, `pair`, `grid`, `salon` (mixed sizes, dense), `ledge_leaning` | Look at the hanging pattern. | props (`art.arrangement`) | ●●● |
-| `art_content` | What the art shows | *enum*: `abstract_colour`, `line_drawing`, `botanical`, `photography`, `graphic_poster`, `landscape`, `classical_portrait`, `textile_hanging`, `mirror` | Look at the art. | props (`art.content`) | ●●● |
-| `plant_amount` | How much greenery | 0 none … 1 jungle | Count plants and the area they cover. | props (`plant_count`) | ●●● |
-| `plant_kind` | Which plants | *enum list*: `sculptural_single` (fiddle-leaf, olive), `trailing`, `palms`, `cacti_succulents`, `branches_ikebana`, `bushy_mixed` | Plant silhouettes. | props (plant builder `kind`) | ●●○ |
+| Dial | Meaning | Range | Judge it from a photo | Drives | AI | In code |
+|---|---|---|---|---|---|---|
+| `rug_type` | The main rug | *enum*: `none`, `flatweave_solid`, `jute_sisal`, `shag`, `persian_vintage`, `geometric`, `kilim_handmade`, `sheepskin` | Look at the floor. | props | ●●● | preset; rug search word (jute, high pile, flatwoven…) |
+| `rug_shape` | Rug outline | *enum*: `rect`, `round`, `organic` | Look at the floor. | props | ●●● | default; stored, not yet used |
+| `window_treatment` | Curtains or blinds | *enum*: `none`, `sheer`, `linen_drape`, `heavy_drape`, `roman_blind`, `venetian`, `shutters`, `bead_or_fringe` | Look at the windows. | props (`curtain`), materials | ●●● | preset/default; stored, not yet used |
+| `art_amount` | How much wall art | 0 bare walls … 1 walls covered | Count framed pieces relative to wall area. | props (art count) | ●●● | default; stored, not yet used |
+| `art_arrangement` | How art is hung | *enum*: `single_statement`, `pair`, `grid`, `salon` (mixed sizes, dense), `ledge_leaning` | Look at the hanging pattern. | props (`art.arrangement`) | ●●● | preset; engine `art.arrangement` (single_statement → single) |
+| `art_content` | What the art shows | *enum*: `abstract_colour`, `line_drawing`, `botanical`, `photography`, `graphic_poster`, `landscape`, `classical_portrait`, `textile_hanging`, `mirror` | Look at the art. | props (`art.content`) | ●●● | preset; engine `art.content` |
+| `plant_amount` | How much greenery | 0 none … 1 jungle | Count plants and the area they cover. | props (`plant_count`) | ●●● | preset (garden ≥ .85); engine `plant_count` = round(× 8), capped by floor area; succulent/palm search word via `plant_kind` |
+| `plant_kind` | Which plants | *enum list*: `sculptural_single` (fiddle-leaf, olive), `trailing`, `palms`, `cacti_succulents`, `branches_ikebana`, `bushy_mixed` | Plant silhouettes. | props (plant builder `kind`) | ●●○ | preset; plant search word (palm, succulent) |
 
 ### I. Lighting (5 dials)
 
-| Dial | Meaning | Range | Judge it from a photo | Drives | AI |
-|---|---|---|---|---|---|
-| `light_warmth_k` | Colour temperature of the artificial light | 2200 (candle-warm) … 2700 (standard warm) … 3000 … 4000 (neutral) | Colour cast of lamplight on white surfaces. **Careful:** the camera's white balance and photo filters distort this. | lighting (Blender lamp colour) | ●○○ (default 2700 and let the user adjust) |
-| `light_level` | Overall brightness and mood | 0 dim, moody, pools of dark … 1 bright, airy, daylight-filled | Photo exposure and dark corners. Also distorted by photography. | lighting (world strength, lamp power), palette (read with `palette_value`) | ●●○ |
-| `light_drama` | Even light vs pools of light (how much the accent layer stands out) | 0 flat and even … 1 strong contrast, lit objects against dark | Bright spots on art or objects vs evenness. | lighting (accent lamp power vs ambient) | ●●○ |
-| `light_layers` | Which layers appear | *set*: `ambient_ceiling`, `pendant`, `floor_lamp`, `table_lamp`, `wall_sconce`, `picture_light`, `led_strip`, `candles` | Count the fixtures you can see. | lighting, props (lamp items) | ●●● |
-| `fixture_style` | Look of the lamps | *enum*: `paper_lantern`, `globe_opal`, `mushroom`, `arc`, `cage_edison`, `pleated_fringed`, `brass_geometric`, `minimal_tube` | Look at the lamps. Mostly follows from the form and material dials, so treat this as an override. | shape (lamp builders) | ●●○ |
+| Dial | Meaning | Range | Judge it from a photo | Drives | AI | In code |
+|---|---|---|---|---|---|---|
+| `light_warmth_k` | Colour temperature of the artificial light | 2200 (candle-warm) … 2700 (standard warm) … 3000 … 4000 (neutral) | Colour cast of lamplight on white surfaces. **Careful:** the camera's white balance and photo filters distort this. | lighting (Blender lamp colour) | ●○○ (default 2700 and let the user adjust) | rule: warm board 2400, cool board 3000, else preset/2700; engine `light_warmth_k` |
+| `light_level` | Overall brightness and mood | 0 dim, moody, pools of dark … 1 bright, airy, daylight-filled | Photo exposure and dark corners. Also distorted by photography. | lighting (world strength, lamp power), palette (read with `palette_value`) | ●●○ | rule: half preset, half palette lightness; stored, not yet used |
+| `light_drama` | Even light vs pools of light (how much the accent layer stands out) | 0 flat and even … 1 strong contrast, lit objects against dark | Bright spots on art or objects vs evenness. | lighting (accent lamp power vs ambient) | ●●○ | preset; stored, not yet used |
+| `light_layers` | Which layers appear | *set*: `ambient_ceiling`, `pendant`, `floor_lamp`, `table_lamp`, `wall_sconce`, `picture_light`, `led_strip`, `candles` | Count the fixtures you can see. | lighting, props (lamp items) | ●●● | default; stored, not yet used |
+| `fixture_style` | Look of the lamps | *enum*: `paper_lantern`, `globe_opal`, `mushroom`, `arc`, `cage_edison`, `pleated_fringed`, `brass_geometric`, `minimal_tube` | Look at the lamps. Mostly follows from the form and material dials, so treat this as an override. | shape (lamp builders) | ●●○ | preset; lamp search word (paper, globe, mushroom…) |
 
 **Era is not a dial.** "1970s" or "mid-century" is a *region* of dial space (section 4). An optional `era_hints` list (`1930s`, `1950s`, `1960s`, `1970s`, `1980s`, `contemporary`) can still bias motif and prop choice, e.g. lava lamp or atomic clock.
 

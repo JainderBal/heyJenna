@@ -9,6 +9,7 @@ import { HealthController } from './health.controller';
 import { RoomEventsModule } from './modules/events/events.module';
 import { RoomJobsModule } from './modules/jobs/jobs.module';
 import { ModelsModule } from './modules/models/models.module';
+import { ChatModule } from './modules/chat/chat.module';
 import { LayoutModule } from './modules/layout/layout.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { RenderModule } from './modules/render/render.module';
@@ -17,7 +18,7 @@ import { SourcingModule } from './modules/sourcing/sourcing.module';
 import { StyleModule } from './modules/style/style.module';
 
 @Module({
-  imports: [ConfigModule, DatabaseModule, StorageModule, EventsModule, JobsModule, AuthModule, RoomsModule, ProjectsModule, StyleModule, SourcingModule, LayoutModule, RenderModule, RoomEventsModule, RoomJobsModule, ModelsModule],
+  imports: [ConfigModule, DatabaseModule, StorageModule, EventsModule, JobsModule, AuthModule, RoomsModule, ProjectsModule, StyleModule, SourcingModule, LayoutModule, RenderModule, RoomEventsModule, RoomJobsModule, ModelsModule, ChatModule],
   controllers: [HealthController],
 })
 export class AppModule {}

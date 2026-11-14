@@ -14,6 +14,8 @@ model Room {
   name      String
   floorPlan Json      @map("floor_plan")         // contracts FloorPlan
   needs     String[]
+  projectId String?   @map("project_id") @db.Uuid  // optional: rooms can live outside a project
+  project   Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   style     Style?
@@ -21,7 +23,23 @@ model Room {
   layouts   Layout[]
 
   @@index([ownerId])
+  @@index([projectId])
   @@map("rooms")
+}
+
+/// A home or job that groups rooms (e.g. "Dundas St condo"). Deleting it keeps its rooms.
+model Project {
+  id        String   @id @default(uuid()) @db.Uuid
+  ownerId   String   @map("owner_id")           // Supabase auth user id
+  name      String
+  kind      String?                              // e.g. condo, house, office
+  palette   String[]                             // optional shared hex colours
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  rooms     Room[]
+
+  @@index([ownerId])
+  @@map("projects")
 }
 
 model Style {

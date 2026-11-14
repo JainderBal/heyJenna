@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { FurnitureType, Size } from './furniture';
 
-export const ListingSource = z.enum(['ebay', 'kijiji', 'facebook', 'ikea', 'web', 'link', 'mock']);
+export const ListingSource = z.enum(['ebay', 'kijiji', 'facebook', 'ikea', 'etsy', 'web', 'link', 'mock']);
 export type ListingSource = z.infer<typeof ListingSource>;
 
 /** One buyable product. We keep the minimum: no seller details, photos are linked not copied. */

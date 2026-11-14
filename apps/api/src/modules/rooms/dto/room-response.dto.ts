@@ -6,6 +6,7 @@ export interface RoomResponseDto {
   name: string;
   floorPlan: FloorPlan;
   needs: string[];
+  projectId: string | null;
   areaM2: number;
   createdAt: string;
   updatedAt: string;

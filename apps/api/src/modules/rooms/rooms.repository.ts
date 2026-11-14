@@ -11,8 +11,34 @@ export class RoomsRepository {
 
   create(ownerId: string, dto: CreateRoomDto): Promise<Room> {
     return this.db.room.create({
-      data: { ownerId, name: dto.name, floorPlan: dto.floorPlan as Prisma.InputJsonValue, needs: dto.needs },
+      data: {
+        ownerId,
+        name: dto.name,
+        floorPlan: dto.floorPlan as Prisma.InputJsonValue,
+        needs: dto.needs,
+        projectId: dto.projectId ?? null,
+      },
     });
+  }
+
+  /** Creates several rooms in one transaction (all or nothing). */
+  createMany(ownerId: string, projectId: string, rooms: CreateRoomDto[]): Promise<Room[]> {
+    return this.db.$transaction(
+      rooms.map((r) =>
+        this.db.room.create({
+          data: { ownerId, projectId, name: r.name, floorPlan: r.floorPlan as Prisma.InputJsonValue, needs: r.needs },
+        }),
+      ),
+    );
+  }
+
+  listByProject(projectId: string, ownerId: string): Promise<Room[]> {
+    return this.db.room.findMany({ where: { projectId, ownerId }, orderBy: { createdAt: 'asc' } });
+  }
+
+  /** True when the project exists and belongs to this owner (rooms may only join the caller's projects). */
+  async projectOwned(projectId: string, ownerId: string): Promise<boolean> {
+    return (await this.db.project.count({ where: { id: projectId, ownerId } })) > 0;
   }
 
   listByOwner(ownerId: string): Promise<Room[]> {
@@ -29,6 +55,7 @@ export class RoomsRepository {
       data: {
         name: dto.name,
         needs: dto.needs,
+        projectId: dto.projectId,
         floorPlan: dto.floorPlan ? (dto.floorPlan as Prisma.InputJsonValue) : undefined,
       },
     });

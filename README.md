@@ -96,6 +96,8 @@ curl -X PATCH $B/rooms/$ROOM/listings/$LISTING -H 'content-type: application/jso
 curl -X POST  $B/rooms/$ROOM/layouts
 curl -X PATCH $B/rooms/$ROOM/layouts/$LAYOUT/objects/desk_1 -H 'content-type: application/json' -d '{"x": 1.2, "rotationDeg": 90}'
 curl -X PATCH $B/rooms/$ROOM/layouts/$LAYOUT/objects/sofa_1 -H 'content-type: application/json' -d '{"listingId": "…"}'
+curl -X POST  $B/rooms/$ROOM/layouts/$LAYOUT/objects -H 'content-type: application/json' -d '{"listingId": "…"}'                  # a side table: lands beside a seat
+curl -X POST  $B/rooms/$ROOM/layouts/$LAYOUT/objects -H 'content-type: application/json' -d '{"listingId": "…", "x": 5.6, "y": 4.4}'  # a plant, where you say
 curl          $B/rooms/$ROOM/layouts/$LAYOUT/shopping-list
 
 # 5. render it (the worker picks the job up)
@@ -122,7 +124,7 @@ curl $B/rooms/$ROOM/renders/$JOB/model -o room.glb
 | GET | `/rooms/:roomId/layouts/:layoutId` | one layout (objects, checks, dropped, shopping list) |
 | GET | `/rooms/:roomId/layouts/:layoutId/shopping-list` | items + total |
 | PATCH | `/rooms/:roomId/layouts/:layoutId/objects/:objectId` | move/turn `{x, y, rotationDeg}`, swap `{listingId}`, or re-hang a wall piece `{wall, position, height}` |
-| POST | `/rooms/:roomId/layouts/:layoutId/objects` | hang one of the room's products on a wall `{listingId, wall?, position?, height?}` (no spot given → best free spot on a visible wall) |
+| POST | `/rooms/:roomId/layouts/:layoutId/objects` | add one of the room's products. Wall piece (art, mirror, wall shelf): `{listingId, wall?, position?, height?}` (no spot → best free spot on a visible wall). Floor piece (armchair, side table, pouf, plant, floor lamp, shelf, sideboard, rug…): `{listingId, x?, y?, rotationDeg?}` (no spot → best free floor spot next to its partner: side table/lamp by a seat, plant in a corner, storage against a wall). Spots that stick out, block a door's 90 cm or put a tall piece in front of a window are refused with `problems`; overlaps come back as `warnings` |
 | DELETE | `/rooms/:roomId/layouts/:layoutId/objects/:objectId` | remove a piece (wall pieces too) |
 | POST | `/rooms/:roomId/layouts/:layoutId/renders` | queue a render |
 | GET | `/rooms/:roomId/renders` · `/rooms/:roomId/renders/:jobId` | render status |

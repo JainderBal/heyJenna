@@ -33,3 +33,17 @@ export const AddPinsRequest = z.object({ pins: z.array(PinRef).min(1).max(8) });
 export const SimilarPinsRequest = z.object({ pins: z.array(PinRef).min(1).max(30) });
 export type AddPinsRequest = z.infer<typeof AddPinsRequest>;
 export type SimilarPinsRequest = z.infer<typeof SimilarPinsRequest>;
+
+/** Import a public board by its URL (no API key): pinterest.com or a regional domain such as pinterest.ca. */
+export const ImportBoardRequest = z.object({ boardUrl: z.string().trim().min(1).max(500) });
+export type ImportBoardRequest = z.infer<typeof ImportBoardRequest>;
+
+/** A pin read from a board's RSS feed. The feed carries no image size. */
+export const ImportedPin = PinterestPin.omit({ size: true });
+export type ImportedPin = z.infer<typeof ImportedPin>;
+
+export const ImportBoardResponse = z.object({
+  board: z.object({ title: z.string(), url: z.string().url() }),
+  pins: z.array(ImportedPin),
+});
+export type ImportBoardResponse = z.infer<typeof ImportBoardResponse>;

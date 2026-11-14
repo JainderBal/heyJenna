@@ -1,7 +1,9 @@
-import { BadGatewayException, Injectable, NotImplementedException } from '@nestjs/common';
-import { PinterestBoard, PinterestPin } from '@hey-jenna/contracts';
+import { BadGatewayException, Injectable, NotFoundException, NotImplementedException } from '@nestjs/common';
+import { ImportBoardResponse, PinterestBoard, PinterestPin } from '@hey-jenna/contracts';
 import { z } from 'zod';
 import { AppConfig } from '../../common/config/app-config.service';
+import { safeFetch, UnsafeUrlError } from '../../common/http/safe-fetch';
+import { looksLikeFeed, parseBoardFeed, parseBoardUrl } from './board-rss';
 
 const API = 'https://api.pinterest.com/v5';
 
@@ -45,6 +47,24 @@ export class PinterestService {
       items.push({ id: p.id, title: p.title || null, imageUrl: img.url, size: { width: img.width, height: img.height }, link: p.link || null });
     }
     return { items, bookmark: raw.bookmark ?? null };
+  }
+
+  /** Public board through its RSS feed: no token needed. */
+  async importBoard(boardUrl: string): Promise<ImportBoardResponse> {
+    const ref = parseBoardUrl(boardUrl);
+    let xml: string;
+    try {
+      // safeFetch has no host allowlist (https + public IPs only), so Pinterest hosts need no extra rule.
+      const res = await safeFetch(ref.feedUrl, { accept: 'application/rss+xml, application/xml, text/xml', maxBytes: 4 * 1024 * 1024 });
+      xml = res.body.toString('utf8');
+    } catch (e) {
+      if (e instanceof UnsafeUrlError) throw new BadGatewayException('Pinterest feed could not be fetched safely');
+      if (/HTTP (404|403|410)\b/.test((e as Error).message)) throw new NotFoundException('Board not found, or it is private');
+      throw new BadGatewayException('Pinterest feed could not be fetched');
+    }
+    if (!looksLikeFeed(xml)) throw new NotFoundException('Board not found, or it is private');
+    const feed = parseBoardFeed(xml);
+    return { board: { title: feed.title, url: ref.boardUrl }, pins: feed.pins };
   }
 
   private async get(path: string, bookmark?: string): Promise<unknown> {

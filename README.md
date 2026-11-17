@@ -10,6 +10,33 @@ the Python **layout engine** and the Blender **render worker**.
 - New here (person or agent)? Read [`docs/how-it-works.md`](docs/how-it-works.md), then [`docs/STATUS.md`](docs/STATUS.md): what's built, what's left, how we work.
 - Setting up production? [`docs/production-setup.md`](docs/production-setup.md) lists every account and key.
 
+## Screenshots
+
+Taken from the *Soccer Club · 2-bedroom* demo project.
+
+**Floor plan.** Every room is read from the drawing and shown in 2D and 3D, and each room gets its own budget before jenna furnishes it.
+
+![Floor plan page: 11 rooms found, 2D plan, 3D floor plan and per-room budgets](docs/screenshots/floor-plan.png)
+
+![Close-up of the 2D plan and the 3D floor plan](docs/screenshots/floor-plan-closeup.png)
+
+**A room.** Each room has its own page with the moodboard, the palette pulled from it, the furnished 3D room and the shopping list.
+
+![Salon: moodboard, palette, 3D room and shopping list](docs/screenshots/room-salon.png)
+
+![Chambre 1: moodboard, palette, 3D room and shopping list](docs/screenshots/room-chambre-1.png)
+
+<table>
+  <tr>
+    <td width="60%"><img src="docs/screenshots/3d-room.png" alt="Furnished 3D Salon with live edit and render controls"></td>
+    <td width="40%"><img src="docs/screenshots/shopping-list.png" alt="Shopping list of real IKEA products with prices, total and room budget"></td>
+  </tr>
+  <tr>
+    <td><b>3D room.</b> Spin it, switch to live edit to drag or rotate pieces, or render it in Blender.</td>
+    <td><b>Products.</b> Real IKEA pieces with prices, a swap for each one, the total and the room budget.</td>
+  </tr>
+</table>
+
 ## How it works
 
 ```

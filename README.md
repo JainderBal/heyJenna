@@ -1,5 +1,8 @@
 # hey jenna
 
+> 🥇 **1st Place at [HackDécouverte II](https://hackdecouverte-ii.devpost.com/)** (HackConcordia, 2026) · [Devpost](https://devpost.com/software/hey-jenna)
+> Built by Jainder Bal, Christopher Cardoza and Fanuel Wara.
+
 Give it a **moodboard** and a **floor plan**. It finds **real furniture you can buy**
 (IKEA, or any link you paste) in the same style and colours,
 places it in your room with interior-design rules, and lets you move or swap pieces.
